@@ -100,7 +100,7 @@ After a successful install, `radpress/config/installed.lock` disables the instal
 The default stable update manifest is:
 
 ```text
-https://batoi.com/pub/press/latest.json
+https://www.batoi.com/pub/press/latest.json
 ```
 
 Batoi Press can check the manifest, verify and stage a package, create a backup, apply manifest-listed files in maintenance mode, clear cache, run health checks, roll back automatically after failed checks, and restore manually from a selected backup ZIP.
@@ -113,6 +113,61 @@ Build a local release ZIP with:
 
 ```sh
 php tools/build-release.php
+```
+
+Generate the public update manifest with:
+
+```sh
+php tools/generate-release-manifest.php
+```
+
+The generated files are:
+
+```text
+dist/batoi-press-{version}.zip
+dist/latest.json
+```
+
+`latest.json` is published to:
+
+```text
+https://www.batoi.com/pub/press/latest.json
+```
+
+Versioned ZIP packages are published to:
+
+```text
+https://www.batoi.com/pub/press/releases/batoi-press-{version}.zip
+```
+
+## Release Publication
+
+GitHub Actions publishes release files when a GitHub release is published or when the `Publish release` workflow is run manually. The workflow checks PHP syntax, runs smoke and update tests, builds the ZIP, generates `latest.json`, uploads both files as workflow artifacts, and deploys them to the public Batoi website.
+
+Required GitHub Actions secrets:
+
+- `BATOI_WWW_DEPLOY_HOST`
+- `BATOI_WWW_DEPLOY_USER`
+- `BATOI_WWW_DEPLOY_PORT`
+- `BATOI_WWW_DEPLOY_KEY`
+- `BATOI_WWW_DEPLOY_PATH`
+
+The deploy target layout is:
+
+```text
+{BATOI_WWW_DEPLOY_PATH}/public_html/pub/press/latest.json
+{BATOI_WWW_DEPLOY_PATH}/public_html/pub/press/releases/batoi-press-{version}.zip
+```
+
+Manual fallback:
+
+```sh
+php tools/build-release.php
+php tools/generate-release-manifest.php
+VERSION=$(php -r '$config = json_decode(file_get_contents("radpress/config/update.json"), true); echo $config["current_version"];')
+ssh -p "$BATOI_WWW_DEPLOY_PORT" "$BATOI_WWW_DEPLOY_USER@$BATOI_WWW_DEPLOY_HOST" "mkdir -p '$BATOI_WWW_DEPLOY_PATH/public_html/pub/press/releases'"
+scp -P "$BATOI_WWW_DEPLOY_PORT" dist/latest.json "$BATOI_WWW_DEPLOY_USER@$BATOI_WWW_DEPLOY_HOST:$BATOI_WWW_DEPLOY_PATH/public_html/pub/press/latest.json"
+scp -P "$BATOI_WWW_DEPLOY_PORT" "dist/batoi-press-$VERSION.zip" "$BATOI_WWW_DEPLOY_USER@$BATOI_WWW_DEPLOY_HOST:$BATOI_WWW_DEPLOY_PATH/public_html/pub/press/releases/batoi-press-$VERSION.zip"
 ```
 
 ## Theme Development

@@ -1,0 +1,92 @@
+name: Publish release
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish release package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: zip
+          coverage: none
+
+      - name: Check PHP syntax
+        run: find public_html radpress tools -name '*.php' -print0 | xargs -0 -n 1 php -l
+
+      - name: Run smoke test
+        run: php radpress/tests/smoke.php
+
+      - name: Run update test
+        run: php radpress/tests/update_runner.php
+
+      - name: Build release package
+        run: php tools/build-release.php
+
+      - name: Generate update manifest
+        run: php tools/generate-release-manifest.php
+
+      - name: Resolve release version
+        id: release
+        run: |
+          php -r '$config = json_decode(file_get_contents("radpress/config/update.json"), true); echo "version=" . $config["current_version"] . PHP_EOL;' >> "$GITHUB_OUTPUT"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: batoi-press-${{ steps.release.outputs.version }}
+          path: |
+            dist/batoi-press-${{ steps.release.outputs.version }}.zip
+            dist/latest.json
+          if-no-files-found: error
+
+      - name: Validate deployment secrets
+        env:
+          DEPLOY_HOST: ${{ secrets.BATOI_WWW_DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.BATOI_WWW_DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.BATOI_WWW_DEPLOY_PORT }}
+          DEPLOY_KEY: ${{ secrets.BATOI_WWW_DEPLOY_KEY }}
+          DEPLOY_PATH: ${{ secrets.BATOI_WWW_DEPLOY_PATH }}
+        run: |
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          test -n "$DEPLOY_PORT"
+          test -n "$DEPLOY_KEY"
+          test -n "$DEPLOY_PATH"
+
+      - name: Configure SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.BATOI_WWW_DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.BATOI_WWW_DEPLOY_PORT }}
+          DEPLOY_KEY: ${{ secrets.BATOI_WWW_DEPLOY_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/batoi_www_deploy
+          chmod 600 ~/.ssh/batoi_www_deploy
+          ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy release files
+        env:
+          DEPLOY_HOST: ${{ secrets.BATOI_WWW_DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.BATOI_WWW_DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.BATOI_WWW_DEPLOY_PORT }}
+          DEPLOY_PATH: ${{ secrets.BATOI_WWW_DEPLOY_PATH }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          ssh -i ~/.ssh/batoi_www_deploy -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH/public_html/pub/press/releases'"
+          scp -i ~/.ssh/batoi_www_deploy -P "$DEPLOY_PORT" "dist/latest.json" "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/public_html/pub/press/latest.json"
+          scp -i ~/.ssh/batoi_www_deploy -P "$DEPLOY_PORT" "dist/batoi-press-$VERSION.zip" "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/public_html/pub/press/releases/batoi-press-$VERSION.zip"
