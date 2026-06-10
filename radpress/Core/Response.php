@@ -22,6 +22,11 @@ final class Response
         return new self($body, $status, ['Content-Type' => 'application/xml; charset=UTF-8']);
     }
 
+    public static function redirect(string $location): self
+    {
+        return new self('Redirecting to ' . $location, 302, ['Location' => $location, 'Content-Type' => 'text/plain; charset=UTF-8']);
+    }
+
     public function send(): void
     {
         http_response_code($this->status);
@@ -31,4 +36,3 @@ final class Response
         echo $this->body;
     }
 }
-

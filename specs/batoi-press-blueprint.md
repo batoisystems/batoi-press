@@ -19,8 +19,18 @@ Last updated: 2026-06-10
 * [x] Public rendering for `/`, `/about`, `/blog`, `/blog/first-blog-post`, `/sitemap.xml`, and `/feed.xml`.
 * [x] Read-only Phase 1 admin dashboard added at `/admin`.
 * [x] Update status surface added at `/admin/updates`.
-* [x] Installer status page added at `public_html/install.php` and disabled by `radpress/config/installed.lock`.
-* [x] `batoi.com/press/latest.json` recorded as the default stable update manifest.
+* [x] Browser installer added at `public_html/install.php`.
+* [x] Browser installer writes site config, owner user, security key, and install lock.
+* [x] Basic admin login/logout with sessions, CSRF tokens, password hashes, and rate limiting added.
+* [x] Basic authenticated page/post list, create, edit, and save flows added.
+* [x] Version snapshots and audit log writes added for page/post saves.
+* [x] Basic media, menu, settings, and user management surfaces added.
+* [x] Cache status and clear workflow added.
+* [x] Static export ZIP generation added.
+* [x] Real update manifest check added with graceful failure and audit logging.
+* [x] Update backup creation, package checksum verification, staging, guarded apply, and rollback plumbing added.
+* [x] `batoi.com/pub/press/latest.json` recorded as the default stable update manifest.
+* [x] Batoi UIF native UI layer and optional Batoi AIF integration direction recorded.
 * [x] Sensitive-directory `.htaccess` deny rules added.
 * [x] Initial README and docs added.
 * [x] Smoke test script added.
@@ -28,14 +38,15 @@ Last updated: 2026-06-10
 ### In Progress / Next
 
 * [x] Run syntax and smoke verification.
-* [ ] Replace Phase 1 installer status page with full browser-based installer.
-* [ ] Add authenticated admin login, sessions, CSRF, and rate limiting.
-* [ ] Add page, post, media, menu, settings, and user management.
-* [ ] Add version history and write-action audit logging.
-* [ ] Add cache write/clear workflow.
-* [ ] Add static export ZIP generation.
-* [ ] Add real update check against the public manifest.
-* [ ] Add backup, staging, package verification, and rollback before automated updates.
+* [x] Replace Phase 1 installer status page with browser-based installer.
+* [x] Add authenticated admin login, sessions, CSRF, and rate limiting.
+* [x] Add media, menu, settings, and user management.
+* [x] Add version history and write-action audit logging for page/post saves.
+* [x] Add cache write/clear workflow.
+* [x] Add static export ZIP generation.
+* [x] Add real update check against the public manifest.
+* [x] Add backup, staging, package verification, and guarded live file replacement before automated updates.
+* [ ] Add maintenance mode, post-update health checks, and automatic rollback trigger.
 
 ## 1. Project Name
 
@@ -149,7 +160,6 @@ batoi-press/
 │   │   ├── modules/
 │   │   ├── hooks/
 │   │   └── bootstrap.php
-│   ├── bin/
 │   ├── config/
 │   │   ├── site.json
 │   │   ├── users.json
@@ -201,7 +211,6 @@ batoi-press/
 │   │   ├── esc.php
 │   │   ├── url.php
 │   │   └── date.php
-│   ├── ms/
 │   ├── security/
 │   │   ├── Auth.php
 │   │   ├── Session.php
@@ -227,7 +236,6 @@ batoi-press/
 │   │   ├── BackupManager.php
 │   │   ├── UpdateRunner.php
 │   │   └── RollbackManager.php
-│   ├── vendor/
 │   └── autoload.php
 ├── LICENSE
 ├── README.md
@@ -237,6 +245,8 @@ batoi-press/
 `radpress/` is the private RAD-aligned application root. `radpress/core/` contains the reusable Batoi Press engine. `radpress/app/` is reserved for site-level modules, hooks, and customizations so core code and local extensions do not become tangled.
 
 `radpress/data/` stores runtime and generated state. Use `data`, not `storage`, to align with Batoi RAD naming.
+
+Keep `radpress/` lean for MVP. Do not create empty `bin/`, `ms/`, or `vendor/` folders. Add `radpress/bin/` only if optional CLI tooling is introduced. Add `radpress/vendor/` only when runtime dependencies such as a packaged Batoi UIF build are bundled. Do not use `radpress/ms/` unless a concrete RAD module-service convention is adopted later.
 
 `public_html/` is the default web root because many cPanel hosts use that name. The public web root must be configurable through `radpress/config/paths.json` for hosts that use `public/`, `htdocs/`, `www/`, or a custom document root.
 
@@ -676,7 +686,70 @@ Batoi Flow publication hooks
 
 Do not implement these integrations in MVP. Keep extension points ready.
 
-## 15. Governance, Security, and Usability
+## 15. Batoi UIF and AIF
+
+Batoi Press should be Batoi-native without compromising its open-source, FTP-deployable, database-free goals.
+
+### Batoi UIF
+
+Batoi UIF should be the native default UI layer for the admin interface and default theme foundation.
+
+Requirements:
+
+* Use Batoi UIF primitives for admin layout, forms, buttons, tables, alerts, and navigation.
+* Include required runtime UIF assets in the release package so Composer, Node.js, or build tools are not required for normal use.
+* Keep custom public themes independent; theme authors may use UIF but should not be forced to.
+* Prefer `radpress/uif/` or `radpress/vendor/batoi-uif/` depending on how UIF is packaged.
+
+### Batoi AIF
+
+Batoi AIF should be supported through native optional integration points, disabled by default.
+
+Requirements:
+
+* Add optional configuration in `radpress/config/aif.json`.
+* Do not require AI setup during installation.
+* Do not require a Batoi Platform account or third-party AI key for normal CMS use.
+* AI features must degrade cleanly when disabled.
+
+Good future AIF use cases:
+
+```text
+Draft page/post content
+Improve SEO title and description
+Suggest tags and categories
+Summarize long posts
+Generate image alt text
+Translate content
+Check tone and readability
+Run optional content governance checks
+```
+
+Avoid in core MVP:
+
+```text
+Mandatory Batoi Platform login
+Mandatory OpenAI, Claude, Gemini, or other AI key
+Background agent workflows
+Network-dependent content publishing
+```
+
+Recommended future structure:
+
+```text
+radpress/
+├── uif/
+│   ├── assets/
+│   └── components/
+├── aif/
+│   ├── AifProvider.php
+│   ├── AifClient.php
+│   └── ContentAssistant.php
+└── config/
+    └── aif.json
+```
+
+## 16. Governance, Security, and Usability
 
 Batoi Press should be governed, secure, and user-friendly by design.
 
@@ -708,7 +781,7 @@ User-friendly system requirements:
 * Simple recovery instructions when an update fails.
 * No command-line requirement for normal operation.
 
-## 16. Update and Backup Model
+## 17. Update and Backup Model
 
 The admin should be able to check whether a newer Batoi Press version is available and apply updates safely.
 
@@ -725,11 +798,13 @@ Recommended public endpoints:
 ```text
 https://batoi.com/press
 https://batoi.com/press/download
-https://batoi.com/press/releases
-https://batoi.com/press/latest.json
+https://batoi.com/pub/press/releases
+https://batoi.com/pub/press/latest.json
 ```
 
-The update checker should query the public `batoi.com/press/latest.json` manifest over HTTPS by default. GitHub releases can remain the canonical source repository release record or fallback download source, but Batoi Press installations should not need GitHub, Git, command-line access, or a Batoi Platform account for basic update checks and downloads.
+The human-facing microsite should remain at `batoi.com/press`. Update manifests and downloadable release artifacts should live under `batoi.com/pub/press/` because that path can be served as static public assets in the RAD-based Batoi website.
+
+The update checker should query the public `batoi.com/pub/press/latest.json` manifest over HTTPS by default. GitHub releases can remain the canonical source repository release record or fallback download source, but Batoi Press installations should not need GitHub, Git, command-line access, or a Batoi Platform account for basic update checks and downloads.
 
 Optional Batoi Platform workspace services may provide registered-site monitoring, security checks, fleet management, update alerts, and assisted lifecycle services. These should be add-on services, not prerequisites for installing or updating the open source package.
 
@@ -739,7 +814,7 @@ Recommended update manifest fields:
 {
   "version": "0.2.0",
   "released_at": "2026-06-10T10:00:00+05:30",
-  "download_url": "https://batoi.com/press/releases/batoi-press-0.2.0.zip",
+  "download_url": "https://batoi.com/pub/press/releases/batoi-press-0.2.0.zip",
   "checksum_sha256": "example-checksum",
   "minimum_php": "8.1",
   "channel": "stable",
@@ -759,10 +834,10 @@ Admin update flow:
 7. System creates a minimal backup.
 8. System verifies package checksum.
 9. System stages files in a temporary directory.
-10. System switches to maintenance mode.
-11. System applies update.
-12. System runs post-update checks.
-13. System clears cache and exits maintenance mode.
+10. System applies manifest-listed files from the staged package.
+11. System clears cache.
+12. Future hardening switches to maintenance mode during replacement.
+13. Future hardening runs post-update checks and automatically rolls back on failure.
 
 Minimal backup should include:
 
@@ -797,9 +872,9 @@ Update safety limits:
 * Prefer signed or checksum-verified release packages.
 * Provide manual ZIP update instructions for hosts that block outbound HTTP requests.
 
-MVP can include update checking only. Automated update installation may be added after the core install, backup, and file integrity model is stable.
+MVP includes update checking, backups, package staging, manifest-driven guarded file replacement, and manual rollback. Maintenance mode, post-update health checks, and automatic rollback remain follow-up hardening items.
 
-## 17. Static Export
+## 18. Static Export
 
 Add a basic static export command in admin:
 
@@ -828,7 +903,7 @@ media/
 
 This makes Batoi Press useful as CMS and static-site generator.
 
-## 18. Coding Standards
+## 19. Coding Standards
 
 Use:
 
@@ -848,7 +923,7 @@ Do not use a heavy framework.
 
 Create a simple autoloader.
 
-## 19. Acceptance Criteria for MVP
+## 20. Acceptance Criteria for MVP
 
 The MVP is complete when:
 
@@ -873,7 +948,7 @@ The MVP is complete when:
 19. Update checks and update attempts are recorded in audit logs.
 20. No MySQL, SQLite, Node.js, Docker, Git, or CLI is required for runtime.
 
-## 20. README Requirements
+## 21. README Requirements
 
 Create `README.md` with:
 
@@ -893,7 +968,7 @@ License
 Contributing guide
 ```
 
-## 21. Documentation Files
+## 22. Documentation Files
 
 Create:
 
@@ -907,7 +982,7 @@ radpress/docs/update-recovery.md
 radpress/docs/roadmap.md
 ```
 
-## 22. License
+## 23. License
 
 Use:
 
@@ -917,7 +992,7 @@ MIT License
 
 Batoi Press should be released as open source under the MIT License.
 
-## 23. Development Phases
+## 24. Development Phases
 
 ### Phase 1: Foundation
 
@@ -981,7 +1056,7 @@ Batoi Press should be released as open source under the MIT License.
 * Rollback workflow
 * Manual update fallback
 
-## 24. Initial Codex Task
+## 25. Initial Codex Task
 
 Implement Phase 1 first.
 

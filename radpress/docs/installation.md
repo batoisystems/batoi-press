@@ -23,3 +23,18 @@ public_html/install.php
 ```
 
 When `radpress/config/installed.lock` exists, the installer is disabled.
+
+To perform a fresh browser setup, remove the lock file manually on the server and open:
+
+```text
+/install.php
+```
+
+The installer creates or updates:
+
+```text
+radpress/config/site.json
+radpress/config/users.json
+radpress/config/security.json
+radpress/config/installed.lock
+```

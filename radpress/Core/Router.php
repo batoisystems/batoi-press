@@ -4,9 +4,25 @@ declare(strict_types=1);
 namespace Batoi\Press\Core;
 
 use Batoi\Press\Admin\DashboardController;
+use Batoi\Press\Admin\AuthController;
+use Batoi\Press\Admin\CacheController;
+use Batoi\Press\Admin\ExportController;
+use Batoi\Press\Admin\MediaController;
+use Batoi\Press\Admin\MenuController;
+use Batoi\Press\Admin\PageController;
+use Batoi\Press\Admin\PostController;
+use Batoi\Press\Admin\SettingsController;
 use Batoi\Press\Admin\UpdateController;
+use Batoi\Press\Admin\UserController;
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
+use Batoi\Press\Core\AuditLog;
+use Batoi\Press\Core\FileStore;
+use Batoi\Press\Core\StaticExporter;
+use Batoi\Press\Security\Auth;
+use Batoi\Press\Security\Csrf;
+use Batoi\Press\Security\RateLimiter;
+use Batoi\Press\Security\Session;
 
 final class Router
 {
@@ -37,18 +53,155 @@ final class Router
             return $post ? $this->theme->render('post', ['post' => $post, 'title' => (string)$post['title']]) : $this->notFound();
         }
 
-        if ($request->path === '/admin') {
-            return (new DashboardController($this->config, $this->pages, $this->posts))->index();
-        }
-
-        if ($request->path === '/admin/updates') {
-            return (new UpdateController($this->config))->index();
+        if (str_starts_with($request->path, '/admin')) {
+            return $this->admin($request);
         }
 
         $slug = $request->path === '/' ? 'home' : trim($request->path, '/');
         $page = $this->pages->findBySlug($slug);
 
         return $page ? $this->theme->render('page', ['page' => $page, 'title' => (string)$page['title']]) : $this->notFound();
+    }
+
+    private function admin(Request $request): Response
+    {
+        $session = new Session(
+            (string)($this->config->security()['session_name'] ?? 'batoi_press_session'),
+            $this->config->paths()->dataPath('sessions')
+        );
+        $csrf = new Csrf($session);
+        $files = new FileStore();
+        $auth = new Auth($this->config->paths(), $session, $files);
+        $rateLimiter = new RateLimiter($this->config->paths());
+        $authController = new AuthController($this->config, $auth, $csrf, $rateLimiter);
+
+        if ($request->path === '/admin/login') {
+            return $authController->login($request);
+        }
+
+        if ($request->path === '/admin/logout') {
+            return $authController->logout($request);
+        }
+
+        $user = $auth->user();
+        if ($user === null) {
+            return Response::redirect('/admin/login');
+        }
+
+        if ($request->path === '/admin') {
+            return (new DashboardController($this->config, $this->pages, $this->posts, $csrf, $user))->index();
+        }
+
+        $audit = new AuditLog($this->config->paths(), $files);
+        if ($request->path === '/admin/pages') {
+            return (new PageController($this->pages, $csrf, $audit, $user))->index();
+        }
+
+        if ($request->path === '/admin/pages/new') {
+            return (new PageController($this->pages, $csrf, $audit, $user))->edit();
+        }
+
+        if (str_starts_with($request->path, '/admin/pages/edit/')) {
+            return (new PageController($this->pages, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 18)));
+        }
+
+        if ($request->path === '/admin/pages/save' && $request->method === 'POST') {
+            return (new PageController($this->pages, $csrf, $audit, $user))->save($request);
+        }
+
+        if ($request->path === '/admin/posts') {
+            return (new PostController($this->posts, $csrf, $audit, $user))->index();
+        }
+
+        if ($request->path === '/admin/posts/new') {
+            return (new PostController($this->posts, $csrf, $audit, $user))->edit();
+        }
+
+        if (str_starts_with($request->path, '/admin/posts/edit/')) {
+            return (new PostController($this->posts, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 18)));
+        }
+
+        if ($request->path === '/admin/posts/save' && $request->method === 'POST') {
+            return (new PostController($this->posts, $csrf, $audit, $user))->save($request);
+        }
+
+        if ($request->path === '/admin/media') {
+            return (new MediaController($this->config, $csrf, $audit, $user))->index();
+        }
+
+        if ($request->path === '/admin/media/upload' && $request->method === 'POST') {
+            return (new MediaController($this->config, $csrf, $audit, $user))->upload();
+        }
+
+        if ($request->path === '/admin/menus') {
+            return (new MenuController($this->config, $files, $csrf, $audit, $user))->edit();
+        }
+
+        if ($request->path === '/admin/menus/save' && $request->method === 'POST') {
+            return (new MenuController($this->config, $files, $csrf, $audit, $user))->save($request);
+        }
+
+        if ($request->path === '/admin/settings') {
+            return (new SettingsController($this->config, $files, $csrf, $audit, $user))->edit();
+        }
+
+        if ($request->path === '/admin/settings/save' && $request->method === 'POST') {
+            return (new SettingsController($this->config, $files, $csrf, $audit, $user))->save($request);
+        }
+
+        if ($request->path === '/admin/users') {
+            return (new UserController($this->config, $files, $csrf, $audit, $user))->index();
+        }
+
+        if ($request->path === '/admin/users/new') {
+            return (new UserController($this->config, $files, $csrf, $audit, $user))->create();
+        }
+
+        if ($request->path === '/admin/users/save' && $request->method === 'POST') {
+            return (new UserController($this->config, $files, $csrf, $audit, $user))->save($request);
+        }
+
+        if ($request->path === '/admin/cache') {
+            return (new CacheController(new Cache($this->config->paths()), $csrf, $audit, $user))->index();
+        }
+
+        if ($request->path === '/admin/cache/clear' && $request->method === 'POST') {
+            return (new CacheController(new Cache($this->config->paths()), $csrf, $audit, $user))->clear($request->input('csrf_token'));
+        }
+
+        if ($request->path === '/admin/export-static') {
+            return (new ExportController(new StaticExporter($this->config->paths(), $this->pages, $this->posts, $this->config->site()), $csrf, $audit, $user))->index();
+        }
+
+        if ($request->path === '/admin/export-static/run' && $request->method === 'POST') {
+            return (new ExportController(new StaticExporter($this->config->paths(), $this->pages, $this->posts, $this->config->site()), $csrf, $audit, $user))->run($request->input('csrf_token'));
+        }
+
+        if ($request->path === '/admin/updates') {
+            return (new UpdateController($this->config, $csrf, $audit, $user))->index();
+        }
+
+        if ($request->path === '/admin/updates/check' && $request->method === 'POST') {
+            return (new UpdateController($this->config, $csrf, $audit, $user))->check($request->input('csrf_token'));
+        }
+
+        if ($request->path === '/admin/updates/backup' && $request->method === 'POST') {
+            return (new UpdateController($this->config, $csrf, $audit, $user))->backup($request->input('csrf_token'));
+        }
+
+        if ($request->path === '/admin/updates/stage' && $request->method === 'POST') {
+            return (new UpdateController($this->config, $csrf, $audit, $user))->stage($request->input('csrf_token'), $_FILES, $request->input('sha256'));
+        }
+
+        if ($request->path === '/admin/updates/apply' && $request->method === 'POST') {
+            return (new UpdateController($this->config, $csrf, $audit, $user))->apply($request->input('csrf_token'), $request->input('stage'));
+        }
+
+        if ($request->path === '/admin/updates/rollback' && $request->method === 'POST') {
+            return (new UpdateController($this->config, $csrf, $audit, $user))->rollback($request->input('csrf_token'), $request->input('backup'));
+        }
+
+        return $this->notFound();
     }
 
     private function notFound(): Response
@@ -95,4 +248,3 @@ final class Router
         return $xml . '</channel></rss>';
     }
 }
-

@@ -1,6 +1,5 @@
 {
   "current_version": "0.1.0",
   "channel": "stable",
-  "stable_manifest_url": "https://batoi.com/press/latest.json"
+  "stable_manifest_url": "https://batoi.com/pub/press/latest.json"
 }
-

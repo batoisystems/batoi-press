@@ -9,6 +9,7 @@ final class Request
         public readonly string $method,
         public readonly string $path,
         public readonly array $query,
+        public readonly array $post,
         public readonly array $server
     ) {
     }
@@ -32,8 +33,14 @@ final class Request
             strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')),
             $path,
             $_GET,
+            $_POST,
             $_SERVER
         );
     }
-}
 
+    public function input(string $key, string $default = ''): string
+    {
+        $value = $this->post[$key] ?? $this->query[$key] ?? $default;
+        return is_scalar($value) ? trim((string)$value) : $default;
+    }
+}

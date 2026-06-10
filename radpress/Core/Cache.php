@@ -20,4 +20,21 @@ final class Cache
             'writable' => is_dir($dir) && is_writable($dir),
         ];
     }
+
+    public function clear(): int
+    {
+        $dir = $this->paths->dataPath('cache');
+        if (!is_dir($dir)) {
+            return 0;
+        }
+
+        $removed = 0;
+        foreach (glob($dir . '/*') ?: [] as $file) {
+            if (is_file($file) && unlink($file)) {
+                $removed++;
+            }
+        }
+
+        return $removed;
+    }
 }

@@ -10,9 +10,10 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 - HTML page and post bodies with adjacent JSON metadata.
 - Default theme.
 - Public routes for `/`, `/about`, `/blog`, `/blog/first-blog-post`, `/sitemap.xml`, and `/feed.xml`.
-- Read-only Phase 1 admin dashboard at `/admin`.
+- Authenticated read-only admin dashboard at `/admin`.
 - Update status surface at `/admin/updates`.
-- Installer status page at `/install.php`, disabled by `radpress/config/installed.lock`.
+- Browser installer at `/install.php`; after installation it creates `radpress/config/installed.lock`.
+- Cache clear, static export, and update-check admin surfaces.
 
 ## Requirements
 
@@ -32,6 +33,10 @@ Then open:
 - `http://127.0.0.1:8081/about`
 - `http://127.0.0.1:8081/sitemap.xml`
 
+For first-run setup, open:
+
+- `http://127.0.0.1:8081/install.php`
+
 ## Directory Model
 
 - `public_html/` is the browser-facing web root.
@@ -42,6 +47,8 @@ Then open:
 - `radpress/content/` stores page/post HTML bodies and JSON metadata.
 - `radpress/data/` stores cache, logs, sessions, backups, versions, and exports.
 - `radpress/theme/` stores render templates and theme assets.
+
+Empty `bin/`, `ms/`, and `vendor/` directories are intentionally omitted from MVP. Add them only when a concrete CLI, RAD module-service, or bundled dependency requirement exists.
 
 ## Content Format
 
@@ -59,10 +66,10 @@ This keeps metadata structured and content human-readable.
 The default stable update manifest is:
 
 ```text
-https://batoi.com/press/latest.json
+https://batoi.com/pub/press/latest.json
 ```
 
-Automated installation is intentionally deferred until backup, staging, package verification, and rollback are implemented.
+Batoi Press can check the manifest, verify and stage a package, create a backup, apply manifest-listed files, and roll back from a selected backup ZIP. Maintenance mode and post-update health checks remain planned hardening.
 
 ## License
 

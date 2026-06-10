@@ -19,4 +19,3 @@ SEO, sitemap, RSS, cache controls, and static export.
 ## Phase 5
 
 Update checking, backup, package verification, staged updates, and rollback.
-
