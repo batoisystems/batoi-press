@@ -50,9 +50,11 @@ final class BackupManager
         return [
             $this->paths->publicPath(),
             $this->paths->root() . '/radpress/admin',
+            $this->paths->root() . '/radpress/aif',
             $this->paths->root() . '/radpress/core',
             $this->paths->root() . '/radpress/helpers',
             $this->paths->root() . '/radpress/security',
+            $this->paths->root() . '/radpress/uif',
             $this->paths->root() . '/radpress/updates',
             $this->paths->configPath(),
             $this->paths->contentPath(),

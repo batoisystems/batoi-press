@@ -12,6 +12,7 @@ spl_autoload_register(static function (string $class): void {
     $top = array_shift($parts);
 
     $map = [
+        'Aif' => 'aif',
         'Admin' => 'admin',
         'Content' => 'core/content',
         'Core' => 'core',

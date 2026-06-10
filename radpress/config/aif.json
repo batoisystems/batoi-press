@@ -1,0 +1,13 @@
+{
+  "enabled": false,
+  "provider": "disabled",
+  "workspace_required": false,
+  "features": {
+    "draft_content": false,
+    "seo_assist": false,
+    "summarize": false,
+    "tags": false,
+    "translate": false,
+    "alt_text": false
+  }
+}

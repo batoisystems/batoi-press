@@ -9,6 +9,7 @@ final class Config
     private array $routes;
     private array $security;
     private array $update;
+    private array $aif;
 
     private function __construct(
         private readonly Paths $paths,
@@ -18,6 +19,7 @@ final class Config
         $this->routes = $this->readOptionalJson('routes.json', []);
         $this->security = $this->readOptionalJson('security.json', []);
         $this->update = $this->readOptionalJson('update.json', []);
+        $this->aif = $this->readOptionalJson('aif.json', []);
     }
 
     public static function load(string $root): self
@@ -52,6 +54,11 @@ final class Config
     public function update(): array
     {
         return $this->update;
+    }
+
+    public function aif(): array
+    {
+        return $this->aif;
     }
 
     private function readOptionalJson(string $file, array $default): array

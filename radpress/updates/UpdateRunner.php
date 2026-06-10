@@ -181,6 +181,7 @@ final class UpdateRunner
             'LICENSE',
             'public_html/',
             'radpress/admin/',
+            'radpress/aif/',
             'radpress/app/',
             'radpress/core/',
             'radpress/docs/',
@@ -188,8 +189,10 @@ final class UpdateRunner
             'radpress/security/',
             'radpress/tests/',
             'radpress/theme/',
+            'radpress/uif/',
             'radpress/updates/',
             'radpress/autoload.php',
+            'radpress/config/aif.json',
             'radpress/config/update.json',
             'radpress/config/paths.json',
         ];

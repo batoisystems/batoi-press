@@ -14,6 +14,8 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 - Update status surface at `/admin/updates`.
 - Browser installer at `/install.php`; after installation it creates `radpress/config/installed.lock`.
 - Cache clear, static export, and update-check admin surfaces.
+- Bundled Batoi UIF primitives for admin and installer UI.
+- Disabled-by-default Batoi AIF scaffolding with admin status at `/admin/aif`.
 
 ## Requirements
 
@@ -64,6 +66,8 @@ Theme files under `radpress/theme/` must be readable.
 - `radpress/config/` stores JSON configuration.
 - `radpress/content/` stores page/post HTML bodies and JSON metadata.
 - `radpress/data/` stores cache, logs, sessions, backups, versions, and exports.
+- `radpress/uif/` stores native UIF metadata and component notes.
+- `radpress/aif/` stores optional AIF provider scaffolding.
 - `radpress/theme/` stores render templates and theme assets.
 
 Empty `bin/`, `ms/`, and `vendor/` directories are intentionally omitted from MVP. Add them only when a concrete CLI, RAD module-service, or bundled dependency requirement exists.
@@ -114,6 +118,12 @@ php tools/build-release.php
 ## Theme Development
 
 Themes live under `radpress/theme/{theme-name}/` with PHP layouts and optional assets. The active theme is configured in `radpress/config/site.json`.
+
+## Batoi UIF and AIF
+
+Batoi UIF primitives are bundled locally under `public_html/assets/uif/` and documented in `radpress/docs/uif-aif.md`.
+
+Batoi AIF is disabled by default through `radpress/config/aif.json`. It has provider scaffolding for future integrations but makes no AI network calls unless a future provider is explicitly configured.
 
 ## Roadmap
 

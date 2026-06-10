@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Batoi\Press\Core;
 
 use Batoi\Press\Admin\DashboardController;
+use Batoi\Press\Admin\AifController;
 use Batoi\Press\Admin\AuthController;
 use Batoi\Press\Admin\CacheController;
 use Batoi\Press\Admin\ExportController;
@@ -179,6 +180,10 @@ final class Router
 
         if ($request->path === '/admin/export-static/run' && $request->method === 'POST') {
             return (new ExportController(new StaticExporter($this->config->paths(), $this->pages, $this->posts, $this->config->site()), $csrf, $audit, $user))->run($request->input('csrf_token'));
+        }
+
+        if ($request->path === '/admin/aif') {
+            return (new AifController($this->config, $csrf))->index();
         }
 
         if ($request->path === '/admin/updates') {

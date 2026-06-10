@@ -36,7 +36,7 @@ final class DashboardController
         $body .= '<div><dt>Posts</dt><dd>' . count($this->posts->allPublished()) . '</dd></div>';
         $body .= '<div><dt>Cache files</dt><dd>' . (int)$cache['files'] . '</dd></div>';
         $body .= '</dl>';
-        $body .= '<nav class="bp-admin-nav"><a href="/admin/pages">Pages</a><a href="/admin/posts">Posts</a><a href="/admin/media">Media</a><a href="/admin/menus">Menus</a><a href="/admin/settings">Settings</a><a href="/admin/users">Users</a><a href="/admin/cache">Cache</a><a href="/admin/export-static">Static Export</a><a href="/admin/updates">Updates</a><a href="/">View site</a></nav>';
+        $body .= '<nav class="bp-admin-nav bp-uif-toolbar"><a href="/admin/pages">Pages</a><a href="/admin/posts">Posts</a><a href="/admin/media">Media</a><a href="/admin/menus">Menus</a><a href="/admin/settings">Settings</a><a href="/admin/users">Users</a><a href="/admin/cache">Cache</a><a href="/admin/export-static">Static Export</a><a href="/admin/aif">Batoi AIF</a><a href="/admin/updates">Updates</a><a href="/">View site</a></nav>';
         $body .= '<form method="post" action="/admin/logout" class="bp-inline-form">' . $this->csrf->field() . '<button type="submit">Log Out</button></form>';
         $body .= '</main></body></html>';
 
