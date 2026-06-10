@@ -1,0 +1,9 @@
+{
+  "name": "Batoi Press Demo",
+  "tagline": "A secure flat-file CMS and publishing engine aligned with Batoi RAD.",
+  "base_url": "http://localhost:8080",
+  "theme": "default",
+  "locale": "en",
+  "timezone": "Asia/Kolkata"
+}
+

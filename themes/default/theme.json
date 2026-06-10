@@ -1,0 +1,7 @@
+{
+  "name": "Default",
+  "version": "0.1.0",
+  "author": "Batoi",
+  "supports": ["pages", "posts", "menus", "seo"]
+}
+

@@ -1,0 +1,17 @@
+{
+  "id": "post_first",
+  "type": "post",
+  "title": "First Blog Post",
+  "slug": "first-blog-post",
+  "status": "published",
+  "template": "post",
+  "author": "admin",
+  "category": "General",
+  "tags": ["announcement", "cms"],
+  "created_at": "2026-06-10T10:00:00+05:30",
+  "updated_at": "2026-06-10T10:00:00+05:30",
+  "published_at": "2026-06-10T10:00:00+05:30",
+  "seo_title": "First Blog Post",
+  "seo_description": "The first demo post in Batoi Press."
+}
+
