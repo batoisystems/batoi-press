@@ -1,5 +1,6 @@
 /.DS_Store
 /dist/
+/specs/
 radpress/data/backups/*.zip
 radpress/data/cache/*
 radpress/data/export/*.zip

@@ -108,7 +108,7 @@ Release ZIPs should include `public_html/`, `radpress/`, `README.md`, and `LICEN
 Build a local release ZIP with:
 
 ```sh
-php specs/build-release.php
+php tools/build-release.php
 ```
 
 ## Theme Development
@@ -125,4 +125,4 @@ MIT License.
 
 ## Contributing
 
-Keep runtime requirements minimal, avoid database dependencies, preserve the flat-file content model, and update `specs/batoi-press-blueprint.md` when implementation status changes.
+Keep runtime requirements minimal, avoid database dependencies, preserve the flat-file content model, and update tracked documentation when implementation status changes.

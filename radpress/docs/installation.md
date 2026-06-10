@@ -68,7 +68,7 @@ Keep `.gitkeep` and `.htaccess` files in protected runtime directories so upload
 Build a release ZIP with:
 
 ```text
-php specs/build-release.php
+php tools/build-release.php
 ```
 
 Use `--output /path/to/batoi-press.zip` to choose a specific destination.
