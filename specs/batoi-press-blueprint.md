@@ -55,7 +55,8 @@ Last updated: 2026-06-10
 * [x] Final pre-release review of docs, runtime exclusions, and MVP acceptance criteria.
 * [x] Prepare commit and first release package.
 * [x] Create initial release commit and `v0.1.0` tag.
-* [ ] Push release commit and tag when approved.
+* [x] Push release commit and `v0.1.0` tag.
+* [ ] Publish GitHub release notes and attach release ZIP when approved.
 
 ## 1. Project Name
 
