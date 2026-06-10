@@ -17,6 +17,8 @@ radpress/uif/components/
 
 Custom public themes may use UIF, but they are not required to.
 
+Admin controllers render through `Batoi\Press\Admin\AdminLayout`, which loads the bundled UIF stylesheet and script.
+
 ## Batoi AIF
 
 Batoi AIF is optional and disabled by default.
@@ -33,5 +35,7 @@ Default behavior:
 * Provider is `disabled`.
 * No network calls are made.
 * Admin can view status at `/admin/aif`.
+* Guarded content-assist actions exist at `/admin/aif/assist` and return a disabled response until configured.
 
 Future provider adapters can implement `Batoi\Press\Aif\AifProvider`.
+Future Batoi Platform workspace adapters can implement `Batoi\Press\Aif\BatoiWorkspaceAifProvider`.

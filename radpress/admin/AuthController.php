@@ -78,6 +78,6 @@ final class AuthController
 
     private function layout(string $title, string $body): string
     {
-        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>' . htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ' | Batoi Press</title><link rel="stylesheet" href="/assets/css/style.css"></head><body><main class="bp-admin">' . $body . '</main></body></html>';
+        return AdminLayout::render($title, $body);
     }
 }

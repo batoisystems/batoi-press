@@ -29,8 +29,7 @@ final class UpdateController
         $current = htmlspecialchars((string)($update['current_version'] ?? '0.1.0'));
         $manifest = htmlspecialchars((string)($update['stable_manifest_url'] ?? 'https://batoi.com/pub/press/latest.json'));
 
-        $body = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Updates | Batoi Press</title><link rel="stylesheet" href="/assets/css/style.css"></head><body><main class="bp-admin">';
-        $body .= '<h1>Updates</h1>';
+        $body = '<h1>Updates</h1>';
         $body .= '<p>Current version: <strong>' . $current . '</strong></p>';
         $body .= '<p>Stable manifest: <code>' . $manifest . '</code></p>';
         if ($result !== null) {
@@ -53,15 +52,14 @@ final class UpdateController
         $body .= $this->backupList();
         $body .= '<form method="post" action="/admin/logout" class="bp-inline-form">' . $this->csrf->field() . '<button type="submit">Log Out</button></form>';
         $body .= '<p><a href="/admin">Back to admin</a></p>';
-        $body .= '</main></body></html>';
 
-        return Response::html($body);
+        return Response::html(AdminLayout::render('Updates', $body));
     }
 
     public function check(string $token): Response
     {
         if (!$this->csrf->validate($token)) {
-            return Response::html('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Updates | Batoi Press</title><link rel="stylesheet" href="/assets/css/style.css"></head><body><main class="bp-admin"><p class="bp-error">Security token expired.</p><p><a href="/admin/updates">Back</a></p></main></body></html>', 400);
+            return Response::html(AdminLayout::render('Updates', '<p class="bp-error">Security token expired.</p><p><a href="/admin/updates">Back</a></p>'), 400);
         }
 
         $update = $this->config->update();
@@ -181,7 +179,7 @@ final class UpdateController
     private function message(string $title, string $message, bool $error = false, int $status = 200): Response
     {
         $class = $error ? 'bp-error' : 'bp-notice';
-        $body = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>' . htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ' | Batoi Press</title><link rel="stylesheet" href="/assets/css/style.css"></head><body><main class="bp-admin"><p class="' . $class . '">' . htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p><p><a href="/admin/updates">Back to updates</a></p></main></body></html>';
-        return Response::html($body, $status);
+        $body = '<p class="' . $class . '">' . htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p><p><a href="/admin/updates">Back to updates</a></p>';
+        return Response::html(AdminLayout::render($title, $body), $status);
     }
 }

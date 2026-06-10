@@ -186,6 +186,10 @@ final class Router
             return (new AifController($this->config, $csrf))->index();
         }
 
+        if ($request->path === '/admin/aif/assist' && $request->method === 'POST') {
+            return (new AifController($this->config, $csrf))->assist($request);
+        }
+
         if ($request->path === '/admin/updates') {
             return (new UpdateController($this->config, $csrf, $audit, $user))->index();
         }

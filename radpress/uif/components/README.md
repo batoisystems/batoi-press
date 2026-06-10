@@ -21,3 +21,5 @@ The runtime assets are exposed publicly from:
 /assets/uif/uif.css
 /assets/uif/uif.js
 ```
+
+See `examples.html` for markup examples.

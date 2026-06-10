@@ -19,6 +19,25 @@ final class AifManager
         return new DisabledAifProvider();
     }
 
+    public function featureEnabled(string $feature): bool
+    {
+        $features = is_array($this->config['features'] ?? null) ? $this->config['features'] : [];
+        return $this->enabled() && ($features[$feature] ?? false) === true;
+    }
+
+    public function assist(string $feature, array $context = []): array
+    {
+        if (!$this->featureEnabled($feature)) {
+            return [
+                'ok' => false,
+                'feature' => $feature,
+                'error' => 'Batoi AIF feature is disabled.',
+            ];
+        }
+
+        return $this->provider()->assist($feature, $context);
+    }
+
     public function status(): array
     {
         $provider = $this->provider();

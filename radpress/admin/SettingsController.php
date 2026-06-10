@@ -59,7 +59,7 @@ final class SettingsController
 
     private function layout(string $title, string $body): string
     {
-        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>' . $this->e($title) . ' | Batoi Press</title><link rel="stylesheet" href="/assets/css/style.css"></head><body><main class="bp-admin">' . $body . '</main></body></html>';
+        return AdminLayout::render($title, $body);
     }
 
     private function e(string $value): string
