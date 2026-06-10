@@ -1,6 +1,6 @@
 {
   "name": "Batoi UIF for Batoi Press",
-  "version": "0.2.0-dev",
+  "version": "0.2.0",
   "runtime": "bundled",
   "public_assets": "/assets/uif/",
   "description": "Native UI primitives for Batoi Press admin, installer, and default theme foundations."
