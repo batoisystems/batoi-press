@@ -56,7 +56,8 @@ Last updated: 2026-06-10
 * [x] Prepare commit and first release package.
 * [x] Create initial release commit and `v0.1.0` tag.
 * [x] Push release commit and `v0.1.0` tag.
-* [ ] Publish GitHub release notes and attach release ZIP when approved.
+* [x] Draft `v0.1.0` GitHub release notes locally.
+* [ ] Publish GitHub release notes and attach release ZIP when GitHub CLI authentication is restored.
 
 ## 1. Project Name
 
