@@ -26,7 +26,7 @@ final class BackupManager
         }
 
         foreach ($this->backupRoots() as $root) {
-            if (!is_dir($root)) {
+            if (!is_dir($root) && !is_file($root)) {
                 continue;
             }
             foreach ($this->files($root) as $file) {
@@ -48,15 +48,28 @@ final class BackupManager
     private function backupRoots(): array
     {
         return [
+            $this->paths->publicPath(),
+            $this->paths->root() . '/radpress/admin',
+            $this->paths->root() . '/radpress/core',
+            $this->paths->root() . '/radpress/helpers',
+            $this->paths->root() . '/radpress/security',
+            $this->paths->root() . '/radpress/updates',
             $this->paths->configPath(),
             $this->paths->contentPath(),
             $this->paths->themePath(),
             $this->paths->get('app'),
+            $this->paths->root() . '/radpress/autoload.php',
+            $this->paths->root() . '/README.md',
+            $this->paths->root() . '/LICENSE',
         ];
     }
 
     private function files(string $dir): array
     {
+        if (is_file($dir)) {
+            return [$dir];
+        }
+
         $files = [];
         foreach (scandir($dir) ?: [] as $item) {
             if ($item === '.' || $item === '..') {

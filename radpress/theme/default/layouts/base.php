@@ -1,7 +1,8 @@
 <?php
 declare(strict_types=1);
 
-$pageTitle = isset($title) && $title !== '' ? $title . ' | ' . ($site['name'] ?? 'Batoi Press') : ($site['name'] ?? 'Batoi Press');
+$seoTitle = $page['seo_title'] ?? $post['seo_title'] ?? '';
+$pageTitle = $seoTitle !== '' ? $seoTitle : (isset($title) && $title !== '' ? $title . ' | ' . ($site['name'] ?? 'Batoi Press') : ($site['name'] ?? 'Batoi Press'));
 $description = $page['seo_description'] ?? $post['seo_description'] ?? $site['tagline'] ?? '';
 ?>
 <!doctype html>
@@ -37,4 +38,3 @@ $description = $page['seo_description'] ?? $post['seo_description'] ?? $site['ta
 </div>
 </body>
 </html>
-

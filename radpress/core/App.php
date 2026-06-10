@@ -15,6 +15,11 @@ final class App
     public function handle(Request $request): Response
     {
         $config = Config::load($this->root);
+        $maintenance = new MaintenanceMode($config->paths());
+        if ($maintenance->active() && !str_starts_with($request->path, '/admin')) {
+            return $maintenance->response();
+        }
+
         $files = new FileStore();
         $html = new HtmlContent();
         $theme = new Theme($config->paths(), $config->site());
@@ -24,4 +29,3 @@ final class App
         return (new Router($theme, $pages, $posts, $config))->dispatch($request);
     }
 }
-

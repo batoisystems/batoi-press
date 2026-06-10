@@ -25,11 +25,21 @@ final class MediaController
         $body .= $this->csrf->field();
         $body .= '<label>Upload File <input type="file" name="media" required></label>';
         $body .= '<button type="submit">Upload</button></form>';
-        $body .= '<h2>Files</h2><ul class="bp-list">';
-        foreach ($this->files() as $file) {
-            $body .= '<li><code>' . $this->e(basename($file)) . '</code></li>';
+        $body .= '<h2>Files</h2>';
+        $files = $this->files();
+        if ($files === []) {
+            $body .= '<p>No media files uploaded yet.</p>';
+        } else {
+            $body .= '<table class="bp-table"><thead><tr><th>File</th><th>URL</th><th>HTML</th></tr></thead><tbody>';
+            foreach ($files as $file) {
+                $name = basename($file);
+                $url = '/media/' . rawurlencode($name);
+                $snippet = $this->isImage($name) ? '<img src="' . $url . '" alt="">' : '';
+                $body .= '<tr><td><code>' . $this->e($name) . '</code></td><td><input class="bp-code-input" readonly value="' . $this->e($url) . '"></td><td><input class="bp-code-input" readonly value="' . $this->e($snippet) . '"></td></tr>';
+            }
+            $body .= '</tbody></table>';
         }
-        $body .= '</ul><p><a href="/admin">Back to admin</a></p>';
+        $body .= '<p><a href="/admin">Back to admin</a></p>';
         return Response::html($this->layout('Media', $body));
     }
 
@@ -70,5 +80,10 @@ final class MediaController
     private function e(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    private function isImage(string $name): bool
+    {
+        return in_array(strtolower(pathinfo($name, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
     }
 }

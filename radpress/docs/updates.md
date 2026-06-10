@@ -20,9 +20,12 @@ Implemented safety steps:
 - Extract a package into a staging directory.
 - Require a release manifest inside the staged package.
 - Apply only manifest-listed files to allowed runtime paths.
+- Enable maintenance mode while applying staged files.
+- Clear cache and run post-update health checks after replacement.
+- Automatically restore from the pre-update backup when a guarded apply or health check fails.
 - Restore files from a selected backup ZIP.
 
-Follow-up hardening should add maintenance mode, post-update health checks, and automatic rollback after failed checks.
+Follow-up hardening should add broader update tests and optional signed package verification.
 
 Release packages must include `release.json`, `batoi-press-release.json`, or `manifest.json` at the package root. The manifest must list installable files:
 

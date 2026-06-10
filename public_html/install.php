@@ -18,7 +18,7 @@ function bp_install_esc(string $value): string
 
 function bp_install_layout(string $title, string $body): void
 {
-    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>' . bp_install_esc($title) . ' | Batoi Press</title><link rel="stylesheet" href="/assets/css/style.css"></head><body><main class="bp-admin">' . $body . '</main></body></html>';
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . bp_install_esc($title) . ' | Batoi Press</title><link rel="stylesheet" href="/assets/css/style.css"></head><body><main class="bp-admin bp-installer">' . $body . '</main></body></html>';
 }
 
 function bp_install_write_json(string $path, array $data): void
@@ -28,7 +28,7 @@ function bp_install_write_json(string $path, array $data): void
 
 if (is_file($lock)) {
     http_response_code(403);
-    bp_install_layout('Installer Disabled', '<h1>Installer Disabled</h1><p>Batoi Press is already installed. Remove <code>radpress/config/installed.lock</code> manually on the server to re-enable setup.</p><p><a href="/">View site</a></p>');
+    bp_install_layout('Installer Disabled', '<h1>Installer Disabled</h1><p>Batoi Press is already installed. Remove <code>radpress/config/installed.lock</code> manually on the server to re-enable setup.</p><p class="bp-actions"><a class="bp-button bp-button-secondary" href="/">View site</a><a class="bp-button" href="/admin/login">Admin login</a></p>');
     exit;
 }
 
@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $errors === []) {
 
         file_put_contents($lock, 'installed ' . date(DATE_ATOM) . "\n", LOCK_EX);
 
-        bp_install_layout('Installation Complete', '<h1>Installation Complete</h1><p>The installer is now locked by <code>radpress/config/installed.lock</code>.</p><p><a href="/admin/login">Log in to admin</a></p>');
+        bp_install_layout('Installation Complete', '<h1>Installation Complete</h1><p>The installer is now locked by <code>radpress/config/installed.lock</code>.</p><p class="bp-actions"><a class="bp-button" href="/admin/login">Log in to admin</a><a class="bp-button bp-button-secondary" href="/">View site</a></p>');
         exit;
     }
 }
@@ -113,23 +113,26 @@ if ($errors !== []) {
     $body .= '</ul></div>';
 }
 
-$body .= '<dl class="bp-stats">';
+$body .= '<dl class="bp-stats bp-checks">';
 foreach ($checks as $label => $ok) {
-    $body .= '<div><dt>' . bp_install_esc($label) . '</dt><dd>' . ($ok ? 'OK' : 'Needs attention') . '</dd></div>';
+    $body .= '<div class="' . ($ok ? 'is-ok' : 'is-error') . '"><dt>' . bp_install_esc($label) . '</dt><dd>' . ($ok ? 'Ready' : 'Needs attention') . '</dd></div>';
 }
 $body .= '</dl>';
 
 if ($errors === [] || $_SERVER['REQUEST_METHOD'] === 'POST') {
     $detectedBase = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $siteValue = bp_install_esc(trim((string)($_POST['site_name'] ?? 'Batoi Press')));
+    $baseValue = bp_install_esc(trim((string)($_POST['base_url'] ?? $detectedBase)));
+    $usernameValue = bp_install_esc(trim((string)($_POST['username'] ?? '')));
+    $emailValue = bp_install_esc(trim((string)($_POST['email'] ?? '')));
     $body .= '<form method="post" class="bp-form">';
-    $body .= '<label>Site Name <input type="text" name="site_name" value="Batoi Press" required></label>';
-    $body .= '<label>Base URL <input type="url" name="base_url" value="' . bp_install_esc($detectedBase) . '" required></label>';
-    $body .= '<label>Owner Username <input type="text" name="username" autocomplete="username" required></label>';
-    $body .= '<label>Owner Email <input type="email" name="email" autocomplete="email"></label>';
+    $body .= '<label>Site Name <input type="text" name="site_name" value="' . $siteValue . '" required></label>';
+    $body .= '<label>Base URL <input type="url" name="base_url" value="' . $baseValue . '" required></label>';
+    $body .= '<label>Owner Username <input type="text" name="username" value="' . $usernameValue . '" autocomplete="username" required></label>';
+    $body .= '<label>Owner Email <input type="email" name="email" value="' . $emailValue . '" autocomplete="email"></label>';
     $body .= '<label>Owner Password <input type="password" name="password" autocomplete="new-password" required minlength="10"></label>';
     $body .= '<button type="submit">Install</button>';
     $body .= '</form>';
 }
 
 bp_install_layout('Install', $body);
-

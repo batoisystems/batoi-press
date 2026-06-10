@@ -22,6 +22,11 @@ final class Response
         return new self($body, $status, ['Content-Type' => 'application/xml; charset=UTF-8']);
     }
 
+    public static function body(string $body, string $contentType, int $status = 200): self
+    {
+        return new self($body, $status, ['Content-Type' => $contentType]);
+    }
+
     public static function redirect(string $location): self
     {
         return new self('Redirecting to ' . $location, 302, ['Location' => $location, 'Content-Type' => 'text/plain; charset=UTF-8']);

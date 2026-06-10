@@ -29,6 +29,7 @@ Last updated: 2026-06-10
 * [x] Static export ZIP generation added.
 * [x] Real update manifest check added with graceful failure and audit logging.
 * [x] Update backup creation, package checksum verification, staging, guarded apply, and rollback plumbing added.
+* [x] Maintenance mode, post-update health checks, cache clear, and automatic rollback trigger added for staged updates.
 * [x] `batoi.com/pub/press/latest.json` recorded as the default stable update manifest.
 * [x] Batoi UIF native UI layer and optional Batoi AIF integration direction recorded.
 * [x] Sensitive-directory `.htaccess` deny rules added.
@@ -46,7 +47,15 @@ Last updated: 2026-06-10
 * [x] Add static export ZIP generation.
 * [x] Add real update check against the public manifest.
 * [x] Add backup, staging, package verification, and guarded live file replacement before automated updates.
-* [ ] Add maintenance mode, post-update health checks, and automatic rollback trigger.
+* [x] Add maintenance mode, post-update health checks, and automatic rollback trigger.
+* [x] Add focused automated tests for update backup, staging, apply, health-check failure, and rollback behavior.
+* [x] Resolve uppercase/lowercase git path normalization for `radpress/admin`, `radpress/core`, `radpress/helpers`, and `radpress/security`.
+* [x] Review installer/admin UI polish and prepare release package notes.
+* [x] Add release ZIP build script or documented manual packaging checklist.
+* [x] Final pre-release review of docs, runtime exclusions, and MVP acceptance criteria.
+* [x] Prepare commit and first release package.
+* [x] Create initial release commit and `v0.1.0` tag.
+* [ ] Push release commit and tag when approved.
 
 ## 1. Project Name
 
@@ -872,7 +881,7 @@ Update safety limits:
 * Prefer signed or checksum-verified release packages.
 * Provide manual ZIP update instructions for hosts that block outbound HTTP requests.
 
-MVP includes update checking, backups, package staging, manifest-driven guarded file replacement, and manual rollback. Maintenance mode, post-update health checks, and automatic rollback remain follow-up hardening items.
+MVP includes update checking, backups, package staging, manifest-driven guarded file replacement, maintenance mode during apply, post-update health checks, cache clearing, automatic rollback after failed checks, and manual rollback.
 
 ## 18. Static Export
 

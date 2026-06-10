@@ -25,6 +25,12 @@ a {
     color: var(--bp-accent-dark);
 }
 
+h1,
+h2,
+h3 {
+    line-height: 1.2;
+}
+
 .bp-shell {
     min-height: 100vh;
     display: flex;
@@ -106,6 +112,42 @@ a {
     margin: 40px auto;
 }
 
+.bp-installer {
+    max-width: 760px;
+}
+
+.bp-admin-nav,
+.bp-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.bp-admin-nav a,
+.bp-button {
+    border: 1px solid var(--bp-line);
+    border-radius: 6px;
+    color: var(--bp-text);
+    display: inline-flex;
+    font-weight: 700;
+    min-height: 40px;
+    padding: 8px 12px;
+    text-decoration: none;
+}
+
+.bp-button {
+    background: var(--bp-accent);
+    border-color: var(--bp-accent);
+    color: #fff;
+}
+
+.bp-button-secondary {
+    background: var(--bp-panel);
+    border-color: var(--bp-line);
+    color: var(--bp-text);
+}
+
 .bp-stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -128,6 +170,16 @@ a {
     font-weight: 700;
 }
 
+.bp-checks .is-ok {
+    border-color: #99f6e4;
+    background: #f0fdfa;
+}
+
+.bp-checks .is-error {
+    border-color: #fecaca;
+    background: #fff1f2;
+}
+
 .bp-form {
     display: grid;
     gap: 14px;
@@ -143,13 +195,21 @@ a {
 
 .bp-form input,
 .bp-form textarea,
-.bp-form select {
+.bp-form select,
+.bp-code-input {
     width: 100%;
     border: 1px solid var(--bp-line);
     border-radius: 6px;
     padding: 10px 12px;
     color: var(--bp-text);
     font: inherit;
+}
+
+.bp-code-input {
+    background: #f8fafc;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.875rem;
+    min-width: 220px;
 }
 
 .bp-form textarea {

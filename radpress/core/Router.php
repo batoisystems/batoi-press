@@ -44,6 +44,10 @@ final class Router
             return Response::xml($this->feed());
         }
 
+        if (str_starts_with($request->path, '/media/')) {
+            return $this->media(rawurldecode(substr($request->path, 7)));
+        }
+
         if ($request->path === '/blog') {
             return $this->theme->render('blog', ['posts' => $this->posts->allPublished(), 'title' => 'Blog']);
         }
@@ -207,6 +211,36 @@ final class Router
     private function notFound(): Response
     {
         return $this->theme->render('404', ['title' => 'Page Not Found'], 404);
+    }
+
+    private function media(string $name): Response
+    {
+        $name = basename($name);
+        if ($name === '' || str_contains($name, '..')) {
+            return $this->notFound();
+        }
+
+        $file = $this->config->paths()->contentPath('media/' . $name);
+        if (!is_file($file)) {
+            return $this->notFound();
+        }
+
+        return Response::body((string)file_get_contents($file), $this->mediaType($file));
+    }
+
+    private function mediaType(string $file): string
+    {
+        $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        return match ($extension) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'svg' => 'image/svg+xml',
+            'pdf' => 'application/pdf',
+            'txt', 'md' => 'text/plain; charset=UTF-8',
+            default => 'application/octet-stream',
+        };
     }
 
     private function sitemap(): string

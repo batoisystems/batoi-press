@@ -29,14 +29,14 @@ final class DashboardController
         $body = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Admin | Batoi Press</title><link rel="stylesheet" href="/assets/css/style.css"></head><body><main class="bp-admin">';
         $body .= '<h1>Batoi Press Admin</h1>';
         $body .= '<p>Signed in as <strong>' . htmlspecialchars((string)($this->user['username'] ?? 'admin'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</strong>.</p>';
-        $body .= '<p>This dashboard is read-only. Content management comes in the next implementation phase.</p>';
+        $body .= '<p>Manage content, media, settings, static export, cache, users, and governed updates from this dashboard.</p>';
         $body .= '<dl class="bp-stats">';
         $body .= '<div><dt>Site</dt><dd>' . htmlspecialchars((string)($site['name'] ?? 'Batoi Press')) . '</dd></div>';
         $body .= '<div><dt>Pages</dt><dd>' . count($this->pages->allPublished()) . '</dd></div>';
         $body .= '<div><dt>Posts</dt><dd>' . count($this->posts->allPublished()) . '</dd></div>';
         $body .= '<div><dt>Cache files</dt><dd>' . (int)$cache['files'] . '</dd></div>';
         $body .= '</dl>';
-        $body .= '<p><a href="/admin/pages">Pages</a> · <a href="/admin/posts">Posts</a> · <a href="/admin/media">Media</a> · <a href="/admin/menus">Menus</a> · <a href="/admin/settings">Settings</a> · <a href="/admin/users">Users</a> · <a href="/admin/cache">Cache</a> · <a href="/admin/export-static">Static Export</a> · <a href="/admin/updates">Updates</a> · <a href="/">View site</a></p>';
+        $body .= '<nav class="bp-admin-nav"><a href="/admin/pages">Pages</a><a href="/admin/posts">Posts</a><a href="/admin/media">Media</a><a href="/admin/menus">Menus</a><a href="/admin/settings">Settings</a><a href="/admin/users">Users</a><a href="/admin/cache">Cache</a><a href="/admin/export-static">Static Export</a><a href="/admin/updates">Updates</a><a href="/">View site</a></nav>';
         $body .= '<form method="post" action="/admin/logout" class="bp-inline-form">' . $this->csrf->field() . '<button type="submit">Log Out</button></form>';
         $body .= '</main></body></html>';
 

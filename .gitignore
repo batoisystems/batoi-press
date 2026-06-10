@@ -1,0 +1,17 @@
+/.DS_Store
+/dist/
+radpress/data/backups/*.zip
+radpress/data/cache/*
+radpress/data/export/*.zip
+radpress/data/log/*.jsonl
+radpress/data/sessions/sess_*
+radpress/data/tmp/*
+radpress/data/versions/*
+
+!radpress/data/backups/.gitkeep
+!radpress/data/cache/.gitkeep
+!radpress/data/export/.gitkeep
+!radpress/data/log/.gitkeep
+!radpress/data/sessions/.gitkeep
+!radpress/data/tmp/.gitkeep
+!radpress/data/versions/.gitkeep

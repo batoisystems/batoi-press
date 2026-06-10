@@ -134,11 +134,16 @@ final class UpdateController
         $this->audit->record((string)($this->user['username'] ?? 'admin'), ($result['ok'] ?? false) ? 'update.applied' : 'update.apply_failed', $target, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
 
         if ($result['ok'] ?? false) {
-            $message = 'Update applied. Installed files: ' . (string)($result['installed_files'] ?? 0) . '. Backup: ' . (string)($result['backup'] ?? '');
+            $message = 'Update applied. Installed files: ' . (string)($result['installed_files'] ?? 0) . '. Cache files cleared: ' . (string)($result['cache_cleared'] ?? 0) . '. Backup: ' . (string)($result['backup'] ?? '');
             return $this->message('Apply Update', $message);
         }
 
-        return $this->message('Apply Update', (string)($result['error'] ?? 'Update apply failed.'), true, 500);
+        $message = (string)($result['error'] ?? 'Update apply failed.');
+        if (array_key_exists('rolled_back', $result)) {
+            $message .= ($result['rolled_back'] ?? false) ? ' Automatic rollback completed.' : ' Automatic rollback failed: ' . (string)($result['rollback_error'] ?? 'unknown error');
+        }
+
+        return $this->message('Apply Update', $message, true, 500);
     }
 
     private function backupList(): string

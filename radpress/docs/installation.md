@@ -38,3 +38,37 @@ radpress/config/users.json
 radpress/config/security.json
 radpress/config/installed.lock
 ```
+
+## Release Package Notes
+
+A release ZIP should contain the runtime files needed for FTP upload:
+
+```text
+public_html/
+radpress/
+README.md
+LICENSE
+```
+
+Do not include generated runtime state in release packages:
+
+```text
+radpress/config/installed.lock
+radpress/data/backups/*.zip
+radpress/data/cache/*
+radpress/data/export/*.zip
+radpress/data/log/*.jsonl
+radpress/data/sessions/*
+radpress/data/tmp/*
+radpress/data/versions/*
+```
+
+Keep `.gitkeep` and `.htaccess` files in protected runtime directories so uploads preserve the expected folders and deny direct access on Apache-compatible hosts.
+
+Build a release ZIP with:
+
+```text
+php specs/build-release.php
+```
+
+Use `--output /path/to/batoi-press.zip` to choose a specific destination.

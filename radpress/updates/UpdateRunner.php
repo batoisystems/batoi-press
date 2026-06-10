@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Batoi\Press\Update;
 
+use Batoi\Press\Core\Cache;
+use Batoi\Press\Core\MaintenanceMode;
 use Batoi\Press\Core\Paths;
 use ZipArchive;
 
@@ -66,10 +68,14 @@ final class UpdateRunner
             return ['ok' => false, 'error' => 'Unable to create pre-update backup: ' . (string)($backup['error'] ?? 'backup failed')];
         }
 
+        $maintenance = new MaintenanceMode($this->paths);
+        $maintenance->enable('Applying Batoi Press update');
+
         $installed = 0;
+        $installedTargets = [];
         foreach ($files as $file) {
             if (!is_array($file)) {
-                return ['ok' => false, 'error' => 'Release manifest contains an invalid file entry.', 'backup' => $backup['path'] ?? null];
+                return $this->failAndRollback('Release manifest contains an invalid file entry.', (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
             }
 
             $sourceRelative = (string)($file['source'] ?? $file['path'] ?? '');
@@ -79,15 +85,15 @@ final class UpdateRunner
             $target = $this->joinRelative($this->paths->root(), $targetRelative);
 
             if ($source === null || $target === null || !$this->isAllowedTarget($targetRelative)) {
-                return ['ok' => false, 'error' => 'Release manifest contains an unsafe file path.', 'backup' => $backup['path'] ?? null];
+                return $this->failAndRollback('Release manifest contains an unsafe file path.', (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
             }
 
             if (!is_file($source)) {
-                return ['ok' => false, 'error' => 'Staged file is missing: ' . $sourceRelative, 'backup' => $backup['path'] ?? null];
+                return $this->failAndRollback('Staged file is missing: ' . $sourceRelative, (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
             }
 
             if ($checksum !== '' && hash_file('sha256', $source) !== strtolower($checksum)) {
-                return ['ok' => false, 'error' => 'Checksum failed for staged file: ' . $sourceRelative, 'backup' => $backup['path'] ?? null];
+                return $this->failAndRollback('Checksum failed for staged file: ' . $sourceRelative, (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
             }
 
             $targetDir = dirname($target);
@@ -95,16 +101,32 @@ final class UpdateRunner
                 mkdir($targetDir, 0775, true);
             }
 
+            $installedTargets[$target] = is_file($target);
             if (!copy($source, $target)) {
-                return ['ok' => false, 'error' => 'Unable to install file: ' . $targetRelative, 'backup' => $backup['path'] ?? null];
+                return $this->failAndRollback('Unable to install file: ' . $targetRelative, (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
             }
 
             $installed++;
         }
 
+        $cacheCleared = (new Cache($this->paths))->clear();
+        $health = (new UpdateHealthCheck($this->paths))->run($manifest);
+        if (!($health['ok'] ?? false)) {
+            return $this->failAndRollback(
+                'Post-update health check failed: ' . implode('; ', $health['errors'] ?? []),
+                (string)($backup['path'] ?? ''),
+                $maintenance,
+                $installedTargets
+            );
+        }
+
+        $maintenance->disable();
+
         return [
             'ok' => true,
             'installed_files' => $installed,
+            'cache_cleared' => $cacheCleared,
+            'health_check' => $health,
             'backup' => $backup['path'] ?? null,
             'version' => (string)($manifest['version'] ?? ''),
         ];
@@ -178,5 +200,25 @@ final class UpdateRunner
         $realPath = realpath($path);
         $realRoot = realpath($root);
         return $realPath !== false && $realRoot !== false && str_starts_with($realPath, rtrim($realRoot, '/') . '/');
+    }
+
+    private function failAndRollback(string $error, string $backupPath, MaintenanceMode $maintenance, array $installedTargets = []): array
+    {
+        $rollback = $backupPath !== '' ? (new RollbackManager($this->paths))->restore($backupPath) : ['ok' => false, 'error' => 'No backup was available.'];
+        foreach ($installedTargets as $target => $existedBefore) {
+            if ($existedBefore === false && is_file($target)) {
+                unlink($target);
+            }
+        }
+        (new Cache($this->paths))->clear();
+        $maintenance->disable();
+
+        return [
+            'ok' => false,
+            'error' => $error,
+            'backup' => $backupPath,
+            'rolled_back' => $rollback['ok'] ?? false,
+            'rollback_error' => $rollback['error'] ?? null,
+        ];
     }
 }
