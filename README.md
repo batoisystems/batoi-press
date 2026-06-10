@@ -170,16 +170,6 @@ scp -P "$BATOI_WWW_DEPLOY_PORT" dist/latest.json "$BATOI_WWW_DEPLOY_USER@$BATOI_
 scp -P "$BATOI_WWW_DEPLOY_PORT" "dist/batoi-press-$VERSION.zip" "$BATOI_WWW_DEPLOY_USER@$BATOI_WWW_DEPLOY_HOST:$BATOI_WWW_DEPLOY_PATH/public_html/pub/press/releases/batoi-press-$VERSION.zip"
 ```
 
-Local website repo handoff:
-
-```sh
-php tools/build-release.php
-php tools/generate-release-manifest.php
-php tools/copy-release-to-batoi-www.php
-```
-
-By default, the copy helper targets `../batoi-www/public_html/pub/press/`. Override the website checkout with `BATOI_WWW_REPO=/path/to/batoi-www` or `--target /path/to/batoi-www`. Use `--dry-run` to preview the copy.
-
 ## Theme Development
 
 Themes live under `radpress/theme/{theme-name}/` with PHP layouts and optional assets. The active theme is configured in `radpress/config/site.json`.
