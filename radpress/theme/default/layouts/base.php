@@ -13,10 +13,12 @@ $description = $page['seo_description'] ?? $post['seo_description'] ?? $site['ta
     <title><?php echo bp_esc((string)$pageTitle); ?></title>
     <meta name="description" content="<?php echo bp_attr((string)$description); ?>">
     <link rel="canonical" href="<?php echo bp_attr((string)($site['base_url'] ?? '') . ($_SERVER['REQUEST_URI'] ?? '/')); ?>">
+    <link rel="stylesheet" href="/assets/uif/uif.css">
     <link rel="stylesheet" href="/assets/css/style.css">
     <script src="/assets/js/app.js" defer></script>
+    <script src="/assets/uif/uif.js" defer></script>
 </head>
-<body>
+<body class="bp-public-body">
 <div class="bp-shell">
     <header class="bp-header">
         <nav class="bp-nav" aria-label="Main navigation">

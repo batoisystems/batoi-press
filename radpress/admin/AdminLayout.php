@@ -7,7 +7,7 @@ final class AdminLayout
 {
     public static function render(string $title, string $body, string $mainClass = 'bp-admin bp-uif-surface'): string
     {
-        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . self::e($title) . ' | Batoi Press</title><link rel="stylesheet" href="/assets/css/style.css"><script src="/assets/uif/uif.js" defer></script></head><body><main class="' . self::e($mainClass) . '">' . $body . '</main></body></html>';
+        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . self::e($title) . ' | Batoi Press</title><link rel="stylesheet" href="/assets/uif/uif.css"><link rel="stylesheet" href="/assets/css/style.css"><script src="/assets/uif/uif.js" defer></script></head><body class="bp-admin-body"><main class="' . self::e($mainClass) . '">' . $body . '</main></body></html>';
     }
 
     public static function message(string $title, string $message, bool $error = false): string

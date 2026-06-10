@@ -2,13 +2,18 @@
 
 :root {
     color-scheme: light;
-    --bp-bg: #f7f8fa;
+    --bp-bg: #f4f6f8;
+    --bp-bg-strong: #e8edf3;
     --bp-panel: #ffffff;
     --bp-text: #172033;
     --bp-muted: #657085;
     --bp-line: #d9dee8;
     --bp-accent: #0f766e;
     --bp-accent-dark: #115e59;
+    --bp-blue: #1d4ed8;
+    --bp-amber: #b45309;
+    --bp-shadow: 0 18px 50px rgba(23, 32, 51, 0.08);
+    --bp-radius: 8px;
 }
 
 * {
@@ -17,7 +22,9 @@
 
 body {
     margin: 0;
-    background: var(--bp-bg);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(244, 246, 248, 0.92)),
+        var(--bp-bg);
     color: var(--bp-text);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     line-height: 1.55;
@@ -31,6 +38,11 @@ h1,
 h2,
 h3 {
     line-height: 1.2;
+    margin: 0 0 12px;
+}
+
+p {
+    margin: 0 0 14px;
 }
 
 .bp-shell {
@@ -40,8 +52,12 @@ h3 {
 }
 
 .bp-header {
-    border-bottom: 1px solid var(--bp-line);
-    background: var(--bp-panel);
+    background: rgba(255, 255, 255, 0.92);
+    border-bottom: 1px solid rgba(217, 222, 232, 0.82);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    backdrop-filter: blur(12px);
 }
 
 .bp-nav {
@@ -56,7 +72,8 @@ h3 {
 
 .bp-brand {
     color: var(--bp-text);
-    font-weight: 700;
+    font-size: 1.05rem;
+    font-weight: 800;
     text-decoration: none;
 }
 
@@ -67,21 +84,30 @@ h3 {
 }
 
 .bp-links a {
+    border-radius: 6px;
     color: var(--bp-muted);
+    font-weight: 650;
+    padding: 6px 8px;
     text-decoration: none;
+}
+
+.bp-links a:hover {
+    background: #eef7f5;
+    color: var(--bp-accent-dark);
 }
 
 .bp-main {
     width: min(1040px, 100%);
     margin: 0 auto;
-    padding: 40px 20px;
+    padding: 48px 20px;
 }
 
 .bp-article {
     background: var(--bp-panel);
     border: 1px solid var(--bp-line);
-    border-radius: 8px;
-    padding: 28px;
+    border-radius: var(--bp-radius);
+    box-shadow: var(--bp-shadow);
+    padding: clamp(24px, 5vw, 44px);
 }
 
 .bp-article h1 {
@@ -94,6 +120,10 @@ h3 {
     color: var(--bp-muted);
 }
 
+.bp-footer {
+    padding-top: 18px;
+}
+
 .bp-post-list {
     display: grid;
     gap: 16px;
@@ -101,21 +131,79 @@ h3 {
     list-style: none;
 }
 
-.bp-post-list li,
+.bp-post-list li {
+    background: var(--bp-panel);
+    border: 1px solid var(--bp-line);
+    border-radius: var(--bp-radius);
+    padding: 22px;
+}
+
+.bp-post-list h2 {
+    font-size: 1.15rem;
+}
+
 .bp-admin {
     background: var(--bp-panel);
     border: 1px solid var(--bp-line);
-    border-radius: 8px;
-    padding: 20px;
-}
-
-.bp-admin {
-    width: min(900px, calc(100% - 40px));
+    border-radius: var(--bp-radius);
+    box-shadow: var(--bp-shadow);
+    width: min(1040px, calc(100% - 32px));
     margin: 40px auto;
+    padding: clamp(22px, 4vw, 36px);
 }
 
-.bp-installer {
-    max-width: 760px;
+.bp-admin-body,
+.bp-install-body {
+    min-height: 100vh;
+}
+
+.bp-installer-shell {
+    width: min(1040px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: clamp(28px, 5vw, 56px) 0;
+}
+
+.bp-installer-hero {
+    align-items: flex-start;
+    display: flex;
+    gap: 24px;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+
+.bp-installer-hero h1 {
+    font-size: clamp(2rem, 4vw, 3.1rem);
+    letter-spacing: 0;
+}
+
+.bp-installer-hero p {
+    color: var(--bp-muted);
+    font-size: 1.05rem;
+    max-width: 620px;
+}
+
+.bp-installer-badge,
+.bp-section-kicker {
+    color: var(--bp-accent-dark);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.bp-installer-badge {
+    background: #ecfdf5;
+    border: 1px solid #99f6e4;
+    border-radius: 999px;
+    flex: 0 0 auto;
+    padding: 8px 12px;
+}
+
+.bp-installer-panel {
+    box-shadow: var(--bp-shadow);
+    margin: 12vh auto 0;
+    max-width: 680px;
+    padding: clamp(24px, 5vw, 40px);
 }
 
 .bp-admin-nav,
@@ -133,6 +221,8 @@ h3 {
     color: var(--bp-text);
     display: inline-flex;
     font-weight: 700;
+    align-items: center;
+    justify-content: center;
     min-height: 40px;
     padding: 8px 12px;
     text-decoration: none;
@@ -144,6 +234,13 @@ h3 {
     color: #fff;
 }
 
+.bp-admin-nav a:hover,
+.bp-button:hover,
+.bp-form button:hover,
+.bp-inline-form button:hover {
+    filter: brightness(0.96);
+}
+
 .bp-button-secondary {
     background: var(--bp-panel);
     border-color: var(--bp-line);
@@ -152,23 +249,26 @@ h3 {
 
 .bp-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     gap: 12px;
+    margin: 20px 0;
 }
 
 .bp-stats div {
     border: 1px solid var(--bp-line);
-    border-radius: 8px;
-    padding: 14px;
+    border-radius: var(--bp-radius);
+    padding: 16px;
 }
 
 .bp-stats dt {
     color: var(--bp-muted);
     font-size: 0.875rem;
+    font-weight: 650;
 }
 
 .bp-stats dd {
     margin: 4px 0 0;
+    color: var(--bp-text);
     font-weight: 700;
 }
 
@@ -184,8 +284,52 @@ h3 {
 
 .bp-form {
     display: grid;
-    gap: 14px;
+    gap: 16px;
     margin-top: 20px;
+}
+
+.bp-installer-form {
+    box-shadow: var(--bp-shadow);
+    padding: clamp(20px, 4vw, 32px);
+}
+
+.bp-form-section {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: minmax(180px, 0.72fr) minmax(0, 1.4fr);
+    padding: 0 0 22px;
+}
+
+.bp-form-section + .bp-form-section {
+    border-top: 1px solid var(--bp-line);
+    padding-top: 22px;
+}
+
+.bp-form-section h2 {
+    font-size: 1rem;
+}
+
+.bp-form-section p {
+    color: var(--bp-muted);
+    font-size: 0.92rem;
+}
+
+.bp-form-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.bp-field-wide {
+    grid-column: 1 / -1;
+}
+
+.bp-form-actions {
+    align-items: center;
+    border-top: 1px solid var(--bp-line);
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 20px;
 }
 
 .bp-form label {
@@ -202,9 +346,19 @@ h3 {
     width: 100%;
     border: 1px solid var(--bp-line);
     border-radius: 6px;
+    background: #fff;
     padding: 10px 12px;
     color: var(--bp-text);
     font: inherit;
+}
+
+.bp-form input:focus,
+.bp-form textarea:focus,
+.bp-form select:focus,
+.bp-code-input:focus {
+    border-color: var(--bp-accent);
+    box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.16);
+    outline: 0;
 }
 
 .bp-code-input {
@@ -274,4 +428,41 @@ code {
     background: #edf2f7;
     border-radius: 4px;
     padding: 2px 5px;
+}
+
+@media (max-width: 720px) {
+    .bp-nav,
+    .bp-installer-hero,
+    .bp-form-section {
+        display: grid;
+    }
+
+    .bp-links,
+    .bp-actions,
+    .bp-admin-nav {
+        gap: 8px;
+    }
+
+    .bp-main {
+        padding: 28px 16px;
+    }
+
+    .bp-installer-shell,
+    .bp-admin {
+        width: min(100% - 24px, 1040px);
+    }
+
+    .bp-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .bp-form-actions {
+        justify-content: stretch;
+    }
+
+    .bp-form-actions button,
+    .bp-inline-form button,
+    .bp-button {
+        width: 100%;
+    }
 }
