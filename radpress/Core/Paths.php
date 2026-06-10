@@ -41,14 +41,23 @@ final class Paths
         return $this->get('content') . ($path !== '' ? '/' . ltrim($path, '/') : '');
     }
 
+    public function dataPath(string $path = ''): string
+    {
+        return $this->get('data') . ($path !== '' ? '/' . ltrim($path, '/') : '');
+    }
+
     public function storagePath(string $path = ''): string
     {
-        return $this->get('storage') . ($path !== '' ? '/' . ltrim($path, '/') : '');
+        return $this->dataPath($path);
+    }
+
+    public function themePath(string $path = ''): string
+    {
+        return $this->get('theme') . ($path !== '' ? '/' . ltrim($path, '/') : '');
     }
 
     public function themesPath(string $path = ''): string
     {
-        return $this->get('themes') . ($path !== '' ? '/' . ltrim($path, '/') : '');
+        return $this->themePath($path);
     }
 }
-

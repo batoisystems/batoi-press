@@ -23,7 +23,7 @@ final class Config
     public static function load(string $root): self
     {
         $files = new FileStore();
-        $pathFile = $root . '/config/paths.json';
+        $pathFile = $root . '/radpress/config/paths.json';
         $pathConfig = is_file($pathFile) ? $files->readJson($pathFile) : [];
 
         return new self(new Paths($root, $pathConfig), $files);
@@ -60,4 +60,3 @@ final class Config
         return is_file($path) ? $this->files->readJson($path) : $default;
     }
 }
-

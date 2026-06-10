@@ -1,15 +1,15 @@
 <?php
 declare(strict_types=1);
 
-require __DIR__ . '/../radpress/autoload.php';
-require __DIR__ . '/../radpress/Helpers/esc.php';
-require __DIR__ . '/../radpress/Helpers/url.php';
-require __DIR__ . '/../radpress/Helpers/date.php';
+require __DIR__ . '/../autoload.php';
+require __DIR__ . '/../helpers/esc.php';
+require __DIR__ . '/../helpers/url.php';
+require __DIR__ . '/../helpers/date.php';
 
 use Batoi\Press\Core\App;
 use Batoi\Press\Core\Request;
 
-$root = dirname(__DIR__);
+$root = dirname(__DIR__, 2);
 $paths = ['/', '/about', '/blog', '/blog/first-blog-post', '/sitemap.xml', '/feed.xml', '/admin', '/admin/updates'];
 
 foreach ($paths as $path) {
@@ -24,4 +24,3 @@ foreach ($paths as $path) {
 }
 
 echo "Smoke checks passed\n";
-

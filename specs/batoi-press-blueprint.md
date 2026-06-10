@@ -6,7 +6,8 @@ Last updated: 2026-06-10
 
 ### Completed
 
-* [x] Repository scaffold with `public_html/`, `radpress/`, `app/`, `content/`, `config/`, `storage/`, `themes/`, `docs/`, and `tests/`.
+* [x] RAD-aligned repository scaffold with public `public_html/` and private `radpress/` application root.
+* [x] Private `app`, `config`, `content`, `data`, `docs`, `tests`, and `theme` directories moved under `radpress/`.
 * [x] MIT license retained.
 * [x] JSON configuration files added.
 * [x] HTML body plus JSON metadata content model added.
@@ -18,7 +19,7 @@ Last updated: 2026-06-10
 * [x] Public rendering for `/`, `/about`, `/blog`, `/blog/first-blog-post`, `/sitemap.xml`, and `/feed.xml`.
 * [x] Read-only Phase 1 admin dashboard added at `/admin`.
 * [x] Update status surface added at `/admin/updates`.
-* [x] Installer status page added at `public_html/install.php` and disabled by `config/installed.lock`.
+* [x] Installer status page added at `public_html/install.php` and disabled by `radpress/config/installed.lock`.
 * [x] `batoi.com/press/latest.json` recorded as the default stable update manifest.
 * [x] Sensitive-directory `.htaccess` deny rules added.
 * [x] Initial README and docs added.
@@ -134,7 +135,34 @@ batoi-press/
 │   │   └── img/
 │   └── .htaccess
 ├── radpress/
-│   ├── Core/
+│   ├── admin/
+│   │   ├── AuthController.php
+│   │   ├── DashboardController.php
+│   │   ├── PageController.php
+│   │   ├── PostController.php
+│   │   ├── MediaController.php
+│   │   ├── MenuController.php
+│   │   ├── SettingsController.php
+│   │   ├── UpdateController.php
+│   │   └── UserController.php
+│   ├── app/
+│   │   ├── modules/
+│   │   ├── hooks/
+│   │   └── bootstrap.php
+│   ├── bin/
+│   ├── config/
+│   │   ├── site.json
+│   │   ├── users.json
+│   │   ├── routes.json
+│   │   ├── security.json
+│   │   ├── update.json
+│   │   └── paths.json
+│   ├── content/
+│   │   ├── pages/
+│   │   ├── posts/
+│   │   ├── media/
+│   │   └── menus/
+│   ├── core/
 │   │   ├── App.php
 │   │   ├── Router.php
 │   │   ├── Request.php
@@ -147,18 +175,34 @@ batoi-press/
 │   │   ├── FileStore.php
 │   │   ├── Cache.php
 │   │   ├── Slug.php
-│   │   └── Validator.php
-│   ├── Admin/
-│   │   ├── AuthController.php
-│   │   ├── DashboardController.php
-│   │   ├── PageController.php
-│   │   ├── PostController.php
-│   │   ├── MediaController.php
-│   │   ├── MenuController.php
-│   │   ├── SettingsController.php
-│   │   ├── UpdateController.php
-│   │   └── UserController.php
-│   ├── Security/
+│   │   ├── Validator.php
+│   │   └── content/
+│   │       ├── PageRepository.php
+│   │       ├── PostRepository.php
+│   │       ├── MediaRepository.php
+│   │       └── VersionRepository.php
+│   ├── data/
+│   │   ├── cache/
+│   │   ├── backups/
+│   │   ├── versions/
+│   │   ├── log/
+│   │   ├── sessions/
+│   │   ├── tmp/
+│   │   └── export/
+│   ├── docs/
+│   │   ├── installation.md
+│   │   ├── security.md
+│   │   ├── theme-development.md
+│   │   ├── content-format.md
+│   │   ├── updates.md
+│   │   ├── update-recovery.md
+│   │   └── roadmap.md
+│   ├── helpers/
+│   │   ├── esc.php
+│   │   ├── url.php
+│   │   └── date.php
+│   ├── ms/
+│   ├── security/
 │   │   ├── Auth.php
 │   │   ├── Session.php
 │   │   ├── Csrf.php
@@ -166,73 +210,35 @@ batoi-press/
 │   │   ├── RateLimiter.php
 │   │   ├── UploadGuard.php
 │   │   └── AccessGuard.php
-│   ├── Content/
-│   │   ├── PageRepository.php
-│   │   ├── PostRepository.php
-│   │   ├── MediaRepository.php
-│   │   └── VersionRepository.php
-│   ├── Update/
+│   ├── tests/
+│   ├── theme/
+│   │   └── default/
+│   │       ├── theme.json
+│   │       ├── layouts/
+│   │       │   ├── base.php
+│   │       │   ├── page.php
+│   │       │   ├── post.php
+│   │       │   ├── blog.php
+│   │       │   └── 404.php
+│   │       └── assets/
+│   ├── updates/
 │   │   ├── VersionChecker.php
 │   │   ├── PackageVerifier.php
 │   │   ├── BackupManager.php
 │   │   ├── UpdateRunner.php
 │   │   └── RollbackManager.php
-│   ├── Helpers/
-│   │   ├── esc.php
-│   │   ├── url.php
-│   │   └── date.php
+│   ├── vendor/
 │   └── autoload.php
-├── app/
-│   ├── modules/
-│   ├── hooks/
-│   └── bootstrap.php
-├── content/
-│   ├── pages/
-│   ├── posts/
-│   ├── media/
-│   └── menus/
-├── config/
-│   ├── site.json
-│   ├── users.json
-│   ├── routes.json
-│   ├── security.json
-│   ├── update.json
-│   └── paths.json
-├── storage/
-│   ├── cache/
-│   ├── backups/
-│   ├── versions/
-│   ├── logs/
-│   ├── sessions/
-│   ├── tmp/
-│   └── export/
-├── themes/
-│   └── default/
-│       ├── theme.json
-│       ├── layouts/
-│       │   ├── base.php
-│       │   ├── page.php
-│       │   ├── post.php
-│       │   ├── blog.php
-│       │   └── 404.php
-│       └── assets/
-├── tests/
-├── docs/
-│   ├── installation.md
-│   ├── security.md
-│   ├── theme-development.md
-│   ├── content-format.md
-│   ├── updates.md
-│   ├── update-recovery.md
-│   └── roadmap.md
 ├── LICENSE
 ├── README.md
 └── batoi-press.php
 ```
 
-`radpress/` contains the reusable Batoi Press engine. `app/` is reserved for site-level modules, hooks, and customizations so core code and local extensions do not become tangled.
+`radpress/` is the private RAD-aligned application root. `radpress/core/` contains the reusable Batoi Press engine. `radpress/app/` is reserved for site-level modules, hooks, and customizations so core code and local extensions do not become tangled.
 
-`public_html/` is the default web root because many cPanel hosts use that name. The public web root must be configurable through `config/paths.json` for hosts that use `public/`, `htdocs/`, `www/`, or a custom document root.
+`radpress/data/` stores runtime and generated state. Use `data`, not `storage`, to align with Batoi RAD naming.
+
+`public_html/` is the default web root because many cPanel hosts use that name. The public web root must be configurable through `radpress/config/paths.json` for hosts that use `public/`, `htdocs/`, `www/`, or a custom document root.
 
 ## 7. Deployment Model
 
@@ -242,11 +248,6 @@ Preferred deployment:
 
 ```text
 /radpress
-/app
-/config
-/content
-/storage
-/themes
 ```
 
 should remain outside public web root when possible, while `public_html/` is the only browser-facing directory.
@@ -257,10 +258,6 @@ Create Apache rules that deny direct browser access to:
 
 ```text
 /radpress
-/app
-/config
-/content
-/storage
 ```
 
 Only `/public_html/index.php`, `/public_html/admin.php`, and the temporary installer entrypoint should execute requests by default.
@@ -274,8 +271,8 @@ Configuration files should use JSON. Page and post bodies should use HTML files,
 Recommended page file pair:
 
 ```text
-content/pages/about/meta.json
-content/pages/about/body.html
+radpress/content/pages/about/meta.json
+radpress/content/pages/about/body.html
 ```
 
 Example page metadata:
@@ -307,8 +304,8 @@ Example page body:
 Recommended post file pair:
 
 ```text
-content/posts/first-blog-post/meta.json
-content/posts/first-blog-post/body.html
+radpress/content/posts/first-blog-post/meta.json
+radpress/content/posts/first-blog-post/body.html
 ```
 
 Example post metadata:
@@ -380,17 +377,17 @@ Implement these first.
 
 ### Content Storage
 
-* Save page metadata and HTML bodies in `/content/pages`
-* Save post metadata and HTML bodies in `/content/posts`
-* Save media in `/content/media`
-* Save menus in `/content/menus`
-* Save update backups in `/storage/backups`
-* Save versions in `/storage/versions`
-* Save audit logs in `/storage/logs/audit.jsonl`
+* Save page metadata and HTML bodies in `radpress/content/pages`
+* Save post metadata and HTML bodies in `radpress/content/posts`
+* Save media in `radpress/content/media`
+* Save menus in `radpress/content/menus`
+* Save update backups in `radpress/data/backups`
+* Save versions in `radpress/data/versions`
+* Save audit logs in `radpress/data/log/audit.jsonl`
 
 ### Cache
 
-* Rendered page cache in `/storage/cache`
+* Rendered page cache in `radpress/data/cache`
 * Clear cache from admin
 * Auto-clear affected cache after publish/update/delete
 
@@ -529,7 +526,7 @@ Provide a browser-based installer script at the public web root, for example:
 public_html/install.php
 ```
 
-On first run, if `config/site.json` or `config/users.json` does not exist, the installer should guide setup.
+On first run, if `radpress/config/site.json` or `radpress/config/users.json` does not exist, the installer should guide setup.
 
 Installer steps:
 
@@ -546,7 +543,7 @@ Installer steps:
 Create:
 
 ```text
-config/installed.lock
+radpress/config/installed.lock
 ```
 
 After installation, setup must not be accessible unless the lock file is removed manually by someone with server access.
@@ -608,9 +605,9 @@ index.php?route=/about
 Each theme has:
 
 ```text
-themes/theme-name/theme.json
-themes/theme-name/layouts/
-themes/theme-name/assets/
+radpress/theme/theme-name/theme.json
+radpress/theme/theme-name/layouts/
+radpress/theme/theme-name/assets/
 ```
 
 `theme.json` example:
@@ -770,10 +767,10 @@ Admin update flow:
 Minimal backup should include:
 
 ```text
-config/
-content/
-themes/
-app/
+radpress/config/
+radpress/content/
+radpress/theme/
+radpress/app/
 current version manifest
 files that will be overwritten
 ```
@@ -781,7 +778,7 @@ files that will be overwritten
 Backups should be written to:
 
 ```text
-storage/backups/
+radpress/data/backups/
 ```
 
 Rollback requirements:
@@ -790,11 +787,11 @@ Rollback requirements:
 * If staging fails, do not modify the live installation.
 * If post-update checks fail, restore overwritten files from backup.
 * Log update status and rollback details.
-* Keep manual recovery instructions in `docs/update-recovery.md`.
+* Keep manual recovery instructions in `radpress/docs/update-recovery.md`.
 
 Update safety limits:
 
-* Never overwrite `content/`, `config/`, `storage/`, custom `themes/`, or `app/` files unless a migration explicitly requires it and the admin confirms.
+* Never overwrite `radpress/content/`, `radpress/config/`, `radpress/data/`, custom `radpress/theme/`, or `radpress/app/` files unless a migration explicitly requires it and the admin confirms.
 * Do not run arbitrary remote PHP code from an update package.
 * Require HTTPS for remote update checks and downloads.
 * Prefer signed or checksum-verified release packages.
@@ -813,7 +810,7 @@ Add a basic static export command in admin:
 Output:
 
 ```text
-/storage/export/site-static.zip
+radpress/data/export/site-static.zip
 ```
 
 The export should generate:
@@ -901,13 +898,13 @@ Contributing guide
 Create:
 
 ```text
-docs/installation.md
-docs/security.md
-docs/content-format.md
-docs/theme-development.md
-docs/updates.md
-docs/update-recovery.md
-docs/roadmap.md
+radpress/docs/installation.md
+radpress/docs/security.md
+radpress/docs/content-format.md
+radpress/docs/theme-development.md
+radpress/docs/updates.md
+radpress/docs/update-recovery.md
+radpress/docs/roadmap.md
 ```
 
 ## 22. License
@@ -1001,7 +998,7 @@ Start with:
 7. HTML content loader.
 8. HTML sanitizer.
 9. Default theme.
-10. Public page rendering from `/content/pages`.
+10. Public page rendering from `radpress/content/pages`.
 
 Create a demo home page and about page.
 

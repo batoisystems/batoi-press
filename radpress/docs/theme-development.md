@@ -3,7 +3,7 @@
 Themes live under:
 
 ```text
-themes/{theme-name}/
+radpress/theme/{theme-name}/
 ```
 
 The default theme uses PHP layouts:
@@ -18,4 +18,3 @@ archive.php
 ```
 
 Theme layouts receive sanitized content and metadata from the engine.
-

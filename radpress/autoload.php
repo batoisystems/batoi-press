@@ -8,10 +8,24 @@ spl_autoload_register(static function (string $class): void {
     }
 
     $relative = substr($class, strlen($prefix));
-    $file = __DIR__ . '/' . str_replace('\\', '/', $relative) . '.php';
+    $parts = explode('\\', $relative);
+    $top = array_shift($parts);
+
+    $map = [
+        'Admin' => 'admin',
+        'Content' => 'core/content',
+        'Core' => 'core',
+        'Security' => 'security',
+        'Update' => 'updates',
+    ];
+
+    if (!isset($map[$top])) {
+        return;
+    }
+
+    $file = __DIR__ . '/' . $map[$top] . ($parts ? '/' . implode('/', $parts) : '') . '.php';
 
     if (is_file($file)) {
         require $file;
     }
 });
-

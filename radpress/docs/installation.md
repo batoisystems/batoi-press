@@ -8,12 +8,9 @@ Keep these directories outside the public web root when the host allows it:
 
 ```text
 radpress/
-app/
-config/
-content/
-storage/
-themes/
 ```
+
+`radpress/` contains private app code, config, authored content, data, docs, tests, and themes.
 
 Use `public_html/` as the web root on cPanel hosts.
 
@@ -25,5 +22,4 @@ The installer entrypoint is:
 public_html/install.php
 ```
 
-When `config/installed.lock` exists, the installer is disabled.
-
+When `radpress/config/installed.lock` exists, the installer is disabled.

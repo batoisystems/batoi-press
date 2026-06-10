@@ -11,7 +11,7 @@ final class Cache
 
     public function status(): array
     {
-        $dir = $this->paths->storagePath('cache');
+        $dir = $this->paths->dataPath('cache');
         $files = is_dir($dir) ? glob($dir . '/*') ?: [] : [];
 
         return [
@@ -21,4 +21,3 @@ final class Cache
         ];
     }
 }
-

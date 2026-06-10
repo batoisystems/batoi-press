@@ -14,9 +14,9 @@ final class Theme
     public function render(string $layout, array $data = [], int $status = 200): Response
     {
         $theme = (string)($this->site['theme'] ?? 'default');
-        $layoutFile = $this->paths->themesPath($theme . '/layouts/' . $layout . '.php');
+        $layoutFile = $this->paths->themePath($theme . '/layouts/' . $layout . '.php');
         if (!is_file($layoutFile)) {
-            $layoutFile = $this->paths->themesPath($theme . '/layouts/404.php');
+            $layoutFile = $this->paths->themePath($theme . '/layouts/404.php');
             $status = 404;
         }
 
@@ -27,10 +27,9 @@ final class Theme
         require $layoutFile;
         $content = (string)ob_get_clean();
 
-        $baseFile = $this->paths->themesPath($theme . '/layouts/base.php');
+        $baseFile = $this->paths->themePath($theme . '/layouts/base.php');
         ob_start();
         require $baseFile;
         return Response::html((string)ob_get_clean(), $status);
     }
 }
-

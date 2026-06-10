@@ -1,0 +1,9 @@
+{
+  "public_root": "public_html",
+  "radpress": "radpress",
+  "app": "radpress/app",
+  "config": "radpress/config",
+  "content": "radpress/content",
+  "data": "radpress/data",
+  "theme": "radpress/theme"
+}

@@ -5,9 +5,8 @@ use Batoi\Press\Core\App;
 use Batoi\Press\Core\Request;
 
 require dirname(__DIR__) . '/radpress/autoload.php';
-require dirname(__DIR__) . '/radpress/Helpers/esc.php';
-require dirname(__DIR__) . '/radpress/Helpers/url.php';
-require dirname(__DIR__) . '/radpress/Helpers/date.php';
+require dirname(__DIR__) . '/radpress/helpers/esc.php';
+require dirname(__DIR__) . '/radpress/helpers/url.php';
+require dirname(__DIR__) . '/radpress/helpers/date.php';
 
 (new App(dirname(__DIR__)))->handle(Request::fromGlobals())->send();
-

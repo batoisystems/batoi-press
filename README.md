@@ -12,7 +12,7 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 - Public routes for `/`, `/about`, `/blog`, `/blog/first-blog-post`, `/sitemap.xml`, and `/feed.xml`.
 - Read-only Phase 1 admin dashboard at `/admin`.
 - Update status surface at `/admin/updates`.
-- Installer status page at `/install.php`, disabled by `config/installed.lock`.
+- Installer status page at `/install.php`, disabled by `radpress/config/installed.lock`.
 
 ## Requirements
 
@@ -23,24 +23,25 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 ## Local Run
 
 ```sh
-php -S 127.0.0.1:8080 -t public_html
+php -S 127.0.0.1:8081 -t public_html
 ```
 
 Then open:
 
-- `http://127.0.0.1:8080/`
-- `http://127.0.0.1:8080/about`
-- `http://127.0.0.1:8080/sitemap.xml`
+- `http://127.0.0.1:8081/`
+- `http://127.0.0.1:8081/about`
+- `http://127.0.0.1:8081/sitemap.xml`
 
 ## Directory Model
 
 - `public_html/` is the browser-facing web root.
-- `radpress/` contains the reusable Batoi Press engine.
-- `app/` is reserved for site-level modules and hooks.
-- `config/` stores JSON configuration.
-- `content/` stores page/post HTML bodies and JSON metadata.
-- `storage/` stores cache, logs, sessions, backups, versions, and exports.
-- `themes/` stores render templates and theme assets.
+- `radpress/` is the private RAD-aligned application root.
+- `radpress/core/` contains the reusable Batoi Press engine.
+- `radpress/app/` is reserved for site-level modules and hooks.
+- `radpress/config/` stores JSON configuration.
+- `radpress/content/` stores page/post HTML bodies and JSON metadata.
+- `radpress/data/` stores cache, logs, sessions, backups, versions, and exports.
+- `radpress/theme/` stores render templates and theme assets.
 
 ## Content Format
 
@@ -66,4 +67,3 @@ Automated installation is intentionally deferred until backup, staging, package 
 ## License
 
 MIT License.
-

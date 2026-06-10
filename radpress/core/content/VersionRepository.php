@@ -13,8 +13,7 @@ final class VersionRepository
 
     public function count(): int
     {
-        $dir = $this->paths->storagePath('versions');
+        $dir = $this->paths->dataPath('versions');
         return is_dir($dir) ? count(glob($dir . '/*') ?: []) : 0;
     }
 }
-
