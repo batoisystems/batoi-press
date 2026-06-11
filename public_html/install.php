@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/radpress/autoload.php';
+require dirname(__DIR__) . '/radpress/helpers/url.php';
 
 use Batoi\Press\Security\Password;
 
@@ -18,7 +19,7 @@ function bp_install_esc(string $value): string
 
 function bp_install_layout(string $title, string $body): void
 {
-    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . bp_install_esc($title) . ' | Batoi Press</title><link rel="stylesheet" href="/assets/uif/uif.css"><link rel="stylesheet" href="/assets/css/style.css"><script src="/assets/uif/uif.js" defer></script></head><body class="bp-install-body"><main class="bp-installer-shell">' . $body . '</main></body></html>';
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . bp_install_esc($title) . ' | Batoi Press</title><link rel="stylesheet" href="' . bp_install_esc(bp_url('/assets/uif/uif.css')) . '"><link rel="stylesheet" href="' . bp_install_esc(bp_url('/assets/css/style.css')) . '"><script src="' . bp_install_esc(bp_url('/assets/uif/uif.js')) . '" defer></script></head><body class="bp-install-body"><main class="bp-installer-shell">' . $body . '</main></body></html>';
 }
 
 function bp_install_write_json(string $path, array $data): void
@@ -28,7 +29,7 @@ function bp_install_write_json(string $path, array $data): void
 
 if (is_file($lock)) {
     http_response_code(403);
-    bp_install_layout('Installer Disabled', '<section class="bp-installer-panel bp-uif-surface"><div class="bp-section-kicker">Setup locked</div><h1>Installer Disabled</h1><p>Batoi Press is already installed. Remove <code>radpress/config/installed.lock</code> manually on the server to re-enable setup.</p><p class="bp-actions"><a class="bp-button bp-button-secondary" href="/">View site</a><a class="bp-button" href="/admin/login">Admin login</a></p></section>');
+    bp_install_layout('Installer Disabled', '<section class="bp-installer-panel bp-uif-surface"><div class="bp-section-kicker">Setup locked</div><h1>Installer Disabled</h1><p>Batoi Press is already installed. Remove <code>radpress/config/installed.lock</code> manually on the server to re-enable setup.</p><p class="bp-actions"><a class="bp-button bp-button-secondary" href="' . bp_install_esc(bp_url('/')) . '">View site</a><a class="bp-button" href="' . bp_install_esc(bp_url('/admin/login')) . '">Admin login</a></p></section>');
     exit;
 }
 
@@ -99,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $errors === []) {
 
         file_put_contents($lock, 'installed ' . date(DATE_ATOM) . "\n", LOCK_EX);
 
-        bp_install_layout('Installation Complete', '<section class="bp-installer-panel bp-uif-surface"><div class="bp-section-kicker">Ready</div><h1>Installation Complete</h1><p>The installer is now locked by <code>radpress/config/installed.lock</code>.</p><p class="bp-actions"><a class="bp-button" href="/admin/login">Log in to admin</a><a class="bp-button bp-button-secondary" href="/">View site</a></p></section>');
+        bp_install_layout('Installation Complete', '<section class="bp-installer-panel bp-uif-surface"><div class="bp-section-kicker">Ready</div><h1>Installation Complete</h1><p>The installer is now locked by <code>radpress/config/installed.lock</code>.</p><p class="bp-actions"><a class="bp-button" href="' . bp_install_esc(bp_url('/admin/login')) . '">Log in to admin</a><a class="bp-button bp-button-secondary" href="' . bp_install_esc(bp_url('/')) . '">View site</a></p></section>');
         exit;
     }
 }
@@ -120,7 +121,7 @@ foreach ($checks as $label => $ok) {
 $body .= '</dl>';
 
 if ($errors === [] || $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $detectedBase = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $detectedBase = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') . '://' . (string)($_SERVER['HTTP_HOST'] ?? 'localhost') . bp_base_path();
     $siteValue = bp_install_esc(trim((string)($_POST['site_name'] ?? 'Batoi Press')));
     $baseValue = bp_install_esc(trim((string)($_POST['base_url'] ?? $detectedBase)));
     $usernameValue = bp_install_esc(trim((string)($_POST['username'] ?? '')));

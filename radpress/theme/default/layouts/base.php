@@ -13,21 +13,21 @@ $description = $page['seo_description'] ?? $post['seo_description'] ?? $site['ta
     <title><?php echo bp_esc((string)$pageTitle); ?></title>
     <meta name="description" content="<?php echo bp_attr((string)$description); ?>">
     <link rel="canonical" href="<?php echo bp_attr((string)($site['base_url'] ?? '') . ($_SERVER['REQUEST_URI'] ?? '/')); ?>">
-    <link rel="stylesheet" href="/assets/uif/uif.css">
-    <link rel="stylesheet" href="/assets/css/style.css">
-    <script src="/assets/js/app.js" defer></script>
-    <script src="/assets/uif/uif.js" defer></script>
+    <link rel="stylesheet" href="<?php echo bp_attr(bp_url('/assets/uif/uif.css')); ?>">
+    <link rel="stylesheet" href="<?php echo bp_attr(bp_url('/assets/css/style.css')); ?>">
+    <script src="<?php echo bp_attr(bp_url('/assets/js/app.js')); ?>" defer></script>
+    <script src="<?php echo bp_attr(bp_url('/assets/uif/uif.js')); ?>" defer></script>
 </head>
 <body class="bp-public-body">
 <div class="bp-shell">
     <header class="bp-header">
         <nav class="bp-nav" aria-label="Main navigation">
-            <a class="bp-brand" href="/"><?php echo bp_esc((string)($site['name'] ?? 'Batoi Press')); ?></a>
+            <a class="bp-brand" href="<?php echo bp_attr(bp_url('/')); ?>"><?php echo bp_esc((string)($site['name'] ?? 'Batoi Press')); ?></a>
             <div class="bp-links">
-                <a href="/">Home</a>
-                <a href="/about">About</a>
-                <a href="/blog">Blog</a>
-                <a href="/admin">Admin</a>
+                <a href="<?php echo bp_attr(bp_url('/')); ?>">Home</a>
+                <a href="<?php echo bp_attr(bp_url('/about')); ?>">About</a>
+                <a href="<?php echo bp_attr(bp_url('/blog')); ?>">Blog</a>
+                <a href="<?php echo bp_attr(bp_url('/admin')); ?>">Admin</a>
             </div>
         </nav>
     </header>

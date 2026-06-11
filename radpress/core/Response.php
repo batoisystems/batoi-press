@@ -29,6 +29,10 @@ final class Response
 
     public static function redirect(string $location): self
     {
+        if (str_starts_with($location, '/') && function_exists('bp_url')) {
+            $location = \bp_url($location);
+        }
+
         return new self('Redirecting to ' . $location, 302, ['Location' => $location, 'Content-Type' => 'text/plain; charset=UTF-8']);
     }
 
