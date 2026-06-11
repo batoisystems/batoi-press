@@ -21,25 +21,30 @@ final class MediaController
 
     public function index(): Response
     {
-        $body = '<h1>Media</h1><form method="post" action="/admin/media/upload" enctype="multipart/form-data" class="bp-form">';
+        $body = AdminLayout::pageHeader(
+            'Media',
+            'Upload and reuse site assets for pages, posts, and theme content.'
+        );
+        $uploadLimit = (int)(($this->config->security()['uploads']['max_bytes'] ?? 5242880) / 1048576);
+        $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Upload asset</h2><p>Supported file types are controlled by the installation security policy.</p></div></header><form method="post" action="/admin/media/upload" enctype="multipart/form-data" class="bp-form bp-compact-form">';
         $body .= $this->csrf->field();
-        $body .= '<label>Upload File <input type="file" name="media" required></label>';
-        $body .= '<button type="submit">Upload</button></form>';
-        $body .= '<h2>Files</h2>';
+        $body .= '<label>File <input type="file" name="media" required><span class="bp-field-help">Maximum upload size: ' . $this->e((string)$uploadLimit) . ' MB.</span></label>';
+        $body .= '<button type="submit">Upload File</button></form></section>';
+
         $files = $this->files();
         if ($files === []) {
-            $body .= '<p>No media files uploaded yet.</p>';
+            $body .= '<section class="bp-empty-state"><h2>No media files</h2><p>Upload images and documents here, then copy their public URL or image HTML into page and post content.</p></section>';
         } else {
-            $body .= '<table class="bp-table"><thead><tr><th>File</th><th>URL</th><th>HTML</th></tr></thead><tbody>';
+            $body .= '<section class="bp-admin-section bp-admin-section-wide"><header><div><h2>Files</h2><p>Copy URLs and snippets for use in content HTML.</p></div></header><div class="bp-table-wrap"><table class="bp-table bp-content-table"><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Modified</th><th>URL</th><th>HTML</th></tr></thead><tbody>';
             foreach ($files as $file) {
                 $name = basename($file);
                 $url = '/media/' . rawurlencode($name);
                 $snippet = $this->isImage($name) ? '<img src="' . $url . '" alt="">' : '';
-                $body .= '<tr><td><code>' . $this->e($name) . '</code></td><td><input class="bp-code-input" readonly value="' . $this->e($url) . '"></td><td><input class="bp-code-input" readonly value="' . $this->e($snippet) . '"></td></tr>';
+                $body .= '<tr><td><strong>' . $this->e($name) . '</strong><small>' . $this->e($this->kind($name)) . '</small></td><td>' . $this->e(strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE')) . '</td><td>' . $this->e($this->size($file)) . '</td><td>' . $this->e($this->modified($file)) . '</td><td><input class="bp-code-input" readonly value="' . $this->e($url) . '"></td><td><input class="bp-code-input" readonly value="' . $this->e($snippet) . '"></td></tr>';
             }
-            $body .= '</tbody></table>';
+            $body .= '</tbody></table></div></section>';
         }
-        $body .= '<p><a href="/admin">Back to admin</a></p>';
+        $body .= '</div>';
         return Response::html($this->layout('Media', $body));
     }
 
@@ -69,7 +74,9 @@ final class MediaController
 
     private function files(): array
     {
-        return glob($this->config->paths()->contentPath('media/*')) ?: [];
+        $files = glob($this->config->paths()->contentPath('media/*')) ?: [];
+        usort($files, static fn (string $a, string $b): int => (int)filemtime($b) <=> (int)filemtime($a));
+        return $files;
     }
 
     private function layout(string $title, string $body): string
@@ -85,5 +92,28 @@ final class MediaController
     private function isImage(string $name): bool
     {
         return in_array(strtolower(pathinfo($name, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
+    }
+
+    private function kind(string $name): string
+    {
+        return $this->isImage($name) ? 'Image asset' : 'Document asset';
+    }
+
+    private function size(string $file): string
+    {
+        $bytes = is_file($file) ? (int)filesize($file) : 0;
+        if ($bytes >= 1048576) {
+            return number_format($bytes / 1048576, 1) . ' MB';
+        }
+        if ($bytes >= 1024) {
+            return number_format($bytes / 1024, 1) . ' KB';
+        }
+        return $bytes . ' B';
+    }
+
+    private function modified(string $file): string
+    {
+        $time = is_file($file) ? filemtime($file) : false;
+        return $time ? date('M j, Y H:i', $time) : 'Unknown';
     }
 }

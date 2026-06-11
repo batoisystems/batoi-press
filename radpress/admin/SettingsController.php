@@ -24,14 +24,17 @@ final class SettingsController
     public function edit(): Response
     {
         $site = $this->config->site();
-        $body = '<h1>Settings</h1><form method="post" action="/admin/settings/save" class="bp-form">';
+        $body = AdminLayout::pageHeader(
+            'Settings',
+            'Control site identity, URLs, localization, and active theme configuration.'
+        );
+        $body .= '<form method="post" action="/admin/settings/save" class="bp-form bp-settings-form">';
         $body .= $this->csrf->field();
-        $body .= $this->input('Site Name', 'name', (string)($site['name'] ?? ''));
-        $body .= $this->input('Tagline', 'tagline', (string)($site['tagline'] ?? ''));
-        $body .= $this->input('Base URL', 'base_url', (string)($site['base_url'] ?? ''));
-        $body .= $this->input('Locale', 'locale', (string)($site['locale'] ?? 'en'));
-        $body .= $this->input('Timezone', 'timezone', (string)($site['timezone'] ?? 'UTC'));
-        $body .= '<button type="submit">Save Settings</button></form><p><a href="/admin">Back to admin</a></p>';
+        $body .= $this->section('Identity', 'Public site name and supporting text.', '<div class="bp-form-grid">' . $this->input('Site Name', 'name', (string)($site['name'] ?? '')) . $this->input('Tagline', 'tagline', (string)($site['tagline'] ?? '')) . '</div>');
+        $body .= $this->section('URLs', 'Canonical public URL used for links, feeds, and update metadata.', $this->input('Base URL', 'base_url', (string)($site['base_url'] ?? '')));
+        $body .= $this->section('Localization', 'Locale and timezone used for date formatting and future language-aware features.', '<div class="bp-form-grid">' . $this->input('Locale', 'locale', (string)($site['locale'] ?? 'en')) . $this->input('Timezone', 'timezone', (string)($site['timezone'] ?? 'UTC')) . '</div>');
+        $body .= $this->section('Theme', 'Current frontend theme. Theme selection UI will expand in a later phase.', '<dl class="bp-meta-list"><div><dt>Active theme</dt><dd>' . $this->e((string)($site['theme'] ?? 'default')) . '</dd></div></dl>');
+        $body .= '<div class="bp-form-actions"><a class="bp-button bp-button-secondary" href="/admin">Cancel</a><button type="submit">Save Settings</button></div></form>';
         return Response::html($this->layout('Settings', $body));
     }
 
@@ -55,6 +58,11 @@ final class SettingsController
     private function input(string $label, string $name, string $value): string
     {
         return '<label>' . $this->e($label) . ' <input type="text" name="' . $this->e($name) . '" value="' . $this->e($value) . '" required></label>';
+    }
+
+    private function section(string $title, string $description, string $body): string
+    {
+        return '<section class="bp-editor-panel"><header><h2>' . $this->e($title) . '</h2><p>' . $this->e($description) . '</p></header>' . $body . '</section>';
     }
 
     private function layout(string $title, string $body): string

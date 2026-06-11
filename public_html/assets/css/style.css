@@ -410,6 +410,20 @@ p {
     font-size: 0.9rem;
 }
 
+.bp-admin-grid {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: minmax(260px, 0.45fr) minmax(0, 1fr);
+}
+
+.bp-admin-section-wide {
+    grid-column: span 2;
+}
+
+.bp-compact-form {
+    margin-top: 0;
+}
+
 .bp-admin-toolbar {
     align-items: center;
     display: flex;
@@ -504,6 +518,35 @@ p {
 .bp-status-badge.is-draft {
     background: #fffbeb;
     color: #92400e;
+}
+
+.bp-role-badge {
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1;
+    padding: 7px 9px;
+}
+
+.bp-role-badge.is-admin {
+    background: #eef2ff;
+    color: #3730a3;
+}
+
+.bp-role-badge.is-editor {
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.bp-role-badge.is-author {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.bp-role-badge.is-viewer {
+    background: #f8fafc;
+    color: #475569;
 }
 
 .bp-table-actions {
@@ -754,6 +797,10 @@ p {
     grid-column: 1 / -1;
 }
 
+.bp-settings-form {
+    max-width: 980px;
+}
+
 .bp-editor-textarea {
     min-height: 420px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -783,6 +830,43 @@ p {
 .bp-meta-list dd {
     margin: 0;
     text-align: right;
+}
+
+.bp-menu-rows {
+    display: grid;
+    gap: 12px;
+}
+
+.bp-menu-row {
+    align-items: end;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(180px, 0.6fr) minmax(0, 1fr);
+}
+
+.bp-menu-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.bp-menu-preview a {
+    border: 1px solid var(--bp-line);
+    border-radius: 999px;
+    color: var(--bp-text);
+    font-weight: 750;
+    padding: 7px 10px;
+    text-decoration: none;
+}
+
+.bp-details {
+    display: grid;
+    gap: 12px;
+}
+
+.bp-details summary {
+    cursor: pointer;
+    font-weight: 800;
 }
 
 .bp-form label {
@@ -947,8 +1031,14 @@ code {
     .bp-admin-stats,
     .bp-admin-stats-compact,
     .bp-admin-action-grid,
-    .bp-admin-editor {
+    .bp-admin-editor,
+    .bp-admin-grid,
+    .bp-menu-row {
         grid-template-columns: 1fr;
+    }
+
+    .bp-admin-section-wide {
+        grid-column: auto;
     }
 
     .bp-form-grid {
