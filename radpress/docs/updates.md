@@ -5,12 +5,14 @@ Batoi Press uses release-based updates.
 The default stable manifest is:
 
 ```text
-https://batoi.com/pub/press/latest.json
+https://www.batoi.com/pub/press/latest.json
 ```
 
-Basic update checks and downloads should remain public under `https://batoi.com/pub/press/`. The human-facing microsite remains `https://batoi.com/press`. Optional Batoi Platform workspace services can add monitoring, fleet status, security checks, and assisted upgrades.
+Basic update checks and downloads should remain public under `https://www.batoi.com/pub/press/`. The human-facing microsite remains `https://www.batoi.com/press`. Optional Batoi Platform workspace services can add monitoring, fleet status, security checks, and assisted upgrades.
 
 The admin update screen can fetch the configured manifest and compare the latest version with the installed version.
+
+The admin update screen separates routine checks from risky operations. Version status, manifest URL, package staging, staged packages, backup creation, and rollback backups are displayed in separate sections. Rollback restore actions are visually marked as danger-zone operations.
 
 Implemented safety steps:
 

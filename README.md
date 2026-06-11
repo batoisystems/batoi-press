@@ -10,8 +10,8 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 - HTML page and post bodies with adjacent JSON metadata.
 - Default theme.
 - Public routes for `/`, `/about`, `/blog`, `/blog/first-blog-post`, `/sitemap.xml`, and `/feed.xml`.
-- Authenticated admin dashboard at `/admin`.
-- Update status surface at `/admin/updates`.
+- Business-ready authenticated admin console at `/admin`.
+- Content workflows for pages, posts, media, menus, settings, users, cache, static export, updates, audit log, and Batoi AIF status.
 - Browser installer at `/install.php`; after installation it creates `radpress/config/installed.lock`.
 - Cache clear, static export, and update-check admin surfaces.
 - Bundled Batoi UIF primitives for admin and installer UI.
@@ -90,6 +90,20 @@ Batoi Press uses password hashing, file-backed sessions, CSRF tokens for admin w
 ## Admin Setup
 
 The installer creates the first owner user in `radpress/config/users.json`. After installation, use `/admin/login` to manage pages, posts, media, menus, settings, users, cache, static export, and updates.
+
+## Admin Console
+
+The admin console uses bundled Batoi UIF assets and a persistent business console layout with grouped navigation:
+
+- Overview: dashboard.
+- Publish: pages, posts, media, menus.
+- Site: settings, static export, cache.
+- Governance: users, updates, audit log.
+- Intelligence: Batoi AIF.
+
+Pages and posts use structured list screens, publication badges, preview links, and editor panels for content, publishing, and SEO. Media lists file type, size, modified date, public URL, and image HTML snippets. Menus use label/URL rows with a legacy `Label|/url` fallback. Settings are grouped by identity, URL, localization, and theme. Users show roles, creation dates, and account status.
+
+Operations are separated from publishing work. Updates expose version status, stable manifest, package staging, backup creation, staged packages, and rollback backups. Audit Log shows the latest 100 recorded governance events.
 
 ## Installer Lifecycle
 
@@ -178,7 +192,7 @@ Themes live under `radpress/theme/{theme-name}/` with PHP layouts and optional a
 
 Batoi UIF primitives are bundled locally under `public_html/assets/uif/` and documented in `radpress/docs/uif-aif.md`.
 
-Batoi AIF is disabled by default through `radpress/config/aif.json`. It has provider scaffolding for future integrations but makes no AI network calls unless a future provider is explicitly configured.
+Batoi AIF is disabled by default through `radpress/config/aif.json`. It has provider scaffolding for future integrations but makes no AI network calls unless a future provider is explicitly configured. The admin status screen documents provider availability, feature flags, and trust boundaries.
 
 ## Roadmap
 

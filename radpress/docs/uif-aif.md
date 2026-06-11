@@ -19,6 +19,17 @@ Custom public themes may use UIF, but they are not required to.
 
 Admin controllers render through `Batoi\Press\Admin\AdminLayout`, which loads the bundled UIF stylesheet and script.
 
+The admin console uses UIF-backed layout primitives for:
+
+- grouped sidebar navigation
+- topbar actions
+- page headers
+- stats cards
+- structured tables
+- editor panels
+- status and role badges
+- notices, empty states, and danger-zone actions
+
 ## Batoi AIF
 
 Batoi AIF is optional and disabled by default.
@@ -36,6 +47,7 @@ Default behavior:
 * No network calls are made.
 * Admin can view status at `/admin/aif`.
 * Guarded content-assist actions exist at `/admin/aif/assist` and return a disabled response until configured.
+* The admin status screen shows provider availability, feature flags, workspace requirement, and network-call trust boundaries.
 
 Future provider adapters can implement `Batoi\Press\Aif\AifProvider`.
 Future Batoi Platform workspace adapters can implement `Batoi\Press\Aif\BatoiWorkspaceAifProvider`.
