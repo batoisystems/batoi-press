@@ -12,7 +12,7 @@ use Batoi\Press\Core\Config;
 use Batoi\Press\Aif\AifManager;
 
 $root = dirname(__DIR__, 2);
-$paths = ['/', '/about', '/blog', '/blog/first-blog-post', '/sitemap.xml', '/feed.xml', '/admin', '/admin/login', '/admin/pages', '/admin/posts', '/admin/media', '/admin/menus', '/admin/settings', '/admin/users', '/admin/cache', '/admin/export-static', '/admin/aif', '/admin/updates'];
+$paths = ['/', '/about', '/blog', '/blog/first-blog-post', '/sitemap.xml', '/feed.xml', '/admin', '/admin/login', '/admin/pages', '/admin/posts', '/admin/media', '/admin/menus', '/admin/settings', '/admin/users', '/admin/audit', '/admin/cache', '/admin/export-static', '/admin/aif', '/admin/updates'];
 $mediaFile = $root . '/radpress/content/media/smoke-test.txt';
 file_put_contents($mediaFile, 'media ok', LOCK_EX);
 $paths[] = '/media/smoke-test.txt';

@@ -99,6 +99,7 @@ final class AdminLayout
             'Governance' => [
                 ['label' => 'Users', 'href' => '/admin/users', 'icon' => 'U'],
                 ['label' => 'Updates', 'href' => '/admin/updates', 'icon' => 'R'],
+                ['label' => 'Audit Log', 'href' => '/admin/audit', 'icon' => 'L'],
             ],
             'Intelligence' => [
                 ['label' => 'Batoi AIF', 'href' => '/admin/aif', 'icon' => 'A'],

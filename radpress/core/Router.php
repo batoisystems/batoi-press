@@ -5,6 +5,7 @@ namespace Batoi\Press\Core;
 
 use Batoi\Press\Admin\DashboardController;
 use Batoi\Press\Admin\AifController;
+use Batoi\Press\Admin\AuditController;
 use Batoi\Press\Admin\AuthController;
 use Batoi\Press\Admin\CacheController;
 use Batoi\Press\Admin\ExportController;
@@ -164,6 +165,10 @@ final class Router
 
         if ($request->path === '/admin/users/save' && $request->method === 'POST') {
             return (new UserController($this->config, $files, $csrf, $audit, $user))->save($request);
+        }
+
+        if ($request->path === '/admin/audit') {
+            return (new AuditController($this->config))->index();
         }
 
         if ($request->path === '/admin/cache') {

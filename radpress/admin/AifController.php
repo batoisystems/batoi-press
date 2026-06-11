@@ -20,27 +20,34 @@ final class AifController
     public function index(): Response
     {
         $status = (new AifManager($this->config->aif()))->status();
-        $body = '<h1>Batoi AIF</h1>';
-        $body .= '<p>Batoi AIF is optional and disabled by default. This installation will not make AI network calls unless a future provider is explicitly configured.</p>';
-        $body .= '<dl class="bp-stats">';
-        $body .= '<div><dt>Enabled</dt><dd>' . (($status['enabled'] ?? false) ? 'Yes' : 'No') . '</dd></div>';
-        $body .= '<div><dt>Provider</dt><dd>' . $this->e((string)($status['provider'] ?? 'disabled')) . '</dd></div>';
-        $body .= '<div><dt>Available</dt><dd>' . (($status['available'] ?? false) ? 'Yes' : 'No') . '</dd></div>';
-        $body .= '<div><dt>Workspace Required</dt><dd>' . (($status['workspace_required'] ?? false) ? 'Yes' : 'No') . '</dd></div>';
+        $enabled = (bool)($status['enabled'] ?? false);
+        $available = (bool)($status['available'] ?? false);
+
+        $body = AdminLayout::pageHeader(
+            'Batoi AIF',
+            'Review AI integration status, trust boundaries, and future assisted publishing capabilities.'
+        );
+        $body .= '<dl class="bp-admin-stats">';
+        $body .= AdminLayout::statCard('Enabled', $enabled ? 'Yes' : 'No', $enabled ? 'AIF is configured for this installation.' : 'Disabled by default.');
+        $body .= AdminLayout::statCard('Provider', (string)($status['provider'] ?? 'disabled'), $available ? 'Provider reports available.' : 'No provider calls are available.');
+        $body .= AdminLayout::statCard('Available', $available ? 'Yes' : 'No', $available ? 'Assist actions may run.' : 'Assist actions return disabled responses.');
+        $body .= AdminLayout::statCard('Workspace required', ($status['workspace_required'] ?? false) ? 'Yes' : 'No', 'Future Batoi Platform workspace connection.');
         $body .= '</dl>';
-        $body .= '<h2>Feature Flags</h2><table class="bp-table"><thead><tr><th>Feature</th><th>Status</th></tr></thead><tbody>';
+
+        $trust = '<ul class="bp-check-list"><li>No AI network calls are made while AIF is disabled.</li><li>Content assist actions are explicit admin POST actions with CSRF protection.</li><li>Future provider configuration must declare feature flags before use.</li></ul>';
+        $body .= AdminLayout::section('Trust boundary', $trust, 'AIF is native but guarded. The default installation remains private and offline for AI.');
+
+        $body .= '<section class="bp-admin-section"><header><div><h2>Feature flags</h2><p>Configured AIF features and whether they are available.</p></div></header><div class="bp-table-wrap"><table class="bp-table"><thead><tr><th>Feature</th><th>Status</th></tr></thead><tbody>';
         foreach (($status['features'] ?? []) as $feature => $enabled) {
-            $body .= '<tr><td><code>' . $this->e((string)$feature) . '</code></td><td>' . ($enabled ? 'Enabled' : 'Disabled') . '</td></tr>';
+            $body .= '<tr><td><code>' . $this->e((string)$feature) . '</code></td><td>' . $this->statusBadge((bool)$enabled) . '</td></tr>';
         }
-        $body .= '</tbody></table>';
-        $body .= '<h2>Content Assist</h2><p>These guarded actions are present for future providers and return a disabled response until AIF is configured.</p>';
-        $body .= '<form method="post" action="/admin/aif/assist" class="bp-admin-nav bp-uif-toolbar">' . $this->csrf->field();
+        $body .= '</tbody></table></div></section>';
+
+        $body .= '<section class="bp-admin-section"><header><div><h2>Content assist</h2><p>Guarded actions for future providers. Disabled installations return a clear disabled response.</p></div></header><form method="post" action="/admin/aif/assist" class="bp-admin-nav bp-uif-toolbar">' . $this->csrf->field();
         foreach ($this->assistTasks() as $task => $label) {
             $body .= '<button type="submit" name="task" value="' . $this->e($task) . '">' . $this->e($label) . '</button>';
         }
-        $body .= '</form>';
-        $body .= '<p><a href="/admin">Back to admin</a></p>';
-        $body .= '<form method="post" action="/admin/logout" class="bp-inline-form">' . $this->csrf->field() . '<button type="submit">Log Out</button></form>';
+        $body .= '</form></section>';
 
         return Response::html($this->layout('Batoi AIF', $body));
     }
@@ -81,5 +88,10 @@ final class AifController
             'summarize' => 'Summarize',
             'tags' => 'Suggest Tags',
         ];
+    }
+
+    private function statusBadge(bool $enabled): string
+    {
+        return $enabled ? '<span class="bp-status-badge is-published">Enabled</span>' : '<span class="bp-status-badge is-draft">Disabled</span>';
     }
 }

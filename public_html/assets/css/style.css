@@ -574,6 +574,29 @@ p {
     max-width: 560px;
 }
 
+.bp-danger-zone {
+    border-color: #fecaca;
+}
+
+.bp-danger-zone > header h2 {
+    color: #991b1b;
+}
+
+.bp-danger-action button {
+    background: #b91c1c;
+}
+
+.bp-check-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding-left: 20px;
+}
+
+.bp-check-list li {
+    padding-left: 4px;
+}
+
 .bp-admin-body,
 .bp-install-body {
     min-height: 100vh;

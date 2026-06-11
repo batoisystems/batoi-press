@@ -26,32 +26,36 @@ final class UpdateController
     public function index(?array $result = null): Response
     {
         $update = $this->config->update();
-        $current = htmlspecialchars((string)($update['current_version'] ?? '0.1.0'));
-        $manifest = htmlspecialchars((string)($update['stable_manifest_url'] ?? 'https://batoi.com/pub/press/latest.json'));
+        $current = (string)($update['current_version'] ?? '0.1.0');
+        $channel = (string)($update['channel'] ?? 'stable');
+        $manifest = (string)($update['stable_manifest_url'] ?? 'https://www.batoi.com/pub/press/latest.json');
 
-        $body = '<h1>Updates</h1>';
-        $body .= '<p>Current version: <strong>' . $current . '</strong></p>';
-        $body .= '<p>Stable manifest: <code>' . $manifest . '</code></p>';
+        $body = AdminLayout::pageHeader(
+            'Updates',
+            'Check, stage, back up, and apply Batoi Press releases with rollback protection.',
+            '<form method="post" action="/admin/updates/check" class="bp-inline-form">' . $this->csrf->field() . '<button type="submit">Check for Updates</button></form>'
+        );
+
+        $cards = '<dl class="bp-admin-stats bp-admin-stats-compact">';
+        $cards .= AdminLayout::statCard('Current version', $current, 'Release channel: ' . $channel);
+        $cards .= AdminLayout::statCard('Stable manifest', 'latest.json', $manifest);
         if ($result !== null) {
             if ($result['ok'] ?? false) {
-                $body .= '<div class="bp-notice"><strong>Latest version:</strong> ' . htmlspecialchars((string)$result['latest_version'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '. ';
-                $body .= ($result['update_available'] ?? false) ? 'Update available.' : 'This installation is current.';
-                $body .= '</div>';
+                $cards .= AdminLayout::statCard('Latest version', (string)$result['latest_version'], ($result['update_available'] ?? false) ? 'Update available.' : 'This installation is current.');
             } else {
-                $body .= '<p class="bp-error">' . htmlspecialchars((string)($result['error'] ?? 'Update check failed.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>';
+                $cards .= AdminLayout::statCard('Latest version', 'Check failed', (string)($result['error'] ?? 'Update check failed.'));
             }
         }
-        $body .= '<p>Updates are installed from verified staged packages. Batoi Press creates a backup before replacing live files.</p>';
-        $body .= '<form method="post" action="/admin/updates/check" class="bp-inline-form">' . $this->csrf->field() . '<button type="submit">Check for Updates</button></form>';
-        $body .= '<form method="post" action="/admin/updates/backup" class="bp-inline-form">' . $this->csrf->field() . '<button type="submit">Create Backup</button></form>';
-        $body .= '<h2>Stage Update Package</h2><form method="post" action="/admin/updates/stage" enctype="multipart/form-data" class="bp-form">' . $this->csrf->field();
+        $cards .= '</dl>';
+        $body .= $cards;
+
+        $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Create backup</h2><p>Create a minimal update backup before staging or applying a package.</p></div></header><form method="post" action="/admin/updates/backup" class="bp-inline-form">' . $this->csrf->field() . '<button type="submit">Create Backup</button></form></section>';
+        $body .= '<section class="bp-admin-section"><header><div><h2>Stage package</h2><p>Upload a release ZIP and verify its archive safety before applying it.</p></div></header><form method="post" action="/admin/updates/stage" enctype="multipart/form-data" class="bp-form bp-compact-form">' . $this->csrf->field();
         $body .= '<label>Package ZIP <input type="file" name="package" accept=".zip" required></label>';
-        $body .= '<label>SHA-256 Checksum (optional) <input type="text" name="sha256"></label>';
-        $body .= '<button type="submit">Verify and Stage</button></form>';
+        $body .= '<label>SHA-256 Checksum <input type="text" name="sha256"><span class="bp-field-help">Optional, but recommended when applying a package downloaded outside the built-in release flow.</span></label>';
+        $body .= '<button type="submit">Verify and Stage</button></form></section></div>';
         $body .= $this->stageList();
         $body .= $this->backupList();
-        $body .= '<form method="post" action="/admin/logout" class="bp-inline-form">' . $this->csrf->field() . '<button type="submit">Log Out</button></form>';
-        $body .= '<p><a href="/admin">Back to admin</a></p>';
 
         return Response::html(AdminLayout::render('Updates', $body));
     }
@@ -59,7 +63,7 @@ final class UpdateController
     public function check(string $token): Response
     {
         if (!$this->csrf->validate($token)) {
-            return Response::html(AdminLayout::render('Updates', '<p class="bp-error">Security token expired.</p><p><a href="/admin/updates">Back</a></p>'), 400);
+            return Response::html(AdminLayout::render('Updates', '<p class="bp-error">Security token expired.</p><p><a class="bp-button bp-button-secondary" href="/admin/updates">Back</a></p>'), 400);
         }
 
         $update = $this->config->update();
@@ -148,38 +152,62 @@ final class UpdateController
     {
         $files = glob($this->config->paths()->dataPath('backups/*.zip')) ?: [];
         if ($files === []) {
-            return '<h2>Backups</h2><p>No backups created yet.</p>';
+            return AdminLayout::section('Rollback backups', '<p class="bp-muted">No backups created yet.</p>', 'Rollback restore points created before update operations.');
         }
 
-        $html = '<h2>Backups</h2><table class="bp-table"><thead><tr><th>File</th><th>Size</th><th></th></tr></thead><tbody>';
+        rsort($files);
+        $html = '<div class="bp-table-wrap"><table class="bp-table bp-content-table"><thead><tr><th>File</th><th>Size</th><th>Modified</th><th>Restore</th></tr></thead><tbody>';
         foreach ($files as $file) {
             $name = basename($file);
-            $html .= '<tr><td><code>' . htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</code></td><td>' . number_format((int)filesize($file)) . ' bytes</td><td><form method="post" action="/admin/updates/rollback" class="bp-inline-form">' . $this->csrf->field() . '<input type="hidden" name="backup" value="' . htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"><button type="submit">Restore</button></form></td></tr>';
+            $html .= '<tr><td><code>' . $this->e($name) . '</code></td><td>' . $this->e($this->size($file)) . '</td><td>' . $this->e($this->modified($file)) . '</td><td><form method="post" action="/admin/updates/rollback" class="bp-inline-form bp-danger-action">' . $this->csrf->field() . '<input type="hidden" name="backup" value="' . $this->e($name) . '"><button type="submit">Restore Backup</button></form></td></tr>';
         }
 
-        return $html . '</tbody></table>';
+        return '<section class="bp-admin-section bp-danger-zone"><header><div><h2>Rollback backups</h2><p>Restore only when an update has failed and you understand this replaces live files.</p></div></header>' . $html . '</tbody></table></div></section>';
     }
 
     private function stageList(): string
     {
         $stages = (new UpdateRunner($this->config->paths()))->stagedPackages();
         if ($stages === []) {
-            return '<h2>Staged Packages</h2><p>No packages staged yet.</p>';
+            return AdminLayout::section('Staged packages', '<p class="bp-muted">No packages staged yet.</p>', 'Verified packages waiting for manual apply.');
         }
 
-        $html = '<h2>Staged Packages</h2><table class="bp-table"><thead><tr><th>Directory</th><th></th></tr></thead><tbody>';
+        $html = '<div class="bp-table-wrap"><table class="bp-table bp-content-table"><thead><tr><th>Directory</th><th>Staged</th><th>Apply</th></tr></thead><tbody>';
         foreach ($stages as $stage) {
             $name = basename($stage);
-            $html .= '<tr><td><code>' . htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</code></td><td><form method="post" action="/admin/updates/apply" class="bp-inline-form">' . $this->csrf->field() . '<input type="hidden" name="stage" value="' . htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"><button type="submit">Apply</button></form></td></tr>';
+            $html .= '<tr><td><code>' . $this->e($name) . '</code></td><td>' . $this->e($this->modified($stage)) . '</td><td><form method="post" action="/admin/updates/apply" class="bp-inline-form">' . $this->csrf->field() . '<input type="hidden" name="stage" value="' . $this->e($name) . '"><button type="submit">Apply Package</button></form></td></tr>';
         }
 
-        return $html . '</tbody></table>';
+        return AdminLayout::section('Staged packages', $html . '</tbody></table></div>', 'Applying a package creates a backup, enables maintenance mode, runs health checks, and rolls back on failure.');
     }
 
     private function message(string $title, string $message, bool $error = false, int $status = 200): Response
     {
         $class = $error ? 'bp-error' : 'bp-notice';
-        $body = '<p class="' . $class . '">' . htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p><p><a href="/admin/updates">Back to updates</a></p>';
+        $body = '<p class="' . $class . '">' . $this->e($message) . '</p><p><a class="bp-button bp-button-secondary" href="/admin/updates">Back to updates</a></p>';
         return Response::html(AdminLayout::render($title, $body), $status);
+    }
+
+    private function size(string $file): string
+    {
+        $bytes = is_file($file) ? (int)filesize($file) : 0;
+        if ($bytes >= 1048576) {
+            return number_format($bytes / 1048576, 1) . ' MB';
+        }
+        if ($bytes >= 1024) {
+            return number_format($bytes / 1024, 1) . ' KB';
+        }
+        return $bytes . ' B';
+    }
+
+    private function modified(string $path): string
+    {
+        $time = file_exists($path) ? filemtime($path) : false;
+        return $time ? date('M j, Y H:i', $time) : 'Unknown';
+    }
+
+    private function e(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
