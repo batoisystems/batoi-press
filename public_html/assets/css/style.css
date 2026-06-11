@@ -152,6 +152,264 @@ p {
     padding: clamp(22px, 4vw, 36px);
 }
 
+.bp-admin-shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    min-height: 100vh;
+}
+
+.bp-admin-sidebar {
+    background: #111827;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    color: #f8fafc;
+    padding: 20px 16px;
+}
+
+.bp-admin-brand {
+    display: grid;
+    gap: 2px;
+    margin-bottom: 24px;
+}
+
+.bp-admin-brand span {
+    font-size: 1.05rem;
+    font-weight: 800;
+}
+
+.bp-admin-brand small {
+    color: #9ca3af;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.bp-admin-sidebar-nav {
+    display: grid;
+    gap: 22px;
+}
+
+.bp-admin-sidebar-nav section {
+    display: grid;
+    gap: 6px;
+}
+
+.bp-admin-sidebar-nav h2 {
+    color: #94a3b8;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    margin: 0 0 2px;
+    padding: 0 10px;
+    text-transform: uppercase;
+}
+
+.bp-admin-sidebar-nav a {
+    align-items: center;
+    border-radius: 6px;
+    color: #d1d5db;
+    display: flex;
+    gap: 10px;
+    font-weight: 700;
+    min-height: 38px;
+    padding: 8px 10px;
+    text-decoration: none;
+}
+
+.bp-admin-sidebar-nav a:hover,
+.bp-admin-sidebar-nav a.is-active {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+}
+
+.bp-admin-sidebar-nav a.is-active {
+    box-shadow: inset 3px 0 0 #2dd4bf;
+}
+
+.bp-admin-sidebar-nav span {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.09);
+    border-radius: 6px;
+    display: inline-flex;
+    font-size: 0.75rem;
+    font-weight: 800;
+    height: 24px;
+    justify-content: center;
+    width: 24px;
+}
+
+.bp-admin-workspace {
+    min-width: 0;
+}
+
+.bp-admin-topbar {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.94);
+    border-bottom: 1px solid var(--bp-line);
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+    min-height: 72px;
+    padding: 14px 28px;
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    backdrop-filter: blur(12px);
+}
+
+.bp-admin-topbar > div {
+    display: grid;
+    gap: 2px;
+}
+
+.bp-admin-topbar strong {
+    font-size: 0.98rem;
+}
+
+.bp-admin-topbar span {
+    color: var(--bp-muted);
+    font-size: 0.86rem;
+}
+
+.bp-admin-topbar nav,
+.bp-admin-page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.bp-admin-shell .bp-admin {
+    border: 0;
+    box-shadow: none;
+    margin: 0;
+    min-height: calc(100vh - 72px);
+    padding: clamp(20px, 3vw, 34px);
+    width: 100%;
+}
+
+.bp-admin-auth {
+    align-items: center;
+    display: grid;
+    min-height: 100vh;
+    padding: 24px;
+}
+
+.bp-admin-auth .bp-admin {
+    margin: 0 auto;
+    max-width: 520px;
+}
+
+.bp-admin-auth-brand {
+    margin-bottom: 20px;
+}
+
+.bp-admin-page-header {
+    align-items: flex-start;
+    display: flex;
+    gap: 18px;
+    justify-content: space-between;
+    margin-bottom: 22px;
+}
+
+.bp-admin-page-header h1 {
+    font-size: clamp(1.75rem, 3vw, 2.45rem);
+}
+
+.bp-admin-page-header p {
+    color: var(--bp-muted);
+    max-width: 720px;
+}
+
+.bp-admin-stats {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0 0 22px;
+}
+
+.bp-admin-stats-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 0;
+}
+
+.bp-admin-stat {
+    background: var(--bp-panel);
+    border: 1px solid var(--bp-line);
+    border-radius: var(--bp-radius);
+    padding: 16px;
+}
+
+.bp-admin-stat dt {
+    color: var(--bp-muted);
+    font-size: 0.82rem;
+    font-weight: 750;
+}
+
+.bp-admin-stat dd {
+    color: var(--bp-text);
+    font-size: 1.45rem;
+    font-weight: 800;
+    margin: 4px 0 0;
+}
+
+.bp-admin-stat p {
+    color: var(--bp-muted);
+    font-size: 0.84rem;
+    margin: 6px 0 0;
+}
+
+.bp-admin-section {
+    background: var(--bp-panel);
+    border: 1px solid var(--bp-line);
+    border-radius: var(--bp-radius);
+    margin: 0 0 18px;
+    padding: 20px;
+}
+
+.bp-admin-section > header {
+    align-items: flex-start;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.bp-admin-section h2 {
+    font-size: 1rem;
+}
+
+.bp-admin-section header p {
+    color: var(--bp-muted);
+    font-size: 0.9rem;
+}
+
+.bp-admin-action-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.bp-admin-action-card {
+    border: 1px solid var(--bp-line);
+    border-radius: var(--bp-radius);
+    color: var(--bp-text);
+    display: grid;
+    gap: 6px;
+    min-height: 112px;
+    padding: 16px;
+    text-decoration: none;
+}
+
+.bp-admin-action-card:hover {
+    border-color: #99f6e4;
+    background: #f0fdfa;
+}
+
+.bp-admin-action-card span {
+    color: var(--bp-muted);
+    font-size: 0.9rem;
+}
+
 .bp-admin-body,
 .bp-install-body {
     min-height: 100vh;
@@ -433,8 +691,41 @@ code {
 @media (max-width: 720px) {
     .bp-nav,
     .bp-installer-hero,
-    .bp-form-section {
+    .bp-form-section,
+    .bp-admin-page-header {
         display: grid;
+    }
+
+    .bp-admin-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .bp-admin-sidebar {
+        position: static;
+    }
+
+    .bp-admin-sidebar-nav {
+        gap: 14px;
+    }
+
+    .bp-admin-sidebar-nav section {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .bp-admin-sidebar-nav h2 {
+        grid-column: 1 / -1;
+    }
+
+    .bp-admin-topbar {
+        align-items: stretch;
+        display: grid;
+        padding: 14px 16px;
+        position: static;
+    }
+
+    .bp-admin-topbar nav,
+    .bp-admin-page-actions {
+        justify-content: stretch;
     }
 
     .bp-links,
@@ -450,6 +741,18 @@ code {
     .bp-installer-shell,
     .bp-admin {
         width: min(100% - 24px, 1040px);
+    }
+
+    .bp-admin-shell .bp-admin {
+        min-height: auto;
+        padding: 20px 12px;
+        width: 100%;
+    }
+
+    .bp-admin-stats,
+    .bp-admin-stats-compact,
+    .bp-admin-action-grid {
+        grid-template-columns: 1fr;
     }
 
     .bp-form-grid {
