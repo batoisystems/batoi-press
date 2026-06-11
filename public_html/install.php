@@ -27,7 +27,22 @@ function bp_install_write_json(string $path, array $data): void
     file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX);
 }
 
-if (is_file($lock)) {
+function bp_install_has_owner(string $configDir): bool
+{
+    $usersFile = $configDir . '/users.json';
+    $decoded = is_file($usersFile) ? json_decode((string)file_get_contents($usersFile), true) : [];
+    $users = is_array($decoded) && is_array($decoded['users'] ?? null) ? $decoded['users'] : [];
+
+    foreach ($users as $user) {
+        if (is_array($user) && ($user['role'] ?? '') === 'owner' && ($user['username'] ?? '') !== '') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+if (is_file($lock) && bp_install_has_owner($configDir)) {
     http_response_code(403);
     bp_install_layout('Installer Disabled', '<section class="bp-installer-panel bp-uif-surface"><div class="bp-section-kicker">Setup locked</div><h1>Installer Disabled</h1><p>Batoi Press is already installed. Remove <code>radpress/config/installed.lock</code> manually on the server to re-enable setup.</p><p class="bp-actions"><a class="bp-button bp-button-secondary" href="' . bp_install_esc(bp_url('/')) . '">View site</a><a class="bp-button" href="' . bp_install_esc(bp_url('/admin/login')) . '">Admin login</a></p></section>');
     exit;

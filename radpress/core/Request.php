@@ -22,6 +22,8 @@ final class Request
 
         if (isset($_GET['route']) && is_string($_GET['route']) && $_GET['route'] !== '') {
             $path = $_GET['route'];
+        } else {
+            $path = self::stripBasePath($path);
         }
 
         $path = '/' . trim($path, '/');
@@ -36,6 +38,26 @@ final class Request
             $_POST,
             $_SERVER
         );
+    }
+
+    private static function stripBasePath(string $path): string
+    {
+        $script = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
+        $base = dirname($script);
+        if ($base === '/' || $base === '.' || $base === '\\') {
+            return $path;
+        }
+
+        $base = rtrim($base, '/');
+        if ($path === $base) {
+            return '/';
+        }
+
+        if (str_starts_with($path, $base . '/')) {
+            return substr($path, strlen($base)) ?: '/';
+        }
+
+        return $path;
     }
 
     public function input(string $key, string $default = ''): string

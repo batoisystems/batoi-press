@@ -26,6 +26,9 @@ final class Theme
         ob_start();
         require $layoutFile;
         $content = (string)ob_get_clean();
+        if (function_exists('bp_localize_markup_urls')) {
+            $content = \bp_localize_markup_urls($content);
+        }
 
         $baseFile = $this->paths->themePath($theme . '/layouts/base.php');
         ob_start();

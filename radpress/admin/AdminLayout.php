@@ -7,6 +7,7 @@ final class AdminLayout
 {
     public static function render(string $title, string $body, string $mainClass = 'bp-admin bp-uif-surface'): string
     {
+        $body = function_exists('bp_localize_markup_urls') ? \bp_localize_markup_urls($body) : $body;
         return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . self::e($title) . ' | Batoi Press</title><link rel="stylesheet" href="' . self::e(\bp_url('/assets/uif/uif.css')) . '"><link rel="stylesheet" href="' . self::e(\bp_url('/assets/css/style.css')) . '"><script src="' . self::e(\bp_url('/assets/uif/uif.js')) . '" defer></script></head><body class="bp-admin-body"><main class="' . self::e($mainClass) . '">' . $body . '</main></body></html>';
     }
 
