@@ -410,6 +410,127 @@ p {
     font-size: 0.9rem;
 }
 
+.bp-admin-toolbar {
+    align-items: center;
+    display: flex;
+    gap: 14px;
+    justify-content: space-between;
+    margin: 0 0 16px;
+}
+
+.bp-admin-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.bp-admin-tab {
+    background: var(--bp-panel);
+    border: 1px solid var(--bp-line);
+    border-radius: 999px;
+    color: var(--bp-muted);
+    font-size: 0.86rem;
+    font-weight: 750;
+    padding: 7px 10px;
+}
+
+.bp-admin-tab.is-active {
+    background: #ecfdf5;
+    border-color: #99f6e4;
+    color: var(--bp-accent-dark);
+}
+
+.bp-admin-search {
+    align-items: center;
+    color: var(--bp-muted);
+    display: flex;
+    gap: 8px;
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.bp-admin-search input {
+    border: 1px solid var(--bp-line);
+    border-radius: 6px;
+    color: var(--bp-muted);
+    min-height: 36px;
+    padding: 8px 10px;
+    width: 180px;
+}
+
+.bp-admin-search span,
+.bp-field-help,
+.bp-muted {
+    color: var(--bp-muted);
+    font-size: 0.86rem;
+}
+
+.bp-table-wrap {
+    background: var(--bp-panel);
+    border: 1px solid var(--bp-line);
+    border-radius: var(--bp-radius);
+    overflow-x: auto;
+}
+
+.bp-table-wrap .bp-table {
+    margin-top: 0;
+}
+
+.bp-content-table td strong,
+.bp-content-table td small {
+    display: block;
+}
+
+.bp-content-table td small {
+    color: var(--bp-muted);
+    font-size: 0.78rem;
+    margin-top: 2px;
+}
+
+.bp-status-badge {
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1;
+    padding: 7px 9px;
+}
+
+.bp-status-badge.is-published {
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.bp-status-badge.is-draft {
+    background: #fffbeb;
+    color: #92400e;
+}
+
+.bp-table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.bp-table-actions a {
+    font-weight: 750;
+}
+
+.bp-empty-state {
+    background: var(--bp-panel);
+    border: 1px dashed #b8c1d1;
+    border-radius: var(--bp-radius);
+    padding: clamp(22px, 4vw, 36px);
+    text-align: center;
+}
+
+.bp-empty-state p {
+    color: var(--bp-muted);
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 560px;
+}
+
 .bp-admin-body,
 .bp-install-body {
     min-height: 100vh;
@@ -586,8 +707,82 @@ p {
     align-items: center;
     border-top: 1px solid var(--bp-line);
     display: flex;
+    gap: 10px;
     justify-content: flex-end;
     padding-top: 20px;
+}
+
+.bp-admin-editor {
+    align-items: start;
+    display: grid;
+    gap: 18px;
+    grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.7fr);
+}
+
+.bp-editor-main,
+.bp-editor-side {
+    display: grid;
+    gap: 16px;
+}
+
+.bp-editor-panel {
+    background: var(--bp-panel);
+    border: 1px solid var(--bp-line);
+    border-radius: var(--bp-radius);
+    display: grid;
+    gap: 16px;
+    padding: 18px;
+}
+
+.bp-editor-panel header {
+    border-bottom: 1px solid var(--bp-line);
+    padding-bottom: 12px;
+}
+
+.bp-editor-panel h2 {
+    font-size: 1rem;
+    margin-bottom: 4px;
+}
+
+.bp-editor-panel header p {
+    color: var(--bp-muted);
+    font-size: 0.88rem;
+    margin: 0;
+}
+
+.bp-admin-editor .bp-form-actions {
+    grid-column: 1 / -1;
+}
+
+.bp-editor-textarea {
+    min-height: 420px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.92rem;
+}
+
+.bp-meta-list {
+    border-top: 1px solid var(--bp-line);
+    display: grid;
+    gap: 10px;
+    margin: 2px 0 0;
+    padding-top: 14px;
+}
+
+.bp-meta-list div {
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+}
+
+.bp-meta-list dt {
+    color: var(--bp-muted);
+    font-size: 0.82rem;
+    font-weight: 750;
+}
+
+.bp-meta-list dd {
+    margin: 0;
+    text-align: right;
 }
 
 .bp-form label {
@@ -751,12 +946,24 @@ code {
 
     .bp-admin-stats,
     .bp-admin-stats-compact,
-    .bp-admin-action-grid {
+    .bp-admin-action-grid,
+    .bp-admin-editor {
         grid-template-columns: 1fr;
     }
 
     .bp-form-grid {
         grid-template-columns: 1fr;
+    }
+
+    .bp-admin-toolbar,
+    .bp-admin-search,
+    .bp-meta-list div {
+        align-items: stretch;
+        display: grid;
+    }
+
+    .bp-admin-search input {
+        width: 100%;
     }
 
     .bp-form-actions {
