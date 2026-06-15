@@ -38,7 +38,7 @@ final class AdminLayout
 
     public static function statCard(string $label, string $value, string $note = ''): string
     {
-        $html = '<div class="bp-admin-stat"><dt>' . self::e($label) . '</dt><dd>' . self::e($value) . '</dd>';
+        $html = '<div class="bp-admin-stat"><div class="bp-admin-stat-head"><div><dt>' . self::e($label) . '</dt><dd>' . self::e($value) . '</dd></div><span class="bp-admin-stat-icon">' . self::icon(self::iconForLabel($label)) . '</span></div>';
         if ($note !== '') {
             $html .= '<p>' . self::e($note) . '</p>';
         }
@@ -57,12 +57,12 @@ final class AdminLayout
 
     private static function adminShell(string $title, string $body, string $mainClass): string
     {
-        return '<div class="bp-admin-shell"><aside class="bp-admin-sidebar"><div class="bp-admin-brand"><span>Batoi Press</span><small>Admin</small></div>' . self::navigation() . '</aside><div class="bp-admin-workspace"><header class="bp-admin-topbar"><div><strong>' . self::e($title) . '</strong><span>Business-ready publishing console</span></div><nav aria-label="Admin actions"><a class="bp-button bp-button-secondary" href="' . self::e(\bp_url('/')) . '">View site</a><a class="bp-button bp-button-secondary" href="' . self::e(\bp_url('/admin/updates')) . '">Updates</a></nav></header><main class="' . self::e($mainClass) . '">' . $body . '</main></div></div>';
+        return '<div class="bp-admin-shell"><aside class="bp-admin-sidebar"><div class="bp-admin-brand"><span class="bp-admin-brand-mark">BP</span><div><span>Batoi Press</span><small>CMS Console</small></div></div>' . self::navigation() . '<footer class="bp-admin-sidebar-footer"><span class="bp-status-dot"></span><div><strong>Flat-file runtime</strong><small>UIF enabled</small></div></footer></aside><div class="bp-admin-workspace"><header class="bp-admin-topbar"><div class="bp-admin-topbar-title"><span>Admin / ' . self::e($title) . '</span><strong>' . self::e($title) . '</strong></div><label class="bp-admin-command"><span>Search</span><input type="search" placeholder="Command search" disabled></label><nav aria-label="Admin actions"><a class="bp-button bp-button-secondary" href="' . self::e(\bp_url('/')) . '">View site</a><a class="bp-button bp-button-secondary" href="' . self::e(\bp_url('/admin/updates')) . '">Updates</a></nav></header><main class="' . self::e($mainClass) . '">' . $body . '</main><footer class="bp-admin-statusbar"><span class="bp-status-pill" data-status="idle"><i></i>Ready</span><span>Batoi UIF shell</span><span>Secure admin session</span></footer></div></div>';
     }
 
     private static function authShell(string $title, string $body, string $mainClass): string
     {
-        return '<main class="bp-admin-auth"><section class="' . self::e($mainClass) . '"><div class="bp-admin-brand bp-admin-auth-brand"><span>Batoi Press</span><small>' . self::e($title) . '</small></div>' . $body . '</section></main>';
+        return '<main class="bp-admin-auth"><section class="' . self::e($mainClass) . '"><div class="bp-admin-brand bp-admin-auth-brand"><span class="bp-admin-brand-mark">BP</span><div><span>Batoi Press</span><small>' . self::e($title) . '</small></div></div>' . $body . '</section></main>';
     }
 
     private static function navigation(): string
@@ -72,7 +72,7 @@ final class AdminLayout
             $html .= '<section><h2>' . self::e($group) . '</h2>';
             foreach ($items as $item) {
                 $active = self::isActive((string)$item['href']) ? ' aria-current="page" class="is-active"' : '';
-                $html .= '<a href="' . self::e(\bp_url((string)$item['href'])) . '"' . $active . '><span>' . self::e((string)$item['icon']) . '</span>' . self::e((string)$item['label']) . '</a>';
+                $html .= '<a href="' . self::e(\bp_url((string)$item['href'])) . '"' . $active . '><span class="bp-nav-icon">' . self::icon((string)$item['icon']) . '</span><span class="bp-nav-label">' . self::e((string)$item['label']) . '</span></a>';
             }
             $html .= '</section>';
         }
@@ -83,26 +83,26 @@ final class AdminLayout
     {
         return [
             'Overview' => [
-                ['label' => 'Dashboard', 'href' => '/admin', 'icon' => 'O'],
+                ['label' => 'Dashboard', 'href' => '/admin', 'icon' => 'dashboard'],
             ],
             'Publish' => [
-                ['label' => 'Pages', 'href' => '/admin/pages', 'icon' => 'P'],
-                ['label' => 'Posts', 'href' => '/admin/posts', 'icon' => 'B'],
-                ['label' => 'Media', 'href' => '/admin/media', 'icon' => 'M'],
-                ['label' => 'Menus', 'href' => '/admin/menus', 'icon' => 'N'],
+                ['label' => 'Pages', 'href' => '/admin/pages', 'icon' => 'file'],
+                ['label' => 'Posts', 'href' => '/admin/posts', 'icon' => 'edit'],
+                ['label' => 'Media', 'href' => '/admin/media', 'icon' => 'image'],
+                ['label' => 'Menus', 'href' => '/admin/menus', 'icon' => 'menu'],
             ],
             'Site' => [
-                ['label' => 'Settings', 'href' => '/admin/settings', 'icon' => 'S'],
-                ['label' => 'Static Export', 'href' => '/admin/export-static', 'icon' => 'E'],
-                ['label' => 'Cache', 'href' => '/admin/cache', 'icon' => 'C'],
+                ['label' => 'Settings', 'href' => '/admin/settings', 'icon' => 'settings'],
+                ['label' => 'Static Export', 'href' => '/admin/export-static', 'icon' => 'download'],
+                ['label' => 'Cache', 'href' => '/admin/cache', 'icon' => 'database'],
             ],
             'Governance' => [
-                ['label' => 'Users', 'href' => '/admin/users', 'icon' => 'U'],
-                ['label' => 'Updates', 'href' => '/admin/updates', 'icon' => 'R'],
-                ['label' => 'Audit Log', 'href' => '/admin/audit', 'icon' => 'L'],
+                ['label' => 'Users', 'href' => '/admin/users', 'icon' => 'users'],
+                ['label' => 'Updates', 'href' => '/admin/updates', 'icon' => 'refresh'],
+                ['label' => 'Audit Log', 'href' => '/admin/audit', 'icon' => 'shield'],
             ],
             'Intelligence' => [
-                ['label' => 'Batoi AIF', 'href' => '/admin/aif', 'icon' => 'A'],
+                ['label' => 'Batoi AIF', 'href' => '/admin/aif', 'icon' => 'spark'],
             ],
         ];
     }
@@ -131,5 +131,55 @@ final class AdminLayout
     private static function isAuthRoute(): bool
     {
         return self::currentPath() === '/admin/login';
+    }
+
+    private static function initials(string $label): string
+    {
+        $words = preg_split('/\s+/', trim($label)) ?: [];
+        $letters = '';
+        foreach ($words as $word) {
+            if ($word !== '') {
+                $letters .= strtoupper(substr($word, 0, 1));
+            }
+            if (strlen($letters) >= 2) {
+                break;
+            }
+        }
+        return $letters !== '' ? $letters : 'BP';
+    }
+
+    public static function icon(string $name): string
+    {
+        $paths = [
+            'dashboard' => '<rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect>',
+            'file' => '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path><path d="M8 13h8"></path><path d="M8 17h5"></path>',
+            'edit' => '<path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16z"></path><path d="M13.5 6.5l4 4"></path>',
+            'image' => '<rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="8" cy="10" r="1.5"></circle><path d="M21 16l-5-5L5 19"></path>',
+            'menu' => '<path d="M4 6h16"></path><path d="M4 12h16"></path><path d="M4 18h16"></path>',
+            'settings' => '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.1 2.1-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21h-3v-.7a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L6.6 17l.1-.1A1.7 1.7 0 0 0 7 15a1.7 1.7 0 0 0-1.6-1H5v-3h.4A1.7 1.7 0 0 0 7 10a1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.1-2.1.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V4h3v.7a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 8l-.1.1A1.7 1.7 0 0 0 19.4 10a1.7 1.7 0 0 0 1.6 1h.4v3H21a1.7 1.7 0 0 0-1.6 1z"></path>',
+            'download' => '<path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 21h14"></path>',
+            'database' => '<ellipse cx="12" cy="5" rx="7" ry="3"></ellipse><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5"></path><path d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"></path>',
+            'users' => '<path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9.5" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.9"></path><path d="M16 3.1a4 4 0 0 1 0 7.8"></path>',
+            'refresh' => '<path d="M20 12a8 8 0 0 1-13.7 5.7"></path><path d="M4 12A8 8 0 0 1 17.7 6.3"></path><path d="M7 18H4v3"></path><path d="M17 6h3V3"></path>',
+            'shield' => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-5"></path>',
+            'spark' => '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"></path>',
+            'chart' => '<path d="M4 19V5"></path><path d="M4 19h16"></path><rect x="7" y="12" width="2.8" height="4"></rect><rect x="11" y="8" width="2.8" height="8"></rect><rect x="15" y="10" width="2.8" height="6"></rect>',
+            'site' => '<circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3c2.4 2.6 3.5 5.6 3.5 9S14.4 18.4 12 21c-2.4-2.6-3.5-5.6-3.5-9S9.6 5.6 12 3z"></path>',
+        ];
+        $body = $paths[$name] ?? $paths['dashboard'];
+        return '<svg class="uif-icon bp-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' . $body . '</svg>';
+    }
+
+    private static function iconForLabel(string $label): string
+    {
+        $key = strtolower($label);
+        return match (true) {
+            str_contains($key, 'site') => 'site',
+            str_contains($key, 'page'), str_contains($key, 'config') => 'file',
+            str_contains($key, 'post') => 'edit',
+            str_contains($key, 'version'), str_contains($key, 'cache') => 'refresh',
+            str_contains($key, 'user'), str_contains($key, 'signed') => 'users',
+            default => 'chart',
+        };
     }
 }
