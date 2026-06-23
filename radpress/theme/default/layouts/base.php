@@ -4,6 +4,18 @@ declare(strict_types=1);
 $seoTitle = $page['seo_title'] ?? $post['seo_title'] ?? '';
 $pageTitle = $seoTitle !== '' ? $seoTitle : (isset($title) && $title !== '' ? $title . ' | ' . ($site['name'] ?? 'Batoi Press') : ($site['name'] ?? 'Batoi Press'));
 $description = $page['seo_description'] ?? $post['seo_description'] ?? $site['tagline'] ?? '';
+$favicon = (string)($site['favicon'] ?? '');
+$faviconFile = $favicon !== '' ? dirname(__DIR__, 4) . '/public_html/' . ltrim($favicon, '/') : '';
+$faviconHref = $faviconFile !== '' && is_file($faviconFile) ? bp_url($favicon) . '?v=' . filemtime($faviconFile) : '';
+$faviconTypes = [
+    'ico' => 'image/x-icon',
+    'jpeg' => 'image/jpeg',
+    'jpg' => 'image/jpeg',
+    'png' => 'image/png',
+    'svg' => 'image/svg+xml',
+    'webp' => 'image/webp',
+];
+$faviconType = $faviconHref !== '' ? ($faviconTypes[strtolower((string)pathinfo($faviconFile, PATHINFO_EXTENSION))] ?? 'image/x-icon') : '';
 ?>
 <!doctype html>
 <html lang="en">
@@ -13,30 +25,22 @@ $description = $page['seo_description'] ?? $post['seo_description'] ?? $site['ta
     <title><?php echo bp_esc((string)$pageTitle); ?></title>
     <meta name="description" content="<?php echo bp_attr((string)$description); ?>">
     <link rel="canonical" href="<?php echo bp_attr((string)($site['base_url'] ?? '') . ($_SERVER['REQUEST_URI'] ?? '/')); ?>">
+    <?php if ($faviconHref !== ''): ?>
+    <link rel="icon" type="<?php echo bp_attr($faviconType); ?>" href="<?php echo bp_attr($faviconHref); ?>">
+    <?php endif; ?>
     <link rel="stylesheet" href="<?php echo bp_attr(bp_url('/assets/uif/uif.css')); ?>">
     <link rel="stylesheet" href="<?php echo bp_attr(bp_url('/assets/css/style.css')); ?>">
+    <script src="<?php echo bp_attr(bp_url('/assets/uif/uif.iife.js')); ?>" defer></script>
     <script src="<?php echo bp_attr(bp_url('/assets/js/app.js')); ?>" defer></script>
     <script src="<?php echo bp_attr(bp_url('/assets/uif/uif.js')); ?>" defer></script>
 </head>
 <body class="bp-public-body">
 <div class="bp-shell">
-    <header class="bp-header">
-        <nav class="bp-nav" aria-label="Main navigation">
-            <a class="bp-brand" href="<?php echo bp_attr(bp_url('/')); ?>"><?php echo bp_esc((string)($site['name'] ?? 'Batoi Press')); ?></a>
-            <div class="bp-links">
-                <a href="<?php echo bp_attr(bp_url('/')); ?>">Home</a>
-                <a href="<?php echo bp_attr(bp_url('/about')); ?>">About</a>
-                <a href="<?php echo bp_attr(bp_url('/blog')); ?>">Blog</a>
-                <a href="<?php echo bp_attr(bp_url('/admin')); ?>">Admin</a>
-            </div>
-        </nav>
-    </header>
+    <?php require __DIR__ . '/../partials/header.php'; ?>
     <main class="bp-main">
         <?php echo $content; ?>
     </main>
-    <footer class="bp-footer bp-main">
-        <p><?php echo bp_esc((string)($site['tagline'] ?? '')); ?></p>
-    </footer>
+    <?php require __DIR__ . '/../partials/footer.php'; ?>
 </div>
 </body>
 </html>

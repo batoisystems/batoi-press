@@ -101,9 +101,9 @@ The admin console uses bundled Batoi UIF assets and a persistent business consol
 - Governance: users, updates, audit log.
 - Intelligence: Batoi AIF.
 
-Pages and posts use structured list screens, publication badges, preview links, and editor panels for content, publishing, and SEO. Media lists file type, size, modified date, public URL, and image HTML snippets. Menus use label/URL rows with a legacy `Label|/url` fallback. Settings are grouped by identity, URL, localization, and theme. Users show roles, creation dates, and account status.
+Pages and posts use structured list screens, publication badges, preview links, and editor panels for content, publishing, and SEO. Media lists file type, size, modified date, public URL, and image HTML snippets. Menus use label/URL rows with a legacy `Label|/url` fallback. Settings are grouped by identity, branding, URL, localization, editor configuration, and theme. Theme management supports active theme selection, upload, preview, and template editing. Users show roles, creation dates, and account status.
 
-Operations are separated from publishing work. Updates expose version status, stable manifest, package staging, backup creation, staged packages, and rollback backups. Audit Log shows the latest 100 recorded governance events.
+Operations are separated from publishing work. Static Export creates downloadable ZIP packages with readiness status and recent export history. Cache explains safe maintenance actions and runtime directory status. Updates expose version status, stable manifest, package staging, backup creation, staged packages, and rollback backups. Audit Log shows the latest 200 structured events, including authenticated admin views, actions, downloads, semantic changes, outcomes, and safe request details.
 
 ## Installer Lifecycle
 

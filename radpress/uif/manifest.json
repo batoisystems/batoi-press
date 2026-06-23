@@ -3,5 +3,12 @@
   "version": "0.2.0",
   "runtime": "bundled",
   "public_assets": "/assets/uif/",
+  "files": [
+    "uif.css",
+    "uif.iife.js",
+    "uif.life.js",
+    "uif.esm.js",
+    "uif.js"
+  ],
   "description": "Native UI primitives for Batoi Press admin, installer, and default theme foundations."
 }

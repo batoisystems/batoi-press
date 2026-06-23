@@ -12,7 +12,7 @@ use Batoi\Press\Core\Config;
 use Batoi\Press\Aif\AifManager;
 
 $root = dirname(__DIR__, 2);
-$paths = ['/', '/about', '/blog', '/blog/first-blog-post', '/sitemap.xml', '/feed.xml', '/admin', '/admin/login', '/admin/pages', '/admin/posts', '/admin/media', '/admin/menus', '/admin/settings', '/admin/users', '/admin/audit', '/admin/cache', '/admin/export-static', '/admin/aif', '/admin/updates'];
+$paths = ['/', '/about', '/blog', '/blog/first-blog-post', '/sitemap.xml', '/feed.xml', '/admin', '/admin/login', '/admin/pages', '/admin/posts', '/admin/media', '/admin/menus', '/admin/settings', '/admin/themes', '/admin/theme-templates', '/admin/users', '/admin/audit', '/admin/cache', '/admin/export-static', '/admin/aif', '/admin/updates'];
 $mediaFile = $root . '/radpress/content/media/smoke-test.txt';
 file_put_contents($mediaFile, 'media ok', LOCK_EX);
 $paths[] = '/media/smoke-test.txt';
@@ -20,6 +20,22 @@ $paths[] = '/media/smoke-test.txt';
 try {
     if (!is_file($root . '/public_html/assets/uif/uif.css')) {
         throw new RuntimeException('Batoi UIF stylesheet is missing.');
+    }
+    foreach ([
+        'public_html/assets/uif/uif.css' => 50000,
+        'public_html/assets/uif/uif.iife.js' => 250000,
+        'public_html/assets/uif/uif.life.js' => 250000,
+        'public_html/assets/uif/uif.esm.js' => 250000,
+        'public_html/assets/img/press-color.svg' => 100,
+        'public_html/assets/img/batoi-press/press-color.svg' => 100,
+        'public_html/assets/img/batoi-press/press-color-tile-180.png' => 1000,
+        'public_html/assets/img/batoi-press/press-color-tile-512.png' => 5000,
+        'public_html/assets/img/batoi-press/press-mono.svg' => 100,
+    ] as $asset => $minimumBytes) {
+        $path = $root . '/' . $asset;
+        if (!is_file($path) || filesize($path) < $minimumBytes) {
+            throw new RuntimeException("Batoi UIF release asset is missing or incomplete: {$asset}");
+        }
     }
 
     $aifStatus = (new AifManager(Config::load($root)->aif()))->status();

@@ -5,13 +5,17 @@ namespace Batoi\Press\Admin;
 
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Core\AuditLog;
+use Batoi\Press\Core\Config;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
+use Batoi\Press\Core\Slug;
 use Batoi\Press\Security\Csrf;
+use RuntimeException;
 
 final class PageController
 {
     public function __construct(
+        private readonly Config $config,
         private readonly PageRepository $pages,
         private readonly Csrf $csrf,
         private readonly AuditLog $audit,
@@ -25,12 +29,12 @@ final class PageController
         $body = AdminLayout::pageHeader(
             'Pages',
             'Create and maintain evergreen site pages with clear publication status.',
-            '<a class="bp-button" href="/admin/pages/new">Create Page</a>'
+            AdminLayout::buttonLink('Create Page', '/admin/pages/new', 'plus')
         );
         $body .= $this->toolbar($pages);
 
         if ($pages === []) {
-            $body .= '<section class="bp-empty-state"><h2>No pages yet</h2><p>Create the first page for this site. Pages are stored as HTML content with JSON metadata.</p><a class="bp-button" href="/admin/pages/new">Create Page</a></section>';
+            $body .= '<section class="bp-empty-state"><h2>No pages yet</h2><p>Create the first page for this site. Pages are stored as HTML content with JSON metadata.</p>' . AdminLayout::buttonLink('Create Page', '/admin/pages/new', 'plus') . '</section>';
             return Response::html($this->layout('Pages', $body));
         }
 
@@ -56,7 +60,17 @@ final class PageController
             return Response::html($this->layout('Pages', '<p class="bp-error">Security token expired.</p><p><a href="/admin/pages">Back to pages</a></p>'), 400);
         }
 
-        $meta = $this->pages->save($request->post, (string)($this->user['username'] ?? 'admin'));
+        $slug = Slug::normalize($request->input('slug'));
+        $originalSlug = Slug::normalize($request->input('original_slug'));
+        if ($originalSlug !== '' && $originalSlug !== $slug && $this->pages->findBySlug($slug) !== null) {
+            return Response::html($this->layout('Pages', '<p class="bp-error">A page with this slug already exists.</p><p>' . AdminLayout::buttonLink('Back to pages', '/admin/pages', 'back', true) . '</p>'), 409);
+        }
+
+        try {
+            $meta = $this->pages->save($request->post, (string)($this->user['username'] ?? 'admin'));
+        } catch (RuntimeException $exception) {
+            return Response::html($this->layout('Pages', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>' . AdminLayout::buttonLink('Back to pages', '/admin/pages', 'back', true) . '</p>'), 409);
+        }
         $this->audit->record((string)($this->user['username'] ?? 'admin'), 'page.updated', (string)$meta['slug'], (string)($_SERVER['REMOTE_ADDR'] ?? ''));
 
         return Response::redirect('/admin/pages');
@@ -66,9 +80,9 @@ final class PageController
     {
         $isEdit = $page !== null;
         $slug = (string)($page['slug'] ?? '');
-        $actions = '<a class="bp-button bp-button-secondary" href="/admin/pages">Back to pages</a>';
+        $actions = AdminLayout::buttonLink('Back to pages', '/admin/pages', 'back', true);
         if ($isEdit) {
-            $actions = '<a class="bp-button bp-button-secondary" href="' . $this->e($this->pageUrl($slug)) . '">View page</a>' . $actions;
+            $actions = AdminLayout::buttonLink('View page', $this->pageUrl($slug), 'site', true) . $actions;
         }
 
         $body = AdminLayout::pageHeader(
@@ -78,13 +92,14 @@ final class PageController
         );
         $body .= '<form method="post" action="/admin/pages/save" class="bp-form bp-admin-editor">';
         $body .= $this->csrf->field();
+        $body .= '<input type="hidden" name="original_slug" value="' . $this->e($slug) . '">';
 
-        $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($page['title'] ?? '')) . $this->input('Slug', 'slug', $slug) . '<label class="bp-field-wide">Body HTML <textarea class="bp-editor-textarea" name="body" rows="18">' . $this->e((string)($page['body'] ?? '')) . '</textarea><span class="bp-field-help">Use clean HTML. Scripts and unsafe markup are sanitized before saving.</span></label></div>';
+        $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($page['title'] ?? '')) . $this->input('Slug', 'slug', $slug) . $this->bodyEditor((string)($page['body'] ?? ''), 'Use clean HTML. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.') . '</div>';
         $publishing = $this->select((string)($page['status'] ?? 'draft')) . $this->metaList($page);
         $seo = $this->input('SEO Title', 'seo_title', (string)($page['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($page['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short page summary for search snippets and social previews.</span></label>';
 
         $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible page content.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Publishing', $publishing, 'Control draft or live availability.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . '</aside>';
-        $body .= '<div class="bp-form-actions"><a class="bp-button bp-button-secondary" href="/admin/pages">Cancel</a><button type="submit">Save Page</button></div></form>';
+        $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/pages', 'back', true) . AdminLayout::submitButton('Save Page', 'save') . '</div></form>';
         return $body;
     }
 
@@ -92,6 +107,20 @@ final class PageController
     {
         $requiredAttribute = $required ? ' required' : '';
         return '<label>' . $this->e($label) . ' <input type="text" name="' . $this->e($name) . '" value="' . $this->e($value) . '"' . $requiredAttribute . '></label>';
+    }
+
+    private function bodyEditor(string $value, string $help): string
+    {
+        $editor = $this->config->editor();
+        $mode = (string)($editor['body_editor'] ?? 'rich_html');
+        $toolbar = $this->e((string)($editor['html_toolbar'] ?? 'undo redo bold italic underline strike heading quote code ul ol task link image table hr preview source'));
+        $height = $this->e((string)($editor['html_height'] ?? '24rem'));
+        $attributes = 'class="bp-editor-textarea" name="body" rows="18"';
+        if ($mode === 'rich_html') {
+            $attributes .= ' data-uif="editor" data-uif-mode="html" data-uif-preview="manual" data-uif-editor-layout="source" data-uif-editor-height="' . $height . '" data-uif-editor-status="true" data-uif-required="true" data-uif-toolbar="' . $toolbar . '"';
+        }
+
+        return '<label class="bp-field-wide">Body HTML <textarea ' . $attributes . '>' . $this->e($value) . '</textarea><span class="bp-field-help">' . $this->e($help) . '</span></label>';
     }
 
     private function select(string $status): string

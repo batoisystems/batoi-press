@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Batoi\Press\Admin;
 
 use Batoi\Press\Aif\AifManager;
+use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\Config;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
@@ -13,7 +14,9 @@ final class AifController
 {
     public function __construct(
         private readonly Config $config,
-        private readonly Csrf $csrf
+        private readonly Csrf $csrf,
+        private readonly ?AuditLog $audit = null,
+        private readonly array $user = []
     ) {
     }
 
@@ -45,7 +48,7 @@ final class AifController
 
         $body .= '<section class="bp-admin-section"><header><div><h2>Content assist</h2><p>Guarded actions for future providers. Disabled installations return a clear disabled response.</p></div></header><form method="post" action="/admin/aif/assist" class="bp-admin-nav bp-uif-toolbar">' . $this->csrf->field();
         foreach ($this->assistTasks() as $task => $label) {
-            $body .= '<button type="submit" name="task" value="' . $this->e($task) . '">' . $this->e($label) . '</button>';
+            $body .= AdminLayout::submitButton($label, 'spark', 'name="task" value="' . $this->e($task) . '"');
         }
         $body .= '</form></section>';
 
@@ -55,17 +58,20 @@ final class AifController
     public function assist(Request $request): Response
     {
         if (!$this->csrf->validate($request->input('csrf_token'))) {
+            $this->record('aif.assist_failed', 'csrf', $request, 'blocked');
             return Response::html($this->layout('Batoi AIF', '<p class="bp-error">Security token expired.</p><p><a href="/admin/aif">Back to AIF</a></p>'), 400);
         }
 
         $task = $request->input('task');
         if (!array_key_exists($task, $this->assistTasks())) {
+            $this->record('aif.assist_failed', $task, $request, 'failed');
             return Response::html($this->layout('Batoi AIF', '<p class="bp-error">Unknown AIF task.</p><p><a href="/admin/aif">Back to AIF</a></p>'), 400);
         }
 
         $result = (new AifManager($this->config->aif()))->assist($task, []);
         $class = ($result['ok'] ?? false) ? 'bp-notice' : 'bp-error';
         $message = (string)($result['error'] ?? 'AIF request completed.');
+        $this->record(($result['ok'] ?? false) ? 'aif.assist' : 'aif.assist_failed', $task, $request, ($result['ok'] ?? false) ? 'success' : 'failed');
 
         return Response::html($this->layout('Batoi AIF', '<p class="' . $class . '">' . $this->e($message) . '</p><p><a href="/admin/aif">Back to AIF</a></p>'), ($result['ok'] ?? false) ? 200 : 400);
     }
@@ -93,5 +99,13 @@ final class AifController
     private function statusBadge(bool $enabled): string
     {
         return $enabled ? '<span class="bp-status-badge is-published">Enabled</span>' : '<span class="bp-status-badge is-draft">Disabled</span>';
+    }
+
+    private function record(string $action, string $target, Request $request, string $outcome): void
+    {
+        $this->audit?->record((string)($this->user['username'] ?? 'admin'), $action, $target, (string)($request->server['REMOTE_ADDR'] ?? ''), $outcome, [
+            'method' => $request->method,
+            'route' => $request->path,
+        ]);
     }
 }

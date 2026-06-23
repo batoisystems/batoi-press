@@ -36,6 +36,11 @@ final class Response
         return new self('Redirecting to ' . $location, 302, ['Location' => $location, 'Content-Type' => 'text/plain; charset=UTF-8']);
     }
 
+    public function content(): string
+    {
+        return $this->body;
+    }
+
     public function send(): void
     {
         http_response_code($this->status);

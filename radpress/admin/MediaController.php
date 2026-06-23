@@ -29,7 +29,7 @@ final class MediaController
         $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Upload asset</h2><p>Supported file types are controlled by the installation security policy.</p></div></header><form method="post" action="/admin/media/upload" enctype="multipart/form-data" class="bp-form bp-compact-form">';
         $body .= $this->csrf->field();
         $body .= '<label>File <input type="file" name="media" required><span class="bp-field-help">Maximum upload size: ' . $this->e((string)$uploadLimit) . ' MB.</span></label>';
-        $body .= '<button type="submit">Upload File</button></form></section>';
+        $body .= AdminLayout::submitButton('Upload File', 'upload') . '</form></section>';
 
         $files = $this->files();
         if ($files === []) {
@@ -63,7 +63,12 @@ final class MediaController
         }
 
         $name = $guard->safeName((string)$file['name']);
-        $target = $this->config->paths()->contentPath('media/' . $name);
+        $mediaDir = $this->config->paths()->contentPath('media');
+        if (!$this->ensureMediaDirectory($mediaDir)) {
+            return Response::html($this->layout('Media', '<p class="bp-error">Unable to prepare media storage.</p>'), 500);
+        }
+
+        $target = $mediaDir . '/' . $name;
         if (!move_uploaded_file((string)$file['tmp_name'], $target)) {
             return Response::html($this->layout('Media', '<p class="bp-error">Unable to save upload.</p>'), 500);
         }
@@ -77,6 +82,15 @@ final class MediaController
         $files = glob($this->config->paths()->contentPath('media/*')) ?: [];
         usort($files, static fn (string $a, string $b): int => (int)filemtime($b) <=> (int)filemtime($a));
         return $files;
+    }
+
+    private function ensureMediaDirectory(string $dir): bool
+    {
+        if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+            return false;
+        }
+
+        return is_writable($dir);
     }
 
     private function layout(string $title, string $body): string

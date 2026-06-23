@@ -1,0 +1,5 @@
+{
+  "body_editor": "rich_html",
+  "html_toolbar": "undo redo bold italic underline strike heading quote code ul ol task link image table hr preview source",
+  "html_height": "24rem"
+}

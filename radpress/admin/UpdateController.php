@@ -33,7 +33,7 @@ final class UpdateController
         $body = AdminLayout::pageHeader(
             'Updates',
             'Check, stage, back up, and apply Batoi Press releases with rollback protection.',
-            '<form method="post" action="/admin/updates/check" class="bp-inline-form">' . $this->csrf->field() . '<button type="submit">Check for Updates</button></form>'
+            '<form method="post" action="/admin/updates/check" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Check for Updates', 'refresh') . '</form>'
         );
 
         $cards = '<dl class="bp-admin-stats bp-admin-stats-compact">';
@@ -49,11 +49,11 @@ final class UpdateController
         $cards .= '</dl>';
         $body .= $cards;
 
-        $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Create backup</h2><p>Create a minimal update backup before staging or applying a package.</p></div></header><form method="post" action="/admin/updates/backup" class="bp-inline-form">' . $this->csrf->field() . '<button type="submit">Create Backup</button></form></section>';
+        $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Create backup</h2><p>Create a minimal update backup before staging or applying a package.</p></div></header><form method="post" action="/admin/updates/backup" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Create Backup', 'download') . '</form></section>';
         $body .= '<section class="bp-admin-section"><header><div><h2>Stage package</h2><p>Upload a release ZIP and verify its archive safety before applying it.</p></div></header><form method="post" action="/admin/updates/stage" enctype="multipart/form-data" class="bp-form bp-compact-form">' . $this->csrf->field();
         $body .= '<label>Package ZIP <input type="file" name="package" accept=".zip" required></label>';
         $body .= '<label>SHA-256 Checksum <input type="text" name="sha256"><span class="bp-field-help">Optional, but recommended when applying a package downloaded outside the built-in release flow.</span></label>';
-        $body .= '<button type="submit">Verify and Stage</button></form></section></div>';
+        $body .= AdminLayout::submitButton('Verify and Stage', 'upload') . '</form></section></div>';
         $body .= $this->stageList();
         $body .= $this->backupList();
 
@@ -63,7 +63,7 @@ final class UpdateController
     public function check(string $token): Response
     {
         if (!$this->csrf->validate($token)) {
-            return Response::html(AdminLayout::render('Updates', '<p class="bp-error">Security token expired.</p><p><a class="bp-button bp-button-secondary" href="/admin/updates">Back</a></p>'), 400);
+            return Response::html(AdminLayout::render('Updates', '<p class="bp-error">Security token expired.</p><p>' . AdminLayout::buttonLink('Back', '/admin/updates', 'back', true) . '</p>'), 400);
         }
 
         $update = $this->config->update();
@@ -159,7 +159,7 @@ final class UpdateController
         $html = '<div class="bp-table-wrap"><table class="bp-table bp-content-table"><thead><tr><th>File</th><th>Size</th><th>Modified</th><th>Restore</th></tr></thead><tbody>';
         foreach ($files as $file) {
             $name = basename($file);
-            $html .= '<tr><td><code>' . $this->e($name) . '</code></td><td>' . $this->e($this->size($file)) . '</td><td>' . $this->e($this->modified($file)) . '</td><td><form method="post" action="/admin/updates/rollback" class="bp-inline-form bp-danger-action">' . $this->csrf->field() . '<input type="hidden" name="backup" value="' . $this->e($name) . '"><button type="submit">Restore Backup</button></form></td></tr>';
+            $html .= '<tr><td><code>' . $this->e($name) . '</code></td><td>' . $this->e($this->size($file)) . '</td><td>' . $this->e($this->modified($file)) . '</td><td><form method="post" action="/admin/updates/rollback" class="bp-inline-form bp-danger-action">' . $this->csrf->field() . '<input type="hidden" name="backup" value="' . $this->e($name) . '">' . AdminLayout::submitButton('Restore Backup', 'refresh') . '</form></td></tr>';
         }
 
         return '<section class="bp-admin-section bp-danger-zone"><header><div><h2>Rollback backups</h2><p>Restore only when an update has failed and you understand this replaces live files.</p></div></header>' . $html . '</tbody></table></div></section>';
@@ -175,7 +175,7 @@ final class UpdateController
         $html = '<div class="bp-table-wrap"><table class="bp-table bp-content-table"><thead><tr><th>Directory</th><th>Staged</th><th>Apply</th></tr></thead><tbody>';
         foreach ($stages as $stage) {
             $name = basename($stage);
-            $html .= '<tr><td><code>' . $this->e($name) . '</code></td><td>' . $this->e($this->modified($stage)) . '</td><td><form method="post" action="/admin/updates/apply" class="bp-inline-form">' . $this->csrf->field() . '<input type="hidden" name="stage" value="' . $this->e($name) . '"><button type="submit">Apply Package</button></form></td></tr>';
+            $html .= '<tr><td><code>' . $this->e($name) . '</code></td><td>' . $this->e($this->modified($stage)) . '</td><td><form method="post" action="/admin/updates/apply" class="bp-inline-form">' . $this->csrf->field() . '<input type="hidden" name="stage" value="' . $this->e($name) . '">' . AdminLayout::submitButton('Apply Package', 'check') . '</form></td></tr>';
         }
 
         return AdminLayout::section('Staged packages', $html . '</tbody></table></div>', 'Applying a package creates a backup, enables maintenance mode, runs health checks, and rolls back on failure.');
@@ -184,7 +184,7 @@ final class UpdateController
     private function message(string $title, string $message, bool $error = false, int $status = 200): Response
     {
         $class = $error ? 'bp-error' : 'bp-notice';
-        $body = '<p class="' . $class . '">' . $this->e($message) . '</p><p><a class="bp-button bp-button-secondary" href="/admin/updates">Back to updates</a></p>';
+        $body = '<p class="' . $class . '">' . $this->e($message) . '</p><p>' . AdminLayout::buttonLink('Back to updates', '/admin/updates', 'back', true) . '</p>';
         return Response::html(AdminLayout::render($title, $body), $status);
     }
 

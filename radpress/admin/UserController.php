@@ -28,11 +28,11 @@ final class UserController
         $body = AdminLayout::pageHeader(
             'Users',
             'Manage installation users and role assignments.',
-            '<a class="bp-button" href="/admin/users/new">Create User</a>'
+            AdminLayout::buttonLink('Create User', '/admin/users/new', 'plus')
         );
 
         if ($users === []) {
-            $body .= '<section class="bp-empty-state"><h2>No users configured</h2><p>Create the first administrator account before opening this installation to editors.</p><a class="bp-button" href="/admin/users/new">Create User</a></section>';
+            $body .= '<section class="bp-empty-state"><h2>No users configured</h2><p>Create the first administrator account before opening this installation to editors.</p>' . AdminLayout::buttonLink('Create User', '/admin/users/new', 'plus') . '</section>';
             return Response::html($this->layout('Users', $body));
         }
 
@@ -55,7 +55,7 @@ final class UserController
         $body .= $this->csrf->field();
         $body .= '<section class="bp-editor-panel"><header><h2>Account</h2><p>Use a unique username and a reachable email address.</p></header><div class="bp-form-grid"><label>Username <input type="text" name="username" required></label><label>Email <input type="email" name="email"></label></div></section>';
         $body .= '<section class="bp-editor-panel"><header><h2>Access</h2><p>Roles prepare the installation for stricter permissions in later phases.</p></header><div class="bp-form-grid"><label>Role <select name="role"><option value="admin">Admin</option><option value="editor">Editor</option><option value="author">Author</option><option value="viewer">Viewer</option></select></label><label>Password <input type="password" name="password" required minlength="10"><span class="bp-field-help">Use at least 10 characters.</span></label></div></section>';
-        $body .= '<div class="bp-form-actions"><a class="bp-button bp-button-secondary" href="/admin/users">Cancel</a><button type="submit">Save User</button></div></form>';
+        $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/users', 'back', true) . AdminLayout::submitButton('Save User', 'save') . '</div></form>';
         return Response::html($this->layout('Create User', $body));
     }
 

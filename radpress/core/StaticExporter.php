@@ -26,6 +26,8 @@ final class StaticExporter
         $stamp = date('Ymd-His');
         $workDir = $this->paths->dataPath('tmp/export-' . $stamp);
         $zipPath = $this->paths->dataPath('export/site-static-' . $stamp . '.zip');
+        $this->ensureDirectory(dirname($workDir));
+        $this->ensureDirectory(dirname($zipPath));
 
         $this->writeSite($workDir);
         $zip = new ZipArchive();
@@ -38,7 +40,47 @@ final class StaticExporter
         }
         $zip->close();
 
-        return ['ok' => true, 'path' => $zipPath];
+        return ['ok' => true, 'path' => $zipPath, 'name' => basename($zipPath), 'size' => is_file($zipPath) ? filesize($zipPath) : 0];
+    }
+
+    public function status(): array
+    {
+        $exportDir = $this->paths->dataPath('export');
+        $tmpDir = $this->paths->dataPath('tmp');
+        $exports = [];
+        foreach (glob($exportDir . '/site-static-*.zip') ?: [] as $file) {
+            if (!is_file($file)) {
+                continue;
+            }
+            $exports[] = [
+                'name' => basename($file),
+                'path' => $file,
+                'size' => filesize($file) ?: 0,
+                'modified' => filemtime($file) ?: 0,
+            ];
+        }
+        usort($exports, static fn (array $a, array $b): int => (int)$b['modified'] <=> (int)$a['modified']);
+
+        return [
+            'zip_available' => class_exists(ZipArchive::class),
+            'published_pages' => count($this->pages->allPublished()),
+            'published_posts' => count($this->posts->allPublished()),
+            'base_url' => (string)($this->site['base_url'] ?? ''),
+            'export_path' => $exportDir,
+            'export_writable' => is_dir($exportDir) ? is_writable($exportDir) : is_writable(dirname($exportDir)),
+            'tmp_writable' => is_dir($tmpDir) ? is_writable($tmpDir) : is_writable(dirname($tmpDir)),
+            'exports' => array_slice($exports, 0, 5),
+        ];
+    }
+
+    public function exportFile(string $name): ?string
+    {
+        if (!preg_match('/^site-static-\d{8}-\d{6}\.zip$/', $name)) {
+            return null;
+        }
+
+        $path = $this->paths->dataPath('export/' . $name);
+        return is_file($path) ? $path : null;
     }
 
     private function writeSite(string $workDir): void
@@ -104,10 +146,15 @@ final class StaticExporter
     private function write(string $path, string $contents): void
     {
         $dir = dirname($path);
+        $this->ensureDirectory($dir);
+        file_put_contents($path, $contents, LOCK_EX);
+    }
+
+    private function ensureDirectory(string $dir): void
+    {
         if (!is_dir($dir)) {
             mkdir($dir, 0775, true);
         }
-        file_put_contents($path, $contents, LOCK_EX);
     }
 
     private function files(string $dir): array

@@ -19,12 +19,32 @@ function bp_install_esc(string $value): string
 
 function bp_install_layout(string $title, string $body): void
 {
-    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . bp_install_esc($title) . ' | Batoi Press</title><link rel="stylesheet" href="' . bp_install_esc(bp_url('/assets/uif/uif.css')) . '"><link rel="stylesheet" href="' . bp_install_esc(bp_url('/assets/css/style.css')) . '"><script src="' . bp_install_esc(bp_url('/assets/uif/uif.js')) . '" defer></script></head><body class="bp-install-body"><main class="bp-installer-shell">' . $body . '</main></body></html>';
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . bp_install_esc($title) . ' | Batoi Press</title><link rel="stylesheet" href="' . bp_install_esc(bp_url('/assets/uif/uif.css')) . '"><link rel="stylesheet" href="' . bp_install_esc(bp_url('/assets/css/style.css')) . '"><script src="' . bp_install_esc(bp_url('/assets/uif/uif.iife.js')) . '" defer></script><script src="' . bp_install_esc(bp_url('/assets/uif/uif.js')) . '" defer></script></head><body class="bp-install-body"><main class="bp-installer-shell">' . $body . '</main></body></html>';
 }
 
 function bp_install_write_json(string $path, array $data): void
 {
     file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX);
+}
+
+function bp_install_ensure_dirs(string $root): void
+{
+    foreach ([
+        'radpress/content/media',
+        'radpress/data/backups',
+        'radpress/data/cache',
+        'radpress/data/export',
+        'radpress/data/log',
+        'radpress/data/sessions',
+        'radpress/data/tmp',
+        'radpress/data/versions',
+        'public_html/assets/site',
+    ] as $dir) {
+        $path = $root . '/' . $dir;
+        if (!is_dir($path)) {
+            mkdir($path, 0775, true);
+        }
+    }
 }
 
 function bp_install_has_owner(string $configDir): bool
@@ -87,6 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $errors === []) {
     }
 
     if ($errors === []) {
+        bp_install_ensure_dirs($root);
+
         bp_install_write_json($configDir . '/site.json', [
             'name' => $siteName,
             'tagline' => 'A secure flat-file CMS and publishing engine aligned with Batoi RAD.',

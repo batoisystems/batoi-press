@@ -15,6 +15,8 @@ if (!is_dir($outputDir)) {
     mkdir($outputDir, 0775, true);
 }
 
+validateRequiredAssets($root);
+
 $zip = new ZipArchive();
 if ($zip->open($output, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
     fwrite(STDERR, "Unable to create release ZIP: {$output}\n");
@@ -62,6 +64,34 @@ function releaseRoots(string $root): array
         $root . '/README.md',
         $root . '/LICENSE',
     ];
+}
+
+function validateRequiredAssets(string $root): void
+{
+    $assets = [
+        'public_html/assets/uif/uif.css' => 50000,
+        'public_html/assets/uif/uif.iife.js' => 250000,
+        'public_html/assets/uif/uif.life.js' => 250000,
+        'public_html/assets/uif/uif.esm.js' => 250000,
+        'public_html/assets/uif/uif.js' => 100,
+        'public_html/assets/img/press-color.svg' => 100,
+        'public_html/assets/img/batoi-press/press-color.svg' => 100,
+        'public_html/assets/img/batoi-press/press-color-tile-180.png' => 1000,
+        'public_html/assets/img/batoi-press/press-color-tile-512.png' => 5000,
+        'public_html/assets/img/batoi-press/press-mono.svg' => 100,
+    ];
+
+    foreach ($assets as $relative => $minimumBytes) {
+        $path = $root . '/' . $relative;
+        if (!is_file($path)) {
+            fwrite(STDERR, "Required release asset is missing: {$relative}\n");
+            exit(1);
+        }
+        if (filesize($path) < $minimumBytes) {
+            fwrite(STDERR, "Required release asset appears incomplete: {$relative}\n");
+            exit(1);
+        }
+    }
 }
 
 function addPath(ZipArchive $zip, string $root, string $path): void

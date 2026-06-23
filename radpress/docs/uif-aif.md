@@ -8,12 +8,17 @@ Runtime files:
 
 ```text
 public_html/assets/uif/uif.css
+public_html/assets/uif/uif.iife.js
+public_html/assets/uif/uif.life.js
+public_html/assets/uif/uif.esm.js
 public_html/assets/uif/uif.js
 radpress/uif/manifest.json
 radpress/uif/components/
 ```
 
-`public_html/assets/css/style.css` imports the UIF stylesheet so existing admin and installer screens can adopt primitives incrementally.
+`uif.css`, `uif.iife.js`, `uif.life.js`, and `uif.esm.js` are the full Batoi UIF distribution files bundled for downloads. `uif.js` is the small Batoi Press initializer wrapper.
+
+`public_html/assets/css/style.css` imports the UIF stylesheet and carries Batoi Press compatibility classes so existing admin and installer screens can adopt primitives incrementally.
 
 Custom public themes may use UIF, but they are not required to.
 

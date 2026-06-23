@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Batoi\Press\Core;
 
 use Batoi\Press\Admin\DashboardController;
+use Batoi\Press\Admin\AdminLayout;
 use Batoi\Press\Admin\AifController;
 use Batoi\Press\Admin\AuditController;
 use Batoi\Press\Admin\AuthController;
@@ -14,6 +15,7 @@ use Batoi\Press\Admin\MenuController;
 use Batoi\Press\Admin\PageController;
 use Batoi\Press\Admin\PostController;
 use Batoi\Press\Admin\SettingsController;
+use Batoi\Press\Admin\ThemeTemplateController;
 use Batoi\Press\Admin\UpdateController;
 use Batoi\Press\Admin\UserController;
 use Batoi\Press\Content\PageRepository;
@@ -76,10 +78,12 @@ final class Router
             $this->config->paths()->dataPath('sessions')
         );
         $csrf = new Csrf($session);
+        AdminLayout::setCsrf($csrf);
         $files = new FileStore();
+        $audit = new AuditLog($this->config->paths(), $files);
         $auth = new Auth($this->config->paths(), $session, $files);
         $rateLimiter = new RateLimiter($this->config->paths());
-        $authController = new AuthController($this->config, $auth, $csrf, $rateLimiter);
+        $authController = new AuthController($this->config, $auth, $csrf, $rateLimiter, $audit);
 
         if ($request->path === '/admin/login') {
             return $authController->login($request);
@@ -93,42 +97,42 @@ final class Router
         if ($user === null) {
             return Response::redirect('/admin/login');
         }
+        $audit->recordRequest($user, $request);
 
         if ($request->path === '/admin') {
             return (new DashboardController($this->config, $this->pages, $this->posts, $csrf, $user))->index();
         }
 
-        $audit = new AuditLog($this->config->paths(), $files);
         if ($request->path === '/admin/pages') {
-            return (new PageController($this->pages, $csrf, $audit, $user))->index();
+            return (new PageController($this->config, $this->pages, $csrf, $audit, $user))->index();
         }
 
         if ($request->path === '/admin/pages/new') {
-            return (new PageController($this->pages, $csrf, $audit, $user))->edit();
+            return (new PageController($this->config, $this->pages, $csrf, $audit, $user))->edit();
         }
 
         if (str_starts_with($request->path, '/admin/pages/edit/')) {
-            return (new PageController($this->pages, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 18)));
+            return (new PageController($this->config, $this->pages, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 18)));
         }
 
         if ($request->path === '/admin/pages/save' && $request->method === 'POST') {
-            return (new PageController($this->pages, $csrf, $audit, $user))->save($request);
+            return (new PageController($this->config, $this->pages, $csrf, $audit, $user))->save($request);
         }
 
         if ($request->path === '/admin/posts') {
-            return (new PostController($this->posts, $csrf, $audit, $user))->index();
+            return (new PostController($this->config, $this->posts, $csrf, $audit, $user))->index();
         }
 
         if ($request->path === '/admin/posts/new') {
-            return (new PostController($this->posts, $csrf, $audit, $user))->edit();
+            return (new PostController($this->config, $this->posts, $csrf, $audit, $user))->edit();
         }
 
         if (str_starts_with($request->path, '/admin/posts/edit/')) {
-            return (new PostController($this->posts, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 18)));
+            return (new PostController($this->config, $this->posts, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 18)));
         }
 
         if ($request->path === '/admin/posts/save' && $request->method === 'POST') {
-            return (new PostController($this->posts, $csrf, $audit, $user))->save($request);
+            return (new PostController($this->config, $this->posts, $csrf, $audit, $user))->save($request);
         }
 
         if ($request->path === '/admin/media') {
@@ -153,6 +157,38 @@ final class Router
 
         if ($request->path === '/admin/settings/save' && $request->method === 'POST') {
             return (new SettingsController($this->config, $files, $csrf, $audit, $user))->save($request);
+        }
+
+        if ($request->path === '/admin/themes') {
+            return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->themes();
+        }
+
+        if ($request->path === '/admin/themes/activate' && $request->method === 'POST') {
+            return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->activate($request);
+        }
+
+        if ($request->path === '/admin/themes/upload' && $request->method === 'POST') {
+            return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->upload();
+        }
+
+        if (str_starts_with($request->path, '/admin/themes/preview/')) {
+            return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->preview(rawurldecode(substr($request->path, 22)));
+        }
+
+        if ($request->path === '/admin/theme-templates') {
+            return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->index($request->input('theme'));
+        }
+
+        if (str_starts_with($request->path, '/admin/theme-templates/edit/')) {
+            return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 28)));
+        }
+
+        if ($request->path === '/admin/theme-templates/save' && $request->method === 'POST') {
+            return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->save($request);
+        }
+
+        if ($request->path === '/admin/theme-templates/restore' && $request->method === 'POST') {
+            return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->restore($request);
         }
 
         if ($request->path === '/admin/users') {
@@ -183,16 +219,21 @@ final class Router
             return (new ExportController(new StaticExporter($this->config->paths(), $this->pages, $this->posts, $this->config->site()), $csrf, $audit, $user))->index();
         }
 
+        if (str_starts_with($request->path, '/admin/export-static/download/')) {
+            $name = rawurldecode(substr($request->path, strlen('/admin/export-static/download/')));
+            return (new ExportController(new StaticExporter($this->config->paths(), $this->pages, $this->posts, $this->config->site()), $csrf, $audit, $user))->download($name);
+        }
+
         if ($request->path === '/admin/export-static/run' && $request->method === 'POST') {
             return (new ExportController(new StaticExporter($this->config->paths(), $this->pages, $this->posts, $this->config->site()), $csrf, $audit, $user))->run($request->input('csrf_token'));
         }
 
         if ($request->path === '/admin/aif') {
-            return (new AifController($this->config, $csrf))->index();
+            return (new AifController($this->config, $csrf, $audit, $user))->index();
         }
 
         if ($request->path === '/admin/aif/assist' && $request->method === 'POST') {
-            return (new AifController($this->config, $csrf))->assist($request);
+            return (new AifController($this->config, $csrf, $audit, $user))->assist($request);
         }
 
         if ($request->path === '/admin/updates') {

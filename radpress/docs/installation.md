@@ -39,6 +39,19 @@ radpress/config/security.json
 radpress/config/installed.lock
 ```
 
+It also ensures writable runtime directories such as:
+
+```text
+radpress/content/media/
+radpress/data/backups/
+radpress/data/cache/
+radpress/data/export/
+radpress/data/log/
+radpress/data/sessions/
+radpress/data/tmp/
+radpress/data/versions/
+```
+
 ## Release Package Notes
 
 A release ZIP should contain the runtime files needed for FTP upload:

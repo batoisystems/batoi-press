@@ -10,6 +10,7 @@ final class Config
     private array $security;
     private array $update;
     private array $aif;
+    private array $editor;
 
     private function __construct(
         private readonly Paths $paths,
@@ -20,6 +21,7 @@ final class Config
         $this->security = $this->readOptionalJson('security.json', []);
         $this->update = $this->readOptionalJson('update.json', []);
         $this->aif = $this->readOptionalJson('aif.json', []);
+        $this->editor = $this->readOptionalJson('editor.json', []);
     }
 
     public static function load(string $root): self
@@ -59,6 +61,11 @@ final class Config
     public function aif(): array
     {
         return $this->aif;
+    }
+
+    public function editor(): array
+    {
+        return $this->editor;
     }
 
     private function readOptionalJson(string $file, array $default): array

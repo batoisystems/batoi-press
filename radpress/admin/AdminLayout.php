@@ -3,13 +3,22 @@ declare(strict_types=1);
 
 namespace Batoi\Press\Admin;
 
+use Batoi\Press\Security\Csrf;
+
 final class AdminLayout
 {
+    private static ?Csrf $csrf = null;
+
+    public static function setCsrf(Csrf $csrf): void
+    {
+        self::$csrf = $csrf;
+    }
+
     public static function render(string $title, string $body, string $mainClass = 'bp-admin bp-uif-surface'): string
     {
         $body = function_exists('bp_localize_markup_urls') ? \bp_localize_markup_urls($body) : $body;
         $content = self::isAuthRoute() ? self::authShell($title, $body, $mainClass) : self::adminShell($title, $body, $mainClass);
-        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . self::e($title) . ' | Batoi Press</title><link rel="stylesheet" href="' . self::e(\bp_url('/assets/uif/uif.css')) . '"><link rel="stylesheet" href="' . self::e(\bp_url('/assets/css/style.css')) . '"><script src="' . self::e(\bp_url('/assets/uif/uif.js')) . '" defer></script></head><body class="bp-admin-body">' . $content . '</body></html>';
+        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . self::e($title) . ' | Batoi Press</title><link rel="icon" type="image/svg+xml" href="' . self::e(self::assetUrl('/assets/img/batoi-press/press-color.svg')) . '"><link rel="apple-touch-icon" sizes="180x180" href="' . self::e(self::assetUrl('/assets/img/batoi-press/press-color-tile-180.png')) . '"><link rel="stylesheet" href="' . self::e(self::assetUrl('/assets/uif/uif.css')) . '"><link rel="stylesheet" href="' . self::e(self::assetUrl('/assets/css/style.css')) . '"><script src="' . self::e(self::assetUrl('/assets/uif/uif.iife.js')) . '" defer></script><script src="' . self::e(self::assetUrl('/assets/uif/uif.js')) . '" defer></script></head><body class="bp-admin-body">' . $content . '</body></html>';
     }
 
     public static function message(string $title, string $message, bool $error = false): string
@@ -21,6 +30,26 @@ final class AdminLayout
     public static function e(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    public static function buttonLink(string $label, string $href, string $icon, bool $secondary = false): string
+    {
+        $class = $secondary ? 'bp-button bp-button-secondary' : 'bp-button';
+        return '<a class="' . $class . '" href="' . self::e($href) . '">' . self::buttonIcon($icon) . '<span>' . self::e($label) . '</span></a>';
+    }
+
+    public static function submitButton(string $label, string $icon, string $attributes = ''): string
+    {
+        $attributes = trim($attributes);
+        $attributes = $attributes !== '' ? ' ' . $attributes : '';
+        return '<button type="submit"' . $attributes . '>' . self::buttonIcon($icon) . '<span>' . self::e($label) . '</span></button>';
+    }
+
+    private static function assetUrl(string $path): string
+    {
+        $url = \bp_url($path);
+        $file = dirname(__DIR__, 2) . '/public_html/' . ltrim($path, '/');
+        return is_file($file) ? $url . '?v=' . filemtime($file) : $url;
     }
 
     public static function pageHeader(string $title, string $description = '', string $actions = ''): string
@@ -57,12 +86,19 @@ final class AdminLayout
 
     private static function adminShell(string $title, string $body, string $mainClass): string
     {
-        return '<div class="bp-admin-shell"><aside class="bp-admin-sidebar"><div class="bp-admin-brand"><span class="bp-admin-brand-mark">BP</span><div><span>Batoi Press</span><small>CMS Console</small></div></div>' . self::navigation() . '<footer class="bp-admin-sidebar-footer"><span class="bp-status-dot"></span><div><strong>Flat-file runtime</strong><small>UIF enabled</small></div></footer></aside><div class="bp-admin-workspace"><header class="bp-admin-topbar"><div class="bp-admin-topbar-title"><span>Admin / ' . self::e($title) . '</span><strong>' . self::e($title) . '</strong></div><label class="bp-admin-command"><span>Search</span><input type="search" placeholder="Command search" disabled></label><nav aria-label="Admin actions"><a class="bp-button bp-button-secondary" href="' . self::e(\bp_url('/')) . '">View site</a><a class="bp-button bp-button-secondary" href="' . self::e(\bp_url('/admin/updates')) . '">Updates</a></nav></header><main class="' . self::e($mainClass) . '">' . $body . '</main><footer class="bp-admin-statusbar"><span class="bp-status-pill" data-status="idle"><i></i>Ready</span><span>Batoi UIF shell</span><span>Secure admin session</span></footer></div></div>';
+        $siteName = self::siteName();
+        $logout = self::$csrf !== null ? '<form method="post" action="' . self::e(\bp_url('/admin/logout')) . '" class="bp-topbar-logout">' . self::$csrf->field() . self::submitButton('Log Out', 'logout', 'class="bp-button bp-button-secondary bp-button-danger"') . '</form>' : '';
+        return '<div class="bp-admin-shell"><aside class="bp-admin-sidebar"><div class="bp-admin-brand">' . self::brandMark() . '<div><span>' . self::e($siteName) . '</span><small>CMS Console</small></div></div>' . self::navigation() . '</aside><div class="bp-admin-workspace"><header class="bp-admin-topbar"><div class="bp-admin-topbar-title"><span>CMS Console</span><strong>' . self::e($siteName) . '</strong></div><nav aria-label="Admin actions">' . self::buttonLink('View site', \bp_url('/'), 'site', true) . self::buttonLink('Updates', \bp_url('/admin/updates'), 'refresh', true) . $logout . '</nav></header><main class="' . self::e($mainClass) . '">' . $body . '</main></div></div>';
     }
 
     private static function authShell(string $title, string $body, string $mainClass): string
     {
-        return '<main class="bp-admin-auth"><section class="' . self::e($mainClass) . '"><div class="bp-admin-brand bp-admin-auth-brand"><span class="bp-admin-brand-mark">BP</span><div><span>Batoi Press</span><small>' . self::e($title) . '</small></div></div>' . $body . '</section></main>';
+        return '<main class="bp-admin-auth"><section class="' . self::e($mainClass) . '"><div class="bp-admin-brand bp-admin-auth-brand">' . self::brandMark() . '<div><span>Batoi Press</span><small>' . self::e($title) . '</small></div></div>' . $body . '</section></main>';
+    }
+
+    private static function brandMark(): string
+    {
+        return '<span class="bp-admin-brand-mark"><img src="' . self::e(self::assetUrl('/assets/img/batoi-press/press-color.svg')) . '" alt="" aria-hidden="true"></span>';
     }
 
     private static function navigation(): string
@@ -93,6 +129,7 @@ final class AdminLayout
             ],
             'Site' => [
                 ['label' => 'Settings', 'href' => '/admin/settings', 'icon' => 'settings'],
+                ['label' => 'Themes', 'href' => '/admin/themes', 'icon' => 'code'],
                 ['label' => 'Static Export', 'href' => '/admin/export-static', 'icon' => 'download'],
                 ['label' => 'Cache', 'href' => '/admin/cache', 'icon' => 'database'],
             ],
@@ -113,7 +150,22 @@ final class AdminLayout
         if ($href === '/admin') {
             return $path === '/admin';
         }
-        return $path === $href || str_starts_with($path, $href . '/');
+
+        foreach (self::activePaths($href) as $activePath) {
+            if ($path === $activePath || str_starts_with($path, $activePath . '/')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function activePaths(string $href): array
+    {
+        return match ($href) {
+            '/admin/themes' => ['/admin/themes', '/admin/theme-templates'],
+            default => [$href],
+        };
     }
 
     private static function currentPath(): string
@@ -131,6 +183,21 @@ final class AdminLayout
     private static function isAuthRoute(): bool
     {
         return self::currentPath() === '/admin/login';
+    }
+
+    private static function siteName(): string
+    {
+        $path = dirname(__DIR__) . '/config/site.json';
+        if (is_file($path)) {
+            $site = json_decode((string)file_get_contents($path), true);
+            if (is_array($site)) {
+                $name = trim((string)($site['name'] ?? ''));
+                if ($name !== '') {
+                    return $name;
+                }
+            }
+        }
+        return 'Batoi Press';
     }
 
     private static function initials(string $label): string
@@ -165,9 +232,21 @@ final class AdminLayout
             'spark' => '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"></path>',
             'chart' => '<path d="M4 19V5"></path><path d="M4 19h16"></path><rect x="7" y="12" width="2.8" height="4"></rect><rect x="11" y="8" width="2.8" height="8"></rect><rect x="15" y="10" width="2.8" height="6"></rect>',
             'site' => '<circle cx="12" cy="12" r="9"></circle><path d="M3 12h18"></path><path d="M12 3c2.4 2.6 3.5 5.6 3.5 9S14.4 18.4 12 21c-2.4-2.6-3.5-5.6-3.5-9S9.6 5.6 12 3z"></path>',
+            'plus' => '<path d="M12 5v14"></path><path d="M5 12h14"></path>',
+            'back' => '<path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path>',
+            'save' => '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><path d="M17 21v-8H7v8"></path><path d="M7 3v5h8"></path>',
+            'logout' => '<path d="M10 17l5-5-5-5"></path><path d="M15 12H3"></path><path d="M21 3v18"></path>',
+            'upload' => '<path d="M12 16V4"></path><path d="M7 9l5-5 5 5"></path><path d="M5 20h14"></path>',
+            'check' => '<path d="M20 6L9 17l-5-5"></path>',
+            'code' => '<path d="M8 9l-4 3 4 3"></path><path d="M16 9l4 3-4 3"></path><path d="M14 5l-4 14"></path>',
         ];
         $body = $paths[$name] ?? $paths['dashboard'];
         return '<svg class="uif-icon bp-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' . $body . '</svg>';
+    }
+
+    private static function buttonIcon(string $name): string
+    {
+        return '<span class="bp-button-icon">' . self::icon($name) . '</span>';
     }
 
     private static function iconForLabel(string $label): string

@@ -33,12 +33,12 @@ final class DashboardController
         $allPages = $this->pages->all();
         $allPosts = $this->posts->all();
 
-        $actions = '<a class="bp-button" href="/admin/pages/new">Create Page</a><a class="bp-button bp-button-secondary" href="/admin/posts/new">Create Post</a>';
-        $body = '<section class="bp-command-hero"><div><p class="bp-section-kicker">Command Center</p><h1>' . $this->e((string)($site['name'] ?? 'Batoi Press')) . '</h1><p>Operate publishing, site configuration, release safety, and governed AI readiness from one console.</p></div><div class="bp-command-hero-actions">' . $actions . '</div></section>';
+        $actions = AdminLayout::buttonLink('Create Page', '/admin/pages/new', 'plus') . AdminLayout::buttonLink('Create Post', '/admin/posts/new', 'edit', true);
         $body = AdminLayout::pageHeader(
             'Dashboard',
-            'Manage publishing, site operations, users, updates, and governed Batoi AIF readiness.'
-        ) . $body;
+            'Manage publishing, site operations, users, updates, and governed Batoi AIF readiness.',
+            $actions
+        );
 
         $body .= '<dl class="bp-admin-stats">';
         $body .= AdminLayout::statCard('Site', (string)($site['name'] ?? 'Batoi Press'), (string)($site['base_url'] ?? 'No base URL configured'));
@@ -81,8 +81,6 @@ final class DashboardController
         $operations .= AdminLayout::statCard('Signed in', (string)($this->user['username'] ?? 'admin'), (string)($this->user['role'] ?? 'admin'));
         $operations .= '</dl>';
         $body .= AdminLayout::section('Operational Status', $operations, 'Runtime readiness at a glance.');
-
-        $body .= '<form method="post" action="/admin/logout" class="bp-inline-form bp-dashboard-logout">' . $this->csrf->field() . '<button type="submit">Log Out</button></form>';
 
         return Response::html(AdminLayout::render('Admin', $body));
     }
