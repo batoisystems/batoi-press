@@ -26,10 +26,12 @@ final class MediaController
             'Upload and reuse site assets for pages, posts, and theme content.'
         );
         $uploadLimit = (int)(($this->config->security()['uploads']['max_bytes'] ?? 5242880) / 1048576);
+        $extensions = (array)($this->config->security()['uploads']['allowed_extensions'] ?? []);
         $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Upload asset</h2><p>Supported file types are controlled by the installation security policy.</p></div></header><form method="post" action="/admin/media/upload" enctype="multipart/form-data" class="bp-form bp-compact-form">';
         $body .= $this->csrf->field();
         $body .= '<label>File <input type="file" name="media" required><span class="bp-field-help">Maximum upload size: ' . $this->e((string)$uploadLimit) . ' MB.</span></label>';
         $body .= AdminLayout::submitButton('Upload File', 'upload') . '</form></section>';
+        $body .= AdminLayout::section('Upload policy', $this->uploadPolicy($extensions), 'Files are validated before they are stored and exposed under the public media route.');
 
         $files = $this->files();
         if ($files === []) {
@@ -129,5 +131,18 @@ final class MediaController
     {
         $time = is_file($file) ? filemtime($file) : false;
         return $time ? date('M j, Y H:i', $time) : 'Unknown';
+    }
+
+    private function uploadPolicy(array $extensions): string
+    {
+        $allowed = array_values(array_filter(array_map('strval', $extensions)));
+        $allowedText = $allowed === [] ? 'Configured by installation policy' : implode(', ', array_map(static fn (string $extension): string => '.' . ltrim($extension, '.'), $allowed));
+
+        return '<ul class="bp-admin-checklist">'
+            . '<li>' . AdminLayout::icon('check') . '<span>Allowed extensions: ' . $this->e($allowedText) . '.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Uploaded filenames are normalized before storage.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Files are saved in <code>radpress/content/media</code> and served from <code>/media/{file}</code>.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Every successful upload is recorded in the audit log.</span></li>'
+            . '</ul>';
     }
 }

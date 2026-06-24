@@ -52,7 +52,9 @@ Default behavior:
 * No network calls are made.
 * Admin can view status at `/admin/aif`.
 * Guarded content-assist actions exist at `/admin/aif/assist` and return a disabled response until configured.
-* The admin status screen shows provider availability, feature flags, workspace requirement, and network-call trust boundaries.
+* The admin status screen shows readiness, setup requirements, provider availability, feature flags, feature purposes, workspace requirement, configuration file location, and network-call trust boundaries.
+* Disabled or unavailable installations keep assist buttons disabled in the UI to avoid implying that AI assistance is active.
+* Assist attempts are audit logged with success, failed, or blocked outcomes.
 
 Future provider adapters can implement `Batoi\Press\Aif\AifProvider`.
 Future Batoi Platform workspace adapters can implement `Batoi\Press\Aif\BatoiWorkspaceAifProvider`.

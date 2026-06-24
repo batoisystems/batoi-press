@@ -32,6 +32,11 @@ final class PageController
             AdminLayout::buttonLink('Create Page', '/admin/pages/new', 'plus')
         );
         $body .= $this->toolbar($pages);
+        $body .= AdminLayout::section(
+            'Page standards',
+            $this->pageStandards(),
+            'Use pages for durable site information such as home, about, service, policy, and landing pages.'
+        );
 
         if ($pages === []) {
             $body .= '<section class="bp-empty-state"><h2>No pages yet</h2><p>Create the first page for this site. Pages are stored as HTML content with JSON metadata.</p>' . AdminLayout::buttonLink('Create Page', '/admin/pages/new', 'plus') . '</section>';
@@ -98,7 +103,7 @@ final class PageController
         $publishing = $this->select((string)($page['status'] ?? 'draft')) . $this->metaList($page);
         $seo = $this->input('SEO Title', 'seo_title', (string)($page['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($page['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short page summary for search snippets and social previews.</span></label>';
 
-        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible page content.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Publishing', $publishing, 'Control draft or live availability.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . '</aside>';
+        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible page content.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Publishing', $publishing, 'Control draft or live availability.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->pageChecklist(), 'Review before publishing or changing a live page.') . '</aside>';
         $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/pages', 'back', true) . AdminLayout::submitButton('Save Page', 'save') . '</div></form>';
         return $body;
     }
@@ -135,6 +140,30 @@ final class PageController
         $published = count(array_filter($pages, static fn (array $page): bool => ($page['status'] ?? '') === 'published'));
         $draft = count(array_filter($pages, static fn (array $page): bool => ($page['status'] ?? '') !== 'published'));
         return '<div class="bp-admin-toolbar"><div class="bp-admin-tabs" aria-label="Page status summary"><span class="bp-admin-tab is-active">All ' . count($pages) . '</span><span class="bp-admin-tab">Published ' . $published . '</span><span class="bp-admin-tab">Draft ' . $draft . '</span></div><label class="bp-admin-search">Search <input type="search" placeholder="Search pages" disabled><span>Search arrives in a later workflow phase.</span></label></div>';
+    }
+
+    private function pageStandards(): string
+    {
+        return '<div class="bp-admin-guidance-grid">'
+            . $this->guidanceCard('Stable URLs', 'Keep slugs short and durable. Changing a live slug changes the public address.', 'site')
+            . $this->guidanceCard('Clean HTML', 'Use the editor for semantic content. Unsafe markup is sanitized before saving.', 'code')
+            . $this->guidanceCard('Search metadata', 'Set SEO titles and descriptions for pages intended for public discovery.', 'file')
+            . '</div>';
+    }
+
+    private function pageChecklist(): string
+    {
+        return '<ul class="bp-admin-checklist">'
+            . '<li>' . AdminLayout::icon('check') . '<span>Title and slug match the intended public route.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Body content uses clean headings, links, and accessible media.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>SEO metadata is present when the page should be indexed.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Published pages are verified from the View page action after saving.</span></li>'
+            . '</ul>';
+    }
+
+    private function guidanceCard(string $title, string $description, string $icon): string
+    {
+        return '<article><span>' . AdminLayout::icon($icon) . '</span><div><strong>' . $this->e($title) . '</strong><p>' . $this->e($description) . '</p></div></article>';
     }
 
     private function statusBadge(string $status): string

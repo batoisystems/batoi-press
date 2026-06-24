@@ -32,6 +32,11 @@ final class PostController
             AdminLayout::buttonLink('Create Post', '/admin/posts/new', 'plus')
         );
         $body .= $this->toolbar($posts);
+        $body .= AdminLayout::section(
+            'Post standards',
+            $this->postStandards(),
+            'Use posts for dated updates, articles, announcements, and editorial content.'
+        );
 
         if ($posts === []) {
             $body .= '<section class="bp-empty-state"><h2>No posts yet</h2><p>Create the first article. Posts are stored as HTML content with JSON metadata.</p>' . AdminLayout::buttonLink('Create Post', '/admin/posts/new', 'plus') . '</section>';
@@ -99,7 +104,7 @@ final class PostController
         $publishing = $this->select((string)($post['status'] ?? 'draft')) . $this->input('Category', 'category', (string)($post['category'] ?? 'General')) . $this->input('Tags', 'tags', implode(', ', (array)($post['tags'] ?? [])), false) . '<p class="bp-field-help">Separate tags with commas.</p>' . $this->metaList($post);
         $seo = $this->input('SEO Title', 'seo_title', (string)($post['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($post['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short article summary for search snippets and social previews.</span></label>';
 
-        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible article content.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Publishing', $publishing, 'Set status, category, and tags.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . '</aside>';
+        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible article content.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Publishing', $publishing, 'Set status, category, and tags.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->postChecklist(), 'Review before publishing or changing a live post.') . '</aside>';
         $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/posts', 'back', true) . AdminLayout::submitButton('Save Post', 'save') . '</div></form>';
         return $body;
     }
@@ -136,6 +141,30 @@ final class PostController
         $published = count(array_filter($posts, static fn (array $post): bool => ($post['status'] ?? '') === 'published'));
         $draft = count(array_filter($posts, static fn (array $post): bool => ($post['status'] ?? '') !== 'published'));
         return '<div class="bp-admin-toolbar"><div class="bp-admin-tabs" aria-label="Post status summary"><span class="bp-admin-tab is-active">All ' . count($posts) . '</span><span class="bp-admin-tab">Published ' . $published . '</span><span class="bp-admin-tab">Draft ' . $draft . '</span></div><label class="bp-admin-search">Search <input type="search" placeholder="Search posts" disabled><span>Search arrives in a later workflow phase.</span></label></div>';
+    }
+
+    private function postStandards(): string
+    {
+        return '<div class="bp-admin-guidance-grid">'
+            . $this->guidanceCard('Editorial flow', 'Draft first, review taxonomy and links, then publish after content approval.', 'edit')
+            . $this->guidanceCard('Taxonomy', 'Use categories for broad grouping and comma-separated tags for specific topics.', 'menu')
+            . $this->guidanceCard('Public archive', 'Published posts appear in the blog archive and feed when available.', 'site')
+            . '</div>';
+    }
+
+    private function postChecklist(): string
+    {
+        return '<ul class="bp-admin-checklist">'
+            . '<li>' . AdminLayout::icon('check') . '<span>Title, slug, category, and tags match the article intent.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Body content uses clean headings, links, and accessible media.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>SEO metadata is present for posts expected to receive search traffic.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Published posts are verified from the View post action after saving.</span></li>'
+            . '</ul>';
+    }
+
+    private function guidanceCard(string $title, string $description, string $icon): string
+    {
+        return '<article><span>' . AdminLayout::icon($icon) . '</span><div><strong>' . $this->e($title) . '</strong><p>' . $this->e($description) . '</p></div></article>';
     }
 
     private function statusBadge(string $status): string

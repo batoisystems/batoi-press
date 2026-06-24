@@ -103,7 +103,7 @@ The admin console uses bundled Batoi UIF assets and a persistent business consol
 
 Pages and posts use structured list screens, publication badges, preview links, and editor panels for content, publishing, and SEO. Media lists file type, size, modified date, public URL, and image HTML snippets. Menus use label/URL rows with a legacy `Label|/url` fallback. Settings are grouped by identity, branding, URL, localization, editor configuration, and theme. Theme management supports active theme selection, upload, preview, and template editing. Users show roles, creation dates, and account status.
 
-Operations are separated from publishing work. Static Export creates downloadable ZIP packages with readiness status and recent export history. Cache explains safe maintenance actions and runtime directory status. Updates expose version status, stable manifest, package staging, backup creation, staged packages, and rollback backups. Audit Log shows the latest 200 structured events, including authenticated admin views, actions, downloads, semantic changes, outcomes, and safe request details.
+Operations are separated from publishing work. Static Export creates downloadable ZIP packages with readiness status and recent export history. Cache explains safe maintenance actions and runtime directory status. Updates expose version status, stable manifest, package staging, backup creation, staged packages, and rollback backups. Audit Log provides paginated search, filters, CSV/JSONL export, and retention cleanup with a 90-day minimum while recording authenticated admin views, actions, downloads, semantic changes, outcomes, and safe request details.
 
 ## Installer Lifecycle
 
@@ -122,6 +122,8 @@ Batoi Press can check the manifest, verify and stage a package, create a backup,
 ## Release Packages
 
 Release ZIPs should include `public_html/`, `radpress/`, `README.md`, and `LICENSE`, while excluding generated runtime files such as sessions, cache, backups, exports, logs, and `radpress/config/installed.lock`. See `radpress/docs/installation.md` for package notes.
+
+Every repository release must increment `radpress/config/update.json` before building packages or publishing the stable manifest. See `radpress/docs/release-management.md` for version policy, release checklist, and the stable `1.0.0` readiness checklist.
 
 Build a local release ZIP with:
 

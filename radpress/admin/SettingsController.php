@@ -34,6 +34,7 @@ final class SettingsController
         );
         $body .= '<form method="post" action="/admin/settings/save" enctype="multipart/form-data" class="bp-form bp-settings-form">';
         $body .= $this->csrf->field();
+        $body .= AdminLayout::section('Change guidance', $this->changeGuidance(), 'Review these notes before changing site-wide configuration.');
         $body .= $this->section('Identity', 'Public site name and supporting text.', '<div class="bp-form-grid">' . $this->input('Site Name', 'name', (string)($site['name'] ?? '')) . $this->input('Tagline', 'tagline', (string)($site['tagline'] ?? '')) . '</div>');
         $body .= $this->section('Branding', 'Website favicon shown in browser tabs and bookmarks.', $this->faviconField($site));
         $body .= $this->section('URLs', 'Canonical public URL used for links, feeds, and update metadata.', $this->input('Base URL', 'base_url', (string)($site['base_url'] ?? '')));
@@ -101,6 +102,20 @@ final class SettingsController
     private function section(string $title, string $description, string $body): string
     {
         return '<section class="bp-editor-panel"><header><h2>' . $this->e($title) . '</h2><p>' . $this->e($description) . '</p></header>' . $body . '</section>';
+    }
+
+    private function changeGuidance(): string
+    {
+        return '<div class="bp-admin-guidance-grid">'
+            . $this->guidanceCard('Public identity', 'Name, tagline, favicon, locale, and timezone can affect public presentation.', 'site')
+            . $this->guidanceCard('Canonical URL', 'Base URL is used by feeds, sitemap output, and static export metadata.', 'file')
+            . $this->guidanceCard('Editor behavior', 'Editor settings apply to page and post body fields after the next editor load.', 'edit')
+            . '</div>';
+    }
+
+    private function guidanceCard(string $title, string $description, string $icon): string
+    {
+        return '<article><span>' . AdminLayout::icon($icon) . '</span><div><strong>' . $this->e($title) . '</strong><p>' . $this->e($description) . '</p></div></article>';
     }
 
     private function layout(string $title, string $body): string

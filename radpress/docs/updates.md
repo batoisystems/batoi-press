@@ -2,6 +2,8 @@
 
 Batoi Press uses release-based updates.
 
+Repository releases must increment `radpress/config/update.json` before package build and manifest publication. See `radpress/docs/release-management.md` for the version policy, release checklist, and stable `1.0.0` readiness checklist.
+
 The default stable manifest is:
 
 ```text

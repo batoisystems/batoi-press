@@ -43,7 +43,7 @@ final class MenuController
         $preview = $items === [] ? '<p class="bp-muted">No menu items configured.</p>' : '<nav class="bp-menu-preview" aria-label="Menu preview">' . implode('', array_map(fn (array $item): string => '<a href="' . $this->e((string)($item['url'] ?? '#')) . '">' . $this->e((string)($item['label'] ?? 'Untitled')) . '</a>', $items)) . '</nav>';
         $legacy = '<details class="bp-details"><summary>Legacy line format</summary><label>Menu Items <textarea name="items" rows="8">' . $this->e($this->legacyLines($items)) . '</textarea><span class="bp-field-help">Backward-compatible format: one <code>Label|/url</code> item per line. Structured rows take priority when filled.</span></label></details>';
 
-        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Main menu', $rows, 'Edit visible navigation items in order.') . $this->editorPanel('Current preview', $preview, 'Preview of the currently saved menu.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Compatibility', $legacy, 'Keep support for imported line-based menus.') . '</aside>';
+        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Main menu', $rows, 'Edit visible navigation items in order.') . $this->editorPanel('Current preview', $preview, 'Preview of the currently saved menu.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Navigation guide', $this->navigationGuide(), 'Use concise labels and stable destination URLs.') . $this->editorPanel('Compatibility', $legacy, 'Keep support for imported line-based menus.') . '</aside>';
         $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin', 'back', true) . AdminLayout::submitButton('Save Menu', 'save') . '</div></form>';
         return Response::html($this->layout('Menus', $body));
     }
@@ -111,6 +111,16 @@ final class MenuController
     private function legacyLines(array $items): string
     {
         return implode("\n", array_map(static fn (array $item): string => (string)($item['label'] ?? '') . '|' . (string)($item['url'] ?? ''), $items));
+    }
+
+    private function navigationGuide(): string
+    {
+        return '<ul class="bp-admin-checklist">'
+            . '<li>' . AdminLayout::icon('check') . '<span>Order rows in the same order users should scan the public navigation.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Use relative URLs such as <code>/about</code> for internal pages.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Use full URLs only for external destinations.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Save changes, then verify the public header or footer that renders this menu.</span></li>'
+            . '</ul>';
     }
 
     private function editorPanel(string $title, string $body, string $description): string

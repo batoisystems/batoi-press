@@ -61,6 +61,7 @@ final class ThemeTemplateController
         $active = $this->activeTheme();
         $actions = AdminLayout::buttonLink('Edit active theme', '/admin/theme-templates', 'code', true) . AdminLayout::buttonLink('View site', '/', 'site', true);
         $body = AdminLayout::pageHeader('Themes', 'Manage installed themes, activate a theme, and upload validated theme packages.', $actions);
+        $body .= AdminLayout::section('Theme operations', $this->themeOperations(), 'Activate and upload themes only after previewing and validating package contents.');
 
         $cards = '<div class="bp-admin-action-grid">';
         foreach ($this->themesList() as $theme) {
@@ -192,7 +193,7 @@ final class ThemeTemplateController
         $cards .= '</div>';
 
         $body .= AdminLayout::section('Editable files', $cards, 'Theme: ' . $theme);
-        $body .= AdminLayout::section('Template safety', '<p class="bp-muted">Only approved files inside the selected theme can be edited. PHP templates are syntax-checked before saving and the previous version is snapshotted.</p>', 'Constrained theme source editing.');
+        $body .= AdminLayout::section('Template safety', $this->templateSafety(), 'Constrained theme source editing.');
 
         return Response::html($this->layout('Theme Templates', $body));
     }
@@ -225,7 +226,7 @@ final class ThemeTemplateController
         $body .= '<input type="hidden" name="theme" value="' . $this->e($theme) . '">';
         $body .= '<input type="hidden" name="template" value="' . $this->e($key) . '">';
         $body .= '<div class="bp-editor-main">' . $this->editorPanel('Template code', $this->codeEditor($this->files->read($path), (string)$template['type']), 'Edit source carefully. PHP templates are checked before saving.') . '</div>';
-        $body .= '<aside class="bp-editor-side">' . $this->editorPanel('Reference', $this->referencePanel($theme, $key, $path), 'Available context and file ownership.') . '</aside>';
+        $body .= '<aside class="bp-editor-side">' . $this->editorPanel('Reference', $this->referencePanel($theme, $key, $path), 'Available context and file ownership.') . $this->editorPanel('Editing standard', $this->editingStandard(), 'Required checks before saving and previewing templates.') . '</aside>';
         $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . AdminLayout::submitButton('Save Template', 'save') . '</div></form>';
 
         return Response::html($this->layout((string)$template['label'], $body));
@@ -492,6 +493,39 @@ final class ThemeTemplateController
     {
         $language = $type === 'json' ? 'JSON' : 'PHP / HTML';
         return '<label class="bp-field-wide bp-code-editor-label"><span>Source</span><small>' . $this->e($language) . ' source editor</small><textarea class="bp-editor-textarea bp-template-code-editor" name="source" rows="28" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" wrap="off">' . $this->e($source) . '</textarea></label>';
+    }
+
+    private function themeOperations(): string
+    {
+        return '<div class="bp-admin-guidance-grid">'
+            . $this->guidanceCard('Preview first', 'Use Preview to review public rendering before activating another theme.', 'site')
+            . $this->guidanceCard('Validated upload', 'ZIP packages are checked for safe paths, required files, and supported file types.', 'upload')
+            . $this->guidanceCard('Audit trail', 'Theme uploads, activations, template saves, and restores are recorded.', 'shield')
+            . '</div>';
+    }
+
+    private function templateSafety(): string
+    {
+        return '<ul class="bp-admin-checklist">'
+            . '<li>' . AdminLayout::icon('check') . '<span>Only approved files inside the selected theme can be edited.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>PHP templates are syntax-checked before saving.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>The previous version is snapshotted before each successful save.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Use the cache page after template changes if public output looks stale.</span></li>'
+            . '</ul>';
+    }
+
+    private function editingStandard(): string
+    {
+        return '<ul class="bp-admin-checklist">'
+            . '<li>' . AdminLayout::icon('check') . '<span>Escape dynamic output with the documented helper for its context.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Keep layout changes compatible with page, post, blog, and 404 views.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Save, preview the site, and clear cache if rendered output does not refresh.</span></li>'
+            . '</ul>';
+    }
+
+    private function guidanceCard(string $title, string $description, string $icon): string
+    {
+        return '<article><span>' . AdminLayout::icon($icon) . '</span><div><strong>' . $this->e($title) . '</strong><p>' . $this->e($description) . '</p></div></article>';
     }
 
     private function validateSource(string $source, string $type): ?string

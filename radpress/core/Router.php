@@ -203,8 +203,16 @@ final class Router
             return (new UserController($this->config, $files, $csrf, $audit, $user))->save($request);
         }
 
+        if ($request->path === '/admin/audit/export') {
+            return (new AuditController($this->config, $csrf, $user))->export($request);
+        }
+
+        if ($request->path === '/admin/audit/cleanup' && $request->method === 'POST') {
+            return (new AuditController($this->config, $csrf, $user))->cleanup($request);
+        }
+
         if ($request->path === '/admin/audit') {
-            return (new AuditController($this->config))->index();
+            return (new AuditController($this->config, $csrf, $user))->index($request);
         }
 
         if ($request->path === '/admin/cache') {

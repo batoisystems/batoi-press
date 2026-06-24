@@ -68,6 +68,13 @@ final class DashboardController
         $workflow .= '</div>';
         $body .= AdminLayout::section('Publishing Workflow', $workflow, 'A compact operating path for content teams.');
 
+        $guidance = '<div class="bp-admin-guidance-grid">';
+        $guidance .= $this->guidanceCard('Daily operation', 'Review recent content, publish approved changes, and verify public routes after saves.', 'check');
+        $guidance .= $this->guidanceCard('Maintenance', 'Use cache, export, updates, and audit tools after template edits or release work.', 'settings');
+        $guidance .= $this->guidanceCard('Governance', 'Keep users limited to required roles and review audit events for sensitive activity.', 'shield');
+        $guidance .= '</div>';
+        $body .= AdminLayout::section('Operating Guide', $guidance, 'Recommended admin-console rhythm for publishing and site operations.');
+
         $recent = '<div class="bp-dashboard-columns">';
         $recent .= $this->contentPanel('Recent Pages', $allPages, '/admin/pages/edit/');
         $recent .= $this->contentPanel('Recent Posts', $allPosts, '/admin/posts/edit/');
@@ -93,6 +100,11 @@ final class DashboardController
     private function workflowStep(string $number, string $title, string $description, string $state): string
     {
         return '<div class="bp-workflow-step is-' . $this->e($state) . '"><span>' . $this->e($number) . '</span><div><strong>' . $this->e($title) . '</strong><p>' . $this->e($description) . '</p></div></div>';
+    }
+
+    private function guidanceCard(string $title, string $description, string $icon): string
+    {
+        return '<article><span>' . AdminLayout::icon($icon) . '</span><div><strong>' . $this->e($title) . '</strong><p>' . $this->e($description) . '</p></div></article>';
     }
 
     private function contentPanel(string $title, array $items, string $editPrefix): string

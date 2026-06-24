@@ -48,6 +48,7 @@ final class UpdateController
         }
         $cards .= '</dl>';
         $body .= $cards;
+        $body .= AdminLayout::section('Update workflow', $this->updateWorkflow(), 'Recommended sequence for release maintenance.');
 
         $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Create backup</h2><p>Create a minimal update backup before staging or applying a package.</p></div></header><form method="post" action="/admin/updates/backup" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Create Backup', 'download') . '</form></section>';
         $body .= '<section class="bp-admin-section"><header><div><h2>Stage package</h2><p>Upload a release ZIP and verify its archive safety before applying it.</p></div></header><form method="post" action="/admin/updates/stage" enctype="multipart/form-data" class="bp-form bp-compact-form">' . $this->csrf->field();
@@ -163,6 +164,21 @@ final class UpdateController
         }
 
         return '<section class="bp-admin-section bp-danger-zone"><header><div><h2>Rollback backups</h2><p>Restore only when an update has failed and you understand this replaces live files.</p></div></header>' . $html . '</tbody></table></div></section>';
+    }
+
+    private function updateWorkflow(): string
+    {
+        return '<div class="bp-workflow-grid">'
+            . $this->workflowStep('1', 'Check', 'Compare the installed version with the stable release manifest.', 'complete')
+            . $this->workflowStep('2', 'Back up', 'Create a rollback point before staging or applying files.', 'current')
+            . $this->workflowStep('3', 'Stage', 'Upload and verify a release ZIP before it can be applied.', 'idle')
+            . $this->workflowStep('4', 'Apply', 'Apply only after staging succeeds and rollback expectations are clear.', 'idle')
+            . '</div>';
+    }
+
+    private function workflowStep(string $number, string $title, string $description, string $state): string
+    {
+        return '<div class="bp-workflow-step is-' . $this->e($state) . '"><span>' . $this->e($number) . '</span><div><strong>' . $this->e($title) . '</strong><p>' . $this->e($description) . '</p></div></div>';
     }
 
     private function stageList(): string
