@@ -84,6 +84,10 @@ body.html
 
 This keeps metadata structured and content human-readable.
 
+## Stable Contract
+
+Batoi Press `1.0.0` treats content format, public routes, theme template ownership, installer lock behavior, update package structure, and release artifacts as stable. See `radpress/docs/stable-readiness.md` for the stable scope, verification evidence, and deferred `1.x` items.
+
 ## Security Notes
 
 Batoi Press uses password hashing, file-backed sessions, CSRF tokens for admin writes, login rate limiting, upload allowlists, generated upload filenames, audit logs, and installer locking through `radpress/config/installed.lock`.

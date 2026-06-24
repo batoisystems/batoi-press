@@ -12,6 +12,8 @@ Use semantic versioning until `1.0.0`:
 
 Pre-`1.0.0` releases may still change internal APIs, but public content files, theme templates, installer behavior, and update packages should remain backward compatible unless the release notes call out a migration.
 
+From `1.0.0` onward, public content files, theme templates, installer behavior, public routes, and update package contracts are stable unless release notes document a migration.
+
 ## Release Checklist
 
 - [ ] Decide the next version number from the version policy.
@@ -41,6 +43,7 @@ Pre-`1.0.0` releases may still change internal APIs, but public content files, t
 - `0.7.0`: Role-aware admin access enforcement, blocked-route audit entries, and permission-filtered navigation. See `radpress/docs/releases/v0.7.0.md`.
 - `0.8.0`: Author-owned post governance with post-list filtering, edit/save protection, and blocked ownership audit events. See `radpress/docs/releases/v0.8.0.md`.
 - `0.9.0`: Repeatable security baseline checks for installer lock, deny rules, upload allowlists, CSRF, rate limiting, roles, and author ownership. See `radpress/docs/releases/v0.9.0.md`.
+- `1.0.0`: Stable flat-file CMS baseline with documented compatibility commitments and verification evidence. See `radpress/docs/releases/v1.0.0.md` and `radpress/docs/stable-readiness.md`.
 
 ## Package Trust Metadata
 
@@ -60,6 +63,8 @@ Stable public manifests may include package-trust fields before signed packages 
 For pre-`1.0.0` releases, `signature_required` stays `false` unless a release explicitly documents a signing rollout. Installations should continue to verify SHA-256 checksums and treat signature URLs as optional metadata until enforcement is enabled.
 
 ## Stable 1.0 Checklist
+
+The `1.0.0` stable decision is recorded in `radpress/docs/stable-readiness.md`. Remaining unchecked items below should be treated as ongoing `1.x` quality tracking unless a future release explicitly reclassifies them as blockers.
 
 ### Product Scope
 
