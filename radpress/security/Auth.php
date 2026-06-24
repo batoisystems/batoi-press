@@ -22,7 +22,14 @@ final class Auth
             return null;
         }
 
-        return $this->findUser($username);
+        $user = $this->findUser($username);
+        if ($user !== null && $this->isDisabled($user)) {
+            $this->session->remove('auth_user');
+            $this->session->regenerate();
+            return null;
+        }
+
+        return $user;
     }
 
     public function check(): bool
@@ -34,6 +41,10 @@ final class Auth
     {
         $user = $this->findUser($username);
         if (!$user || !isset($user['password_hash']) || !is_string($user['password_hash'])) {
+            return false;
+        }
+
+        if ($this->isDisabled($user)) {
             return false;
         }
 
@@ -66,6 +77,11 @@ final class Auth
         }
 
         return null;
+    }
+
+    private function isDisabled(array $user): bool
+    {
+        return (string)($user['disabled_at'] ?? '') !== '' || (string)($user['status'] ?? '') === 'disabled';
     }
 
     private function users(): array

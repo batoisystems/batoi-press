@@ -9,7 +9,12 @@ require __DIR__ . '/../helpers/date.php';
 use Batoi\Press\Core\App;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Config;
+use Batoi\Press\Core\FileStore;
+use Batoi\Press\Core\Paths;
 use Batoi\Press\Aif\AifManager;
+use Batoi\Press\Security\Auth;
+use Batoi\Press\Security\Password;
+use Batoi\Press\Security\Session;
 
 $root = dirname(__DIR__, 2);
 $paths = ['/', '/about', '/blog', '/blog/first-blog-post', '/sitemap.xml', '/feed.xml', '/admin', '/admin/login', '/admin/pages', '/admin/posts', '/admin/media', '/admin/menus', '/admin/settings', '/admin/themes', '/admin/theme-templates', '/admin/users', '/admin/audit', '/admin/cache', '/admin/export-static', '/admin/aif', '/admin/updates'];
@@ -43,6 +48,35 @@ try {
         throw new RuntimeException('Batoi AIF should be disabled and unavailable by default.');
     }
 
+    $authRoot = sys_get_temp_dir() . '/batoi-press-auth-smoke-' . bin2hex(random_bytes(4));
+    mkdir($authRoot . '/config', 0775, true);
+    mkdir($authRoot . '/data/sessions', 0775, true);
+    file_put_contents($authRoot . '/config/users.json', json_encode([
+        'users' => [
+            [
+                'username' => 'enabled-user',
+                'role' => 'owner',
+                'password_hash' => Password::hash('password-12345'),
+                'created_at' => date(DATE_ATOM),
+            ],
+            [
+                'username' => 'disabled-user',
+                'role' => 'admin',
+                'password_hash' => Password::hash('password-12345'),
+                'disabled_at' => date(DATE_ATOM),
+                'created_at' => date(DATE_ATOM),
+            ],
+        ],
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX);
+    $auth = new Auth(new Paths($authRoot), new Session('batoi_press_auth_smoke', $authRoot . '/data/sessions'), new FileStore());
+    if (!$auth->attempt('enabled-user', 'password-12345')) {
+        throw new RuntimeException('Enabled users should be able to authenticate.');
+    }
+    $auth->logout();
+    if ($auth->attempt('disabled-user', 'password-12345')) {
+        throw new RuntimeException('Disabled users should not be able to authenticate.');
+    }
+
     foreach ($paths as $path) {
         $response = (new App($root))->handle(new Request('GET', $path, [], [], []));
         ob_start();
@@ -63,6 +97,16 @@ try {
 } finally {
     if (is_file($mediaFile)) {
         unlink($mediaFile);
+    }
+    if (isset($authRoot) && is_dir($authRoot)) {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($authRoot, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($iterator as $item) {
+            $item->isDir() ? rmdir((string)$item) : unlink((string)$item);
+        }
+        rmdir($authRoot);
     }
 }
 

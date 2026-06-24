@@ -1245,6 +1245,11 @@ p {
     color: #92400e;
 }
 
+.bp-status-badge.is-disabled {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
 .bp-role-badge {
     border-radius: 999px;
     display: inline-flex;
@@ -1252,6 +1257,11 @@ p {
     font-weight: 800;
     line-height: 1;
     padding: 7px 9px;
+}
+
+.bp-role-badge.is-owner {
+    background: #e0f2fe;
+    color: #075985;
 }
 
 .bp-role-badge.is-admin {
@@ -1280,8 +1290,48 @@ p {
     gap: 10px;
 }
 
+.bp-table-actions form {
+    margin: 0;
+}
+
 .bp-table-actions a {
     font-weight: 750;
+}
+
+.bp-link-button {
+    background: transparent;
+    border: 0;
+    color: var(--bp-accent);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 750;
+    padding: 0;
+}
+
+.bp-link-danger {
+    color: var(--bp-danger);
+}
+
+.bp-filter-form {
+    align-items: end;
+    background: var(--bp-panel);
+    border: 1px solid var(--bp-line);
+    border-radius: var(--bp-radius);
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(180px, 1fr) minmax(140px, 180px) minmax(140px, 180px) auto;
+    margin: 16px 0;
+    padding: 14px;
+}
+
+.bp-filter-form label {
+    margin: 0;
+}
+
+.bp-filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .bp-empty-state {
@@ -2045,6 +2095,7 @@ code {
     .bp-admin-editor,
     .bp-admin-grid,
     .bp-audit-tools,
+    .bp-filter-form,
     .bp-menu-row,
     .bp-workflow-grid,
     .bp-dashboard-columns {

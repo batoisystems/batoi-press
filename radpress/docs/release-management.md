@@ -34,6 +34,7 @@ Pre-`1.0.0` releases may still change internal APIs, but public content files, t
 - `0.1.0`: Initial flat-file CMS, installer, public rendering, and admin foundation.
 - `0.2.0`: Bundled Batoi UIF and disabled-by-default Batoi AIF scaffolding.
 - `0.3.0`: Business-ready admin console, theme management, favicon handling, audit-log operations, static export/cache/user guidance, and admin standardization. See `radpress/docs/releases/v0.3.0.md`.
+- `0.4.0`: Operational hardening with governed user lifecycle controls, owner safeguards, disabled-account authentication blocking, and release verification updates. See `radpress/docs/releases/v0.4.0.md`.
 
 ## Stable 1.0 Checklist
 

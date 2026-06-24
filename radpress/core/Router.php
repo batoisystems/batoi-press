@@ -199,8 +199,28 @@ final class Router
             return (new UserController($this->config, $files, $csrf, $audit, $user))->create();
         }
 
+        if (str_starts_with($request->path, '/admin/users/edit/')) {
+            return (new UserController($this->config, $files, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 18)));
+        }
+
+        if (str_starts_with($request->path, '/admin/users/reset/')) {
+            return (new UserController($this->config, $files, $csrf, $audit, $user))->reset(rawurldecode(substr($request->path, 19)));
+        }
+
         if ($request->path === '/admin/users/save' && $request->method === 'POST') {
             return (new UserController($this->config, $files, $csrf, $audit, $user))->save($request);
+        }
+
+        if ($request->path === '/admin/users/update' && $request->method === 'POST') {
+            return (new UserController($this->config, $files, $csrf, $audit, $user))->update($request);
+        }
+
+        if ($request->path === '/admin/users/reset-password' && $request->method === 'POST') {
+            return (new UserController($this->config, $files, $csrf, $audit, $user))->resetPassword($request);
+        }
+
+        if ($request->path === '/admin/users/toggle' && $request->method === 'POST') {
+            return (new UserController($this->config, $files, $csrf, $audit, $user))->toggle($request);
         }
 
         if ($request->path === '/admin/audit/export') {
