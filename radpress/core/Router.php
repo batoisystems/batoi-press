@@ -24,6 +24,7 @@ use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\StaticExporter;
 use Batoi\Press\Security\Auth;
+use Batoi\Press\Security\AdminAccess;
 use Batoi\Press\Security\Csrf;
 use Batoi\Press\Security\RateLimiter;
 use Batoi\Press\Security\Session;
@@ -98,6 +99,14 @@ final class Router
             return Response::redirect('/admin/login');
         }
         $audit->recordRequest($user, $request);
+        AdminLayout::setUser($user);
+
+        if (!AdminAccess::canAccess($user, $request->path, $request->method)) {
+            $audit->record((string)($user['username'] ?? 'admin'), 'admin.access_blocked', $request->method . ' ' . $request->path, (string)($_SERVER['REMOTE_ADDR'] ?? ''), 'blocked', [
+                'role' => AdminAccess::role($user),
+            ]);
+            return $this->forbidden($request->path);
+        }
 
         if ($request->path === '/admin') {
             return (new DashboardController($this->config, $this->pages, $this->posts, $csrf, $user))->index();
@@ -289,6 +298,17 @@ final class Router
         }
 
         return $this->notFound();
+    }
+
+    private function forbidden(string $path): Response
+    {
+        $body = AdminLayout::pageHeader(
+            'Access Restricted',
+            'Your role does not include access to this admin area.',
+            AdminLayout::buttonLink('Back to Dashboard', '/admin', 'back', true)
+        );
+        $body .= '<section class="bp-empty-state"><h2>Permission required</h2><p>Access to <code>' . htmlspecialchars($path, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</code> is limited by the current account role.</p></section>';
+        return Response::html(AdminLayout::render('Access Restricted', $body), 403);
     }
 
     private function notFound(): Response

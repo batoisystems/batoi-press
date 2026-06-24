@@ -3,15 +3,22 @@ declare(strict_types=1);
 
 namespace Batoi\Press\Admin;
 
+use Batoi\Press\Security\AdminAccess;
 use Batoi\Press\Security\Csrf;
 
 final class AdminLayout
 {
     private static ?Csrf $csrf = null;
+    private static array $user = [];
 
     public static function setCsrf(Csrf $csrf): void
     {
         self::$csrf = $csrf;
+    }
+
+    public static function setUser(array $user): void
+    {
+        self::$user = $user;
     }
 
     public static function render(string $title, string $body, string $mainClass = 'bp-admin bp-uif-surface'): string
@@ -88,7 +95,8 @@ final class AdminLayout
     {
         $siteName = self::siteName();
         $logout = self::$csrf !== null ? '<form method="post" action="' . self::e(\bp_url('/admin/logout')) . '" class="bp-topbar-logout">' . self::$csrf->field() . self::submitButton('Log Out', 'logout', 'class="bp-button bp-button-secondary bp-button-danger"') . '</form>' : '';
-        return '<div class="bp-admin-shell"><aside class="bp-admin-sidebar"><div class="bp-admin-brand">' . self::brandMark() . '<div><span>' . self::e($siteName) . '</span><small>CMS Console</small></div></div>' . self::navigation() . '</aside><div class="bp-admin-workspace"><header class="bp-admin-topbar"><div class="bp-admin-topbar-title"><span>CMS Console</span><strong>' . self::e($siteName) . '</strong></div><nav aria-label="Admin actions">' . self::buttonLink('View site', \bp_url('/'), 'site', true) . self::buttonLink('Updates', \bp_url('/admin/updates'), 'refresh', true) . $logout . '</nav></header><main class="' . self::e($mainClass) . '">' . $body . '</main></div></div>';
+        $updates = AdminAccess::canSeeNav(self::$user, '/admin/updates') ? self::buttonLink('Updates', \bp_url('/admin/updates'), 'refresh', true) : '';
+        return '<div class="bp-admin-shell"><aside class="bp-admin-sidebar"><div class="bp-admin-brand">' . self::brandMark() . '<div><span>' . self::e($siteName) . '</span><small>CMS Console</small></div></div>' . self::navigation() . '</aside><div class="bp-admin-workspace"><header class="bp-admin-topbar"><div class="bp-admin-topbar-title"><span>CMS Console</span><strong>' . self::e($siteName) . '</strong></div><nav aria-label="Admin actions">' . self::buttonLink('View site', \bp_url('/'), 'site', true) . $updates . $logout . '</nav></header><main class="' . self::e($mainClass) . '">' . $body . '</main></div></div>';
     }
 
     private static function authShell(string $title, string $body, string $mainClass): string
@@ -105,12 +113,17 @@ final class AdminLayout
     {
         $html = '<nav class="bp-admin-sidebar-nav" aria-label="Admin navigation">';
         foreach (self::navGroups() as $group => $items) {
-            $html .= '<section><h2>' . self::e($group) . '</h2>';
+            $links = '';
             foreach ($items as $item) {
+                if (!AdminAccess::canSeeNav(self::$user, (string)$item['href'])) {
+                    continue;
+                }
                 $active = self::isActive((string)$item['href']) ? ' aria-current="page" class="is-active"' : '';
-                $html .= '<a href="' . self::e(\bp_url((string)$item['href'])) . '"' . $active . '><span class="bp-nav-icon">' . self::icon((string)$item['icon']) . '</span><span class="bp-nav-label">' . self::e((string)$item['label']) . '</span></a>';
+                $links .= '<a href="' . self::e(\bp_url((string)$item['href'])) . '"' . $active . '><span class="bp-nav-icon">' . self::icon((string)$item['icon']) . '</span><span class="bp-nav-label">' . self::e((string)$item['label']) . '</span></a>';
             }
-            $html .= '</section>';
+            if ($links !== '') {
+                $html .= '<section><h2>' . self::e($group) . '</h2>' . $links . '</section>';
+            }
         }
         return $html . '</nav>';
     }
