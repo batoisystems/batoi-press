@@ -55,6 +55,32 @@ final class AdminAccess
         return self::canAccess($user, $href, 'GET');
     }
 
+    public static function canManagePost(array $user, array $post): bool
+    {
+        $role = self::role($user);
+        if (in_array($role, ['owner', 'admin', 'editor'], true)) {
+            return true;
+        }
+
+        return $role === 'author' && self::ownsContent($user, $post);
+    }
+
+    public static function ownsContent(array $user, array $content): bool
+    {
+        $username = (string)($user['username'] ?? '');
+        $author = (string)($content['author'] ?? '');
+        return $username !== '' && $author !== '' && hash_equals($author, $username);
+    }
+
+    public static function filterManageablePosts(array $user, array $posts): array
+    {
+        if (in_array(self::role($user), ['owner', 'admin', 'editor'], true)) {
+            return array_values($posts);
+        }
+
+        return array_values(array_filter($posts, static fn (array $post): bool => self::canManagePost($user, $post)));
+    }
+
     public static function role(array $user): string
     {
         $role = strtolower((string)($user['role'] ?? 'viewer'));

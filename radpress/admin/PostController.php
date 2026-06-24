@@ -9,6 +9,7 @@ use Batoi\Press\Core\Config;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
 use Batoi\Press\Core\Slug;
+use Batoi\Press\Security\AdminAccess;
 use Batoi\Press\Security\Csrf;
 use RuntimeException;
 
@@ -25,7 +26,7 @@ final class PostController
 
     public function index(): Response
     {
-        $posts = $this->posts->all();
+        $posts = AdminAccess::filterManageablePosts($this->user, $this->posts->all());
         $filters = [
             'q' => trim((string)($_GET['q'] ?? '')),
             'status' => trim((string)($_GET['status'] ?? '')),
@@ -67,6 +68,9 @@ final class PostController
     public function edit(?string $slug = null): Response
     {
         $post = $slug ? $this->posts->findBySlug($slug) : null;
+        if ($post !== null && !AdminAccess::canManagePost($this->user, $post)) {
+            return $this->forbiddenPost((string)($post['slug'] ?? $slug));
+        }
         return Response::html($this->layout($slug ? 'Edit Post' : 'Create Post', $this->form($post)));
     }
 
@@ -78,6 +82,10 @@ final class PostController
 
         $slug = Slug::normalize($request->input('slug'));
         $originalSlug = Slug::normalize($request->input('original_slug'));
+        $existing = $originalSlug !== '' ? $this->posts->findBySlug($originalSlug) : $this->posts->findBySlug($slug);
+        if ($existing !== null && !AdminAccess::canManagePost($this->user, $existing)) {
+            return $this->forbiddenPost((string)($existing['slug'] ?? $slug));
+        }
         if ($originalSlug !== '' && $originalSlug !== $slug && $this->posts->findBySlug($slug) !== null) {
             return Response::html($this->layout('Posts', '<p class="bp-error">A post with this slug already exists.</p><p>' . AdminLayout::buttonLink('Back to posts', '/admin/posts', 'back', true) . '</p>'), 409);
         }
@@ -243,6 +251,20 @@ final class PostController
     private function layout(string $title, string $body): string
     {
         return AdminLayout::render($title, $body);
+    }
+
+    private function forbiddenPost(string $slug): Response
+    {
+        $this->audit->record((string)($this->user['username'] ?? 'admin'), 'post.access_blocked', $slug, (string)($_SERVER['REMOTE_ADDR'] ?? ''), 'blocked', [
+            'role' => AdminAccess::role($this->user),
+        ]);
+        $body = AdminLayout::pageHeader(
+            'Post Access Restricted',
+            'Your role can only manage posts assigned to your account.',
+            AdminLayout::buttonLink('Back to posts', '/admin/posts', 'back', true)
+        );
+        $body .= '<section class="bp-empty-state"><h2>Permission required</h2><p>Access to this post is limited by authorship or role.</p></section>';
+        return Response::html($this->layout('Post Access Restricted', $body), 403);
     }
 
     private function e(string $value): string
