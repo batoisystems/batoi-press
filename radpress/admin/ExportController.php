@@ -77,6 +77,11 @@ final class ExportController
         $body .= AdminLayout::statCard('Storage path', 'radpress/data/export', $path);
         $body .= '</dl>';
         $body .= AdminLayout::section(
+            'Package verification',
+            $this->verificationSummary((array)($result['verification'] ?? [])),
+            'Review this status before handing the static package to a hosting target.'
+        );
+        $body .= AdminLayout::section(
             'Next step',
             '<p>Download the ZIP and deploy it to your static hosting target after verifying the generated pages.</p><p>' . AdminLayout::buttonLink('Download ZIP', '/admin/export-static/download/' . rawurlencode($name), 'download') . '</p>',
             'The package stays on the server until removed manually from the export directory.'
@@ -128,6 +133,37 @@ final class ExportController
         $html .= '</tbody></table></div>';
 
         return AdminLayout::section('Recent exports', $html, 'Download the most recent generated packages from this installation.');
+    }
+
+    private function verificationSummary(array $verification): string
+    {
+        $ok = (bool)($verification['ok'] ?? false);
+        $html = '<p>' . ($ok ? '<span class="bp-status-badge is-published">Passed</span>' : '<span class="bp-status-badge is-draft">Review needed</span>') . ' ';
+        $html .= $this->e((string)($verification['entries'] ?? 0)) . ' archive entries checked against ' . $this->e((string)($verification['expected_entries'] ?? 0)) . ' expected entries.</p>';
+
+        $errors = array_values(array_filter(array_map('strval', (array)($verification['errors'] ?? []))));
+        if ($errors !== []) {
+            $html .= '<h3>Errors</h3><ul class="bp-check-list">';
+            foreach ($errors as $error) {
+                $html .= '<li>' . $this->e($error) . '</li>';
+            }
+            $html .= '</ul>';
+        }
+
+        $warnings = array_values(array_filter(array_map('strval', (array)($verification['warnings'] ?? []))));
+        if ($warnings !== []) {
+            $html .= '<h3>Warnings</h3><ul class="bp-check-list">';
+            foreach ($warnings as $warning) {
+                $html .= '<li>' . $this->e($warning) . '</li>';
+            }
+            $html .= '</ul>';
+        }
+
+        if ($errors === [] && $warnings === []) {
+            $html .= '<p class="bp-field-help">The package contains required static output and no unsafe archive paths were detected.</p>';
+        }
+
+        return $html;
     }
 
     private function message(string $title, string $message, bool $error = false, int $status = 200): Response

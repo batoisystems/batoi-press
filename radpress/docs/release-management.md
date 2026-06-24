@@ -37,6 +37,7 @@ Pre-`1.0.0` releases may still change internal APIs, but public content files, t
 - `0.3.0`: Business-ready admin console, theme management, favicon handling, audit-log operations, static export/cache/user guidance, and admin standardization. See `radpress/docs/releases/v0.3.0.md`.
 - `0.4.0`: Operational hardening with governed user lifecycle controls, owner safeguards, disabled-account authentication blocking, and release verification updates. See `radpress/docs/releases/v0.4.0.md`.
 - `0.5.0`: Searchable admin operations, media filtering, release artifact verification, and optional package-trust metadata groundwork. See `radpress/docs/releases/v0.5.0.md`.
+- `0.6.0`: Verified static export packages with page, post, blog, sitemap, feed, and media guidance checks. See `radpress/docs/releases/v0.6.0.md`.
 
 ## Package Trust Metadata
 

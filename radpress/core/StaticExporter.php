@@ -40,7 +40,14 @@ final class StaticExporter
         }
         $zip->close();
 
-        return ['ok' => true, 'path' => $zipPath, 'name' => basename($zipPath), 'size' => is_file($zipPath) ? filesize($zipPath) : 0];
+        $verification = $this->verifyPackage($zipPath);
+        return [
+            'ok' => true,
+            'path' => $zipPath,
+            'name' => basename($zipPath),
+            'size' => is_file($zipPath) ? filesize($zipPath) : 0,
+            'verification' => $verification,
+        ];
     }
 
     public function status(): array
@@ -83,6 +90,57 @@ final class StaticExporter
         return is_file($path) ? $path : null;
     }
 
+    public function verifyPackage(string $zipPath): array
+    {
+        if (!class_exists(ZipArchive::class)) {
+            return ['ok' => false, 'errors' => ['ZipArchive is not available.'], 'warnings' => []];
+        }
+        if (!is_file($zipPath)) {
+            return ['ok' => false, 'errors' => ['Static export package was not created.'], 'warnings' => []];
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath) !== true) {
+            return ['ok' => false, 'errors' => ['Static export package could not be opened.'], 'warnings' => []];
+        }
+
+        $entries = [];
+        $errors = [];
+        for ($index = 0; $index < $zip->numFiles; $index++) {
+            $name = (string)$zip->getNameIndex($index);
+            $entries[$name] = true;
+            if ($this->isUnsafeEntry($name)) {
+                $errors[] = 'Unsafe archive entry: ' . $name;
+            }
+            if ($zip->statIndex($index) !== false && (int)($zip->statIndex($index)['size'] ?? 0) === 0) {
+                $errors[] = 'Empty archive entry: ' . $name;
+            }
+        }
+        $zip->close();
+
+        foreach ($this->expectedEntries() as $entry) {
+            if (!isset($entries[$entry])) {
+                $errors[] = 'Missing expected archive entry: ' . $entry;
+            }
+        }
+
+        $warnings = [];
+        if (count($this->posts->allPublished()) === 0) {
+            $warnings[] = 'No published posts were available for feed or blog item output.';
+        }
+        if (count($this->pages->allPublished()) === 0) {
+            $warnings[] = 'No published pages were available for static page output.';
+        }
+
+        return [
+            'ok' => $errors === [],
+            'errors' => $errors,
+            'warnings' => $warnings,
+            'entries' => count($entries),
+            'expected_entries' => count($this->expectedEntries()),
+        ];
+    }
+
     private function writeSite(string $workDir): void
     {
         foreach ($this->pages->allPublished() as $page) {
@@ -102,6 +160,7 @@ final class StaticExporter
         $this->write($workDir . '/blog/index.html', $this->html('Blog', $listing));
         $this->write($workDir . '/sitemap.xml', $this->sitemap());
         $this->write($workDir . '/feed.xml', $this->feed());
+        $this->write($workDir . '/media/README.txt', $this->mediaGuidance());
     }
 
     private function html(string $title, string $body): string
@@ -172,5 +231,43 @@ final class StaticExporter
             }
         }
         return $files;
+    }
+
+    private function expectedEntries(): array
+    {
+        $entries = ['blog/index.html', 'sitemap.xml', 'feed.xml', 'media/README.txt'];
+        foreach ($this->pages->allPublished() as $page) {
+            $slug = (string)($page['slug'] ?? '');
+            $entries[] = $slug === 'home' ? 'index.html' : $slug . '/index.html';
+        }
+        foreach ($this->posts->allPublished() as $post) {
+            $entries[] = 'blog/' . (string)($post['slug'] ?? '') . '/index.html';
+        }
+
+        return array_values(array_unique($entries));
+    }
+
+    private function isUnsafeEntry(string $entry): bool
+    {
+        if ($entry === '' || str_starts_with($entry, '/') || str_contains($entry, '..')) {
+            return true;
+        }
+
+        foreach (['admin/', 'radpress/', 'config/', 'data/', 'sessions/', 'backups/'] as $prefix) {
+            if (str_starts_with($entry, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function mediaGuidance(): string
+    {
+        return "Batoi Press static export media guidance\n"
+            . "\n"
+            . "This package contains published static HTML, blog index, sitemap, and feed files.\n"
+            . "Uploaded media files are not copied into the package automatically.\n"
+            . "If published content references /media/{file}, copy the required files from radpress/content/media/ to the target site's media/ directory before publishing.\n";
     }
 }
