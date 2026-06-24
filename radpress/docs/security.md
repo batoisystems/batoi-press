@@ -13,5 +13,12 @@ Batoi Press establishes secure defaults and structure:
 - Admin routes redirect to login when not authenticated.
 - Media uploads use allowlisted extensions, generated filenames, size limits, and executable-file denial.
 - Admin write actions record audit log entries.
+- Admin route access is enforced by role before controllers run.
+- Author-role users can manage only posts assigned to their username.
+- Blocked route and post ownership attempts are recorded in the audit log.
 
-Role enforcement per action remains a future hardening item.
+Run the local security baseline check with:
+
+```text
+php radpress/tests/security_baseline.php
+```

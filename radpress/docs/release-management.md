@@ -40,6 +40,7 @@ Pre-`1.0.0` releases may still change internal APIs, but public content files, t
 - `0.6.0`: Verified static export packages with page, post, blog, sitemap, feed, and media guidance checks. See `radpress/docs/releases/v0.6.0.md`.
 - `0.7.0`: Role-aware admin access enforcement, blocked-route audit entries, and permission-filtered navigation. See `radpress/docs/releases/v0.7.0.md`.
 - `0.8.0`: Author-owned post governance with post-list filtering, edit/save protection, and blocked ownership audit events. See `radpress/docs/releases/v0.8.0.md`.
+- `0.9.0`: Repeatable security baseline checks for installer lock, deny rules, upload allowlists, CSRF, rate limiting, roles, and author ownership. See `radpress/docs/releases/v0.9.0.md`.
 
 ## Package Trust Metadata
 
