@@ -23,6 +23,7 @@ Pre-`1.0.0` releases may still change internal APIs, but public content files, t
 - [ ] Run `php radpress/tests/update_runner.php` when update or release packaging changed.
 - [ ] Build the package with `php tools/build-release.php`.
 - [ ] Generate the manifest with `php tools/generate-release-manifest.php`.
+- [ ] Verify release artifacts with `php tools/verify-release-artifacts.php`.
 - [ ] Verify `dist/batoi-press-{version}.zip` excludes generated runtime state.
 - [ ] Verify `dist/latest.json` uses the same version and correct SHA-256 checksum.
 - [ ] Commit the release changes.
@@ -35,6 +36,24 @@ Pre-`1.0.0` releases may still change internal APIs, but public content files, t
 - `0.2.0`: Bundled Batoi UIF and disabled-by-default Batoi AIF scaffolding.
 - `0.3.0`: Business-ready admin console, theme management, favicon handling, audit-log operations, static export/cache/user guidance, and admin standardization. See `radpress/docs/releases/v0.3.0.md`.
 - `0.4.0`: Operational hardening with governed user lifecycle controls, owner safeguards, disabled-account authentication blocking, and release verification updates. See `radpress/docs/releases/v0.4.0.md`.
+- `0.5.0`: Searchable admin operations, media filtering, release artifact verification, and optional package-trust metadata groundwork. See `radpress/docs/releases/v0.5.0.md`.
+
+## Package Trust Metadata
+
+Stable public manifests may include package-trust fields before signed packages become mandatory:
+
+```json
+{
+  "trust": {
+    "signature_required": false,
+    "signature_algorithm": null,
+    "signature_url": null,
+    "public_key_url": null
+  }
+}
+```
+
+For pre-`1.0.0` releases, `signature_required` stays `false` unless a release explicitly documents a signing rollout. Installations should continue to verify SHA-256 checksums and treat signature URLs as optional metadata until enforcement is enabled.
 
 ## Stable 1.0 Checklist
 

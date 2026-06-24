@@ -26,12 +26,17 @@ final class PageController
     public function index(): Response
     {
         $pages = $this->pages->all();
+        $filters = [
+            'q' => trim((string)($_GET['q'] ?? '')),
+            'status' => trim((string)($_GET['status'] ?? '')),
+        ];
+        $filteredPages = $this->filterPages($pages, $filters);
         $body = AdminLayout::pageHeader(
             'Pages',
             'Create and maintain evergreen site pages with clear publication status.',
             AdminLayout::buttonLink('Create Page', '/admin/pages/new', 'plus')
         );
-        $body .= $this->toolbar($pages);
+        $body .= $this->toolbar($pages, $filters);
         $body .= AdminLayout::section(
             'Page standards',
             $this->pageStandards(),
@@ -43,8 +48,13 @@ final class PageController
             return Response::html($this->layout('Pages', $body));
         }
 
+        if ($filteredPages === []) {
+            $body .= '<section class="bp-empty-state"><h2>No pages match these filters</h2><p>Adjust the search or status filters to review other pages.</p>' . AdminLayout::buttonLink('Reset Filters', '/admin/pages', 'back') . '</section>';
+            return Response::html($this->layout('Pages', $body));
+        }
+
         $body .= '<div class="bp-table-wrap"><table class="bp-table bp-content-table"><thead><tr><th>Title</th><th>Status</th><th>Slug</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
-        foreach ($pages as $page) {
+        foreach ($filteredPages as $page) {
             $slug = (string)($page['slug'] ?? '');
             $title = (string)($page['title'] ?? 'Untitled');
             $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>Page</small></td><td>' . $this->statusBadge((string)($page['status'] ?? 'draft')) . '</td><td><code>' . $this->e($slug) . '</code></td><td>' . $this->formatDate((string)($page['updated_at'] ?? '')) . '</td><td><div class="bp-table-actions"><a href="' . $this->e($this->pageUrl($slug)) . '">View</a><a href="/admin/pages/edit/' . rawurlencode($slug) . '">Edit</a></div></td></tr>';
@@ -135,11 +145,42 @@ final class PageController
         return '<label>Status <select name="status"><option value="draft"' . $draft . '>Draft</option><option value="published"' . $published . '>Published</option></select></label>';
     }
 
-    private function toolbar(array $pages): string
+    private function toolbar(array $pages, array $filters): string
     {
         $published = count(array_filter($pages, static fn (array $page): bool => ($page['status'] ?? '') === 'published'));
         $draft = count(array_filter($pages, static fn (array $page): bool => ($page['status'] ?? '') !== 'published'));
-        return '<div class="bp-admin-toolbar"><div class="bp-admin-tabs" aria-label="Page status summary"><span class="bp-admin-tab is-active">All ' . count($pages) . '</span><span class="bp-admin-tab">Published ' . $published . '</span><span class="bp-admin-tab">Draft ' . $draft . '</span></div><label class="bp-admin-search">Search <input type="search" placeholder="Search pages" disabled><span>Search arrives in a later workflow phase.</span></label></div>';
+        $status = (string)($filters['status'] ?? '');
+        $html = '<div class="bp-admin-toolbar"><div class="bp-admin-tabs" aria-label="Page status summary"><span class="bp-admin-tab is-active">All ' . count($pages) . '</span><span class="bp-admin-tab">Published ' . $published . '</span><span class="bp-admin-tab">Draft ' . $draft . '</span></div></div>';
+        $html .= '<form method="get" action="/admin/pages" class="bp-filter-form"><label>Search <input type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Title, slug, or SEO text"></label>';
+        $html .= '<label>Status <select name="status"><option value="">All statuses</option>';
+        foreach (['published' => 'Published', 'draft' => 'Draft'] as $value => $label) {
+            $html .= '<option value="' . $this->e($value) . '"' . ($status === $value ? ' selected' : '') . '>' . $this->e($label) . '</option>';
+        }
+        return $html . '</select></label><div class="bp-filter-actions">' . AdminLayout::submitButton('Apply Filters', 'check') . AdminLayout::buttonLink('Reset', '/admin/pages', 'back', true) . '</div></form>';
+    }
+
+    private function filterPages(array $pages, array $filters): array
+    {
+        $q = strtolower((string)($filters['q'] ?? ''));
+        $status = (string)($filters['status'] ?? '');
+
+        return array_values(array_filter($pages, static function (array $page) use ($q, $status): bool {
+            $pageStatus = (string)($page['status'] ?? 'draft');
+            if ($status !== '' && $pageStatus !== $status) {
+                return false;
+            }
+            if ($q === '') {
+                return true;
+            }
+
+            $haystack = strtolower(implode(' ', [
+                (string)($page['title'] ?? ''),
+                (string)($page['slug'] ?? ''),
+                (string)($page['seo_title'] ?? ''),
+                (string)($page['seo_description'] ?? ''),
+            ]));
+            return str_contains($haystack, $q);
+        }));
     }
 
     private function pageStandards(): string

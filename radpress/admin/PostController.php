@@ -26,12 +26,17 @@ final class PostController
     public function index(): Response
     {
         $posts = $this->posts->all();
+        $filters = [
+            'q' => trim((string)($_GET['q'] ?? '')),
+            'status' => trim((string)($_GET['status'] ?? '')),
+        ];
+        $filteredPosts = $this->filterPosts($posts, $filters);
         $body = AdminLayout::pageHeader(
             'Posts',
             'Plan, draft, and publish dated articles for the site.',
             AdminLayout::buttonLink('Create Post', '/admin/posts/new', 'plus')
         );
-        $body .= $this->toolbar($posts);
+        $body .= $this->toolbar($posts, $filters);
         $body .= AdminLayout::section(
             'Post standards',
             $this->postStandards(),
@@ -43,8 +48,13 @@ final class PostController
             return Response::html($this->layout('Posts', $body));
         }
 
+        if ($filteredPosts === []) {
+            $body .= '<section class="bp-empty-state"><h2>No posts match these filters</h2><p>Adjust the search or status filters to review other posts.</p>' . AdminLayout::buttonLink('Reset Filters', '/admin/posts', 'back') . '</section>';
+            return Response::html($this->layout('Posts', $body));
+        }
+
         $body .= '<div class="bp-table-wrap"><table class="bp-table bp-content-table"><thead><tr><th>Title</th><th>Status</th><th>Category</th><th>Published</th><th>Slug</th><th>Actions</th></tr></thead><tbody>';
-        foreach ($posts as $post) {
+        foreach ($filteredPosts as $post) {
             $slug = (string)($post['slug'] ?? '');
             $title = (string)($post['title'] ?? 'Untitled');
             $publishedAt = (string)($post['published_at'] ?: ($post['updated_at'] ?? ''));
@@ -136,11 +146,44 @@ final class PostController
         return '<label>Status <select name="status"><option value="draft"' . $draft . '>Draft</option><option value="published"' . $published . '>Published</option></select></label>';
     }
 
-    private function toolbar(array $posts): string
+    private function toolbar(array $posts, array $filters): string
     {
         $published = count(array_filter($posts, static fn (array $post): bool => ($post['status'] ?? '') === 'published'));
         $draft = count(array_filter($posts, static fn (array $post): bool => ($post['status'] ?? '') !== 'published'));
-        return '<div class="bp-admin-toolbar"><div class="bp-admin-tabs" aria-label="Post status summary"><span class="bp-admin-tab is-active">All ' . count($posts) . '</span><span class="bp-admin-tab">Published ' . $published . '</span><span class="bp-admin-tab">Draft ' . $draft . '</span></div><label class="bp-admin-search">Search <input type="search" placeholder="Search posts" disabled><span>Search arrives in a later workflow phase.</span></label></div>';
+        $status = (string)($filters['status'] ?? '');
+        $html = '<div class="bp-admin-toolbar"><div class="bp-admin-tabs" aria-label="Post status summary"><span class="bp-admin-tab is-active">All ' . count($posts) . '</span><span class="bp-admin-tab">Published ' . $published . '</span><span class="bp-admin-tab">Draft ' . $draft . '</span></div></div>';
+        $html .= '<form method="get" action="/admin/posts" class="bp-filter-form"><label>Search <input type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Title, slug, category, or tag"></label>';
+        $html .= '<label>Status <select name="status"><option value="">All statuses</option>';
+        foreach (['published' => 'Published', 'draft' => 'Draft'] as $value => $label) {
+            $html .= '<option value="' . $this->e($value) . '"' . ($status === $value ? ' selected' : '') . '>' . $this->e($label) . '</option>';
+        }
+        return $html . '</select></label><div class="bp-filter-actions">' . AdminLayout::submitButton('Apply Filters', 'check') . AdminLayout::buttonLink('Reset', '/admin/posts', 'back', true) . '</div></form>';
+    }
+
+    private function filterPosts(array $posts, array $filters): array
+    {
+        $q = strtolower((string)($filters['q'] ?? ''));
+        $status = (string)($filters['status'] ?? '');
+
+        return array_values(array_filter($posts, static function (array $post) use ($q, $status): bool {
+            $postStatus = (string)($post['status'] ?? 'draft');
+            if ($status !== '' && $postStatus !== $status) {
+                return false;
+            }
+            if ($q === '') {
+                return true;
+            }
+
+            $haystack = strtolower(implode(' ', [
+                (string)($post['title'] ?? ''),
+                (string)($post['slug'] ?? ''),
+                (string)($post['category'] ?? ''),
+                implode(' ', array_map('strval', (array)($post['tags'] ?? []))),
+                (string)($post['seo_title'] ?? ''),
+                (string)($post['seo_description'] ?? ''),
+            ]));
+            return str_contains($haystack, $q);
+        }));
     }
 
     private function postStandards(): string

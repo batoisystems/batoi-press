@@ -28,8 +28,10 @@ Implemented safety steps:
 - Clear cache and run post-update health checks after replacement.
 - Automatically restore from the pre-update backup when a guarded apply or health check fails.
 - Restore files from a selected backup ZIP.
+- Verify generated release ZIP and `latest.json` outputs before public publication.
+- Carry disabled-by-default package-trust metadata for future signed package verification.
 
-Follow-up hardening should add broader update tests and optional signed package verification.
+Follow-up hardening should add broader update tests and decide when optional signed package metadata should become an enforced policy.
 
 Release packages must include `release.json`, `batoi-press-release.json`, or `manifest.json` at the package root. The manifest must list installable files:
 
@@ -46,3 +48,18 @@ Release packages must include `release.json`, `batoi-press-release.json`, or `ma
 ```
 
 Use `source` and `target` when the package path differs from the live install path.
+
+Public stable manifests may include optional trust metadata:
+
+```json
+{
+  "trust": {
+    "signature_required": false,
+    "signature_algorithm": null,
+    "signature_url": null,
+    "public_key_url": null
+  }
+}
+```
+
+In v0.5.0 this metadata is informational. SHA-256 checksum verification remains the enforced integrity check for normal update workflows.

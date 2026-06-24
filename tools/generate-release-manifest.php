@@ -31,6 +31,12 @@ $manifest = [
     'minimum_php' => '8.1',
     'github_release_url' => 'https://github.com/batoisystems/batoi-press/releases/tag/v' . $version,
     'notes_url' => 'https://www.batoi.com/press/releases#' . $version,
+    'trust' => [
+        'signature_required' => false,
+        'signature_algorithm' => null,
+        'signature_url' => null,
+        'public_key_url' => null,
+    ],
 ];
 
 $outputDir = dirname($outputPath);

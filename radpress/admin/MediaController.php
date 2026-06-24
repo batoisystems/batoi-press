@@ -21,6 +21,11 @@ final class MediaController
 
     public function index(): Response
     {
+        $filters = [
+            'q' => trim((string)($_GET['q'] ?? '')),
+            'type' => trim((string)($_GET['type'] ?? '')),
+            'sort' => trim((string)($_GET['sort'] ?? 'newest')),
+        ];
         $body = AdminLayout::pageHeader(
             'Media',
             'Upload and reuse site assets for pages, posts, and theme content.'
@@ -34,11 +39,16 @@ final class MediaController
         $body .= AdminLayout::section('Upload policy', $this->uploadPolicy($extensions), 'Files are validated before they are stored and exposed under the public media route.');
 
         $files = $this->files();
+        $filteredFiles = $this->filterFiles($files, $filters);
         if ($files === []) {
             $body .= '<section class="bp-empty-state"><h2>No media files</h2><p>Upload images and documents here, then copy their public URL or image HTML into page and post content.</p></section>';
+        } elseif ($filteredFiles === []) {
+            $body .= $this->filterForm($filters);
+            $body .= '<section class="bp-empty-state"><h2>No media files match these filters</h2><p>Adjust the search, type, or sort controls to review other files.</p>' . AdminLayout::buttonLink('Reset Filters', '/admin/media', 'back') . '</section>';
         } else {
+            $body .= $this->filterForm($filters);
             $body .= '<section class="bp-admin-section bp-admin-section-wide"><header><div><h2>Files</h2><p>Copy URLs and snippets for use in content HTML.</p></div></header><div class="bp-table-wrap"><table class="bp-table bp-content-table"><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Modified</th><th>URL</th><th>HTML</th></tr></thead><tbody>';
-            foreach ($files as $file) {
+            foreach ($filteredFiles as $file) {
                 $name = basename($file);
                 $url = '/media/' . rawurlencode($name);
                 $snippet = $this->isImage($name) ? '<img src="' . $url . '" alt="">' : '';
@@ -82,8 +92,65 @@ final class MediaController
     private function files(): array
     {
         $files = glob($this->config->paths()->contentPath('media/*')) ?: [];
-        usort($files, static fn (string $a, string $b): int => (int)filemtime($b) <=> (int)filemtime($a));
+        $files = array_values(array_filter($files, 'is_file'));
+        usort($files, static fn (string $a, string $b): int => strcasecmp(basename($a), basename($b)));
         return $files;
+    }
+
+    private function filterFiles(array $files, array $filters): array
+    {
+        $q = strtolower((string)($filters['q'] ?? ''));
+        $type = (string)($filters['type'] ?? '');
+        $filtered = array_values(array_filter($files, function (string $file) use ($q, $type): bool {
+            $name = basename($file);
+            if ($type === 'images' && !$this->isImage($name)) {
+                return false;
+            }
+            if ($type === 'documents' && $this->isImage($name)) {
+                return false;
+            }
+            if ($q === '') {
+                return true;
+            }
+
+            return str_contains(strtolower($name . ' ' . pathinfo($name, PATHINFO_EXTENSION) . ' ' . $this->kind($name)), $q);
+        }));
+
+        return $this->sortFiles($filtered, (string)($filters['sort'] ?? 'newest'));
+    }
+
+    private function sortFiles(array $files, string $sort): array
+    {
+        usort($files, static function (string $a, string $b) use ($sort): int {
+            if ($sort === 'name') {
+                return strcasecmp(basename($a), basename($b));
+            }
+            if ($sort === 'size') {
+                $comparison = ((int)filesize($b)) <=> ((int)filesize($a));
+                return $comparison !== 0 ? $comparison : strcasecmp(basename($a), basename($b));
+            }
+
+            $comparison = ((int)filemtime($b)) <=> ((int)filemtime($a));
+            return $comparison !== 0 ? $comparison : strcasecmp(basename($a), basename($b));
+        });
+
+        return $files;
+    }
+
+    private function filterForm(array $filters): string
+    {
+        $type = (string)($filters['type'] ?? '');
+        $sort = (string)($filters['sort'] ?? 'newest');
+        $html = '<form method="get" action="/admin/media" class="bp-filter-form"><label>Search <input type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Filename or extension"></label>';
+        $html .= '<label>Type <select name="type"><option value="">All files</option>';
+        foreach (['images' => 'Images', 'documents' => 'Documents'] as $value => $label) {
+            $html .= '<option value="' . $this->e($value) . '"' . ($type === $value ? ' selected' : '') . '>' . $this->e($label) . '</option>';
+        }
+        $html .= '</select></label><label>Sort <select name="sort">';
+        foreach (['newest' => 'Newest first', 'name' => 'Name A-Z', 'size' => 'Largest first'] as $value => $label) {
+            $html .= '<option value="' . $this->e($value) . '"' . ($sort === $value ? ' selected' : '') . '>' . $this->e($label) . '</option>';
+        }
+        return $html . '</select></label><div class="bp-filter-actions">' . AdminLayout::submitButton('Apply Filters', 'check') . AdminLayout::buttonLink('Reset', '/admin/media', 'back', true) . '</div></form>';
     }
 
     private function ensureMediaDirectory(string $dir): bool
