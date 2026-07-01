@@ -546,7 +546,15 @@ final class ThemeTemplateController
         } catch (RuntimeException $exception) {
             return $exception->getMessage();
         }
-        $command = escapeshellarg(PHP_BINARY) . ' -l ' . escapeshellarg($tmp) . ' 2>&1';
+        $php = $this->phpCliBinary();
+        if ($php === null) {
+            if (is_file($tmp)) {
+                unlink($tmp);
+            }
+            return 'PHP CLI binary was not found for template syntax checks.';
+        }
+
+        $command = escapeshellarg($php) . ' -l ' . escapeshellarg($tmp) . ' 2>&1';
         $output = [];
         $code = 0;
         exec($command, $output, $code);
@@ -554,6 +562,30 @@ final class ThemeTemplateController
             unlink($tmp);
         }
         return $code === 0 ? null : 'PHP syntax check failed: ' . implode(' ', $output);
+    }
+
+    private function phpCliBinary(): ?string
+    {
+        $candidates = [
+            PHP_BINARY,
+            PHP_BINDIR . '/php',
+            '/usr/bin/php',
+            '/usr/local/bin/php',
+        ];
+
+        foreach ($candidates as $candidate) {
+            $candidate = (string)$candidate;
+            if ($candidate === '' || !is_file($candidate) || !is_executable($candidate)) {
+                continue;
+            }
+
+            $name = strtolower(basename($candidate));
+            if ($name === 'php' || str_starts_with($name, 'php')) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function snapshot(string $theme, string $key, string $path): void
