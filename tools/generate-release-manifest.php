@@ -6,6 +6,7 @@ $version = readCurrentVersion($root);
 $zipPath = optionValue($argv, '--zip') ?? $root . '/dist/batoi-press-' . $version . '.zip';
 $outputPath = optionValue($argv, '--output') ?? $root . '/dist/latest.json';
 $releasedAt = optionValue($argv, '--released-at') ?? date(DATE_ATOM);
+$githubReleaseUrl = optionValue($argv, '--github-release-url');
 
 if (!is_file($zipPath)) {
     buildReleasePackage($root, $zipPath);
@@ -29,7 +30,7 @@ $manifest = [
     'download_url' => 'https://www.batoi.com/pub/press/releases/batoi-press-' . $version . '.zip',
     'checksum_sha256' => $checksum,
     'minimum_php' => '8.1',
-    'github_release_url' => 'https://github.com/batoisystems/batoi-press/releases/tag/v' . $version,
+    'github_release_url' => $githubReleaseUrl !== null && trim($githubReleaseUrl) !== '' ? trim($githubReleaseUrl) : null,
     'notes_url' => 'https://www.batoi.com/press/releases#' . $version,
     'trust' => [
         'signature_required' => false,
