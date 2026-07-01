@@ -36,14 +36,14 @@ final class ExportController
         $body .= AdminLayout::statCard('Export storage', (bool)($status['export_writable'] ?? false) ? 'Writable' : 'Not writable', (string)($status['export_path'] ?? 'radpress/data/export'));
         $body .= '</dl>';
 
-        $action = '<p>The export includes published pages, published posts, the blog listing, sitemap.xml, and feed.xml. Draft content, admin screens, users, sessions, backups, and audit logs are not included.</p>';
+        $action = '<p>The export includes published pages, published posts, the blog listing, uploaded media files, sitemap.xml, and feed.xml. Draft content, admin screens, users, sessions, backups, and audit logs are not included.</p>';
         $action .= '<form method="post" action="/admin/export-static/run" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Generate Export', 'download', $ready ? '' : 'disabled aria-disabled="true"') . '</form>';
         if (!$ready) {
             $action .= '<p class="bp-field-help">Resolve ZIP support or directory permissions before generating an export.</p>';
         }
         $body .= AdminLayout::section('Generate package', $action, 'Create a new timestamped ZIP in the export storage directory.');
 
-        $contents = '<ul class="bp-check-list"><li>Published pages are written as static HTML files.</li><li>Published posts are written under the blog path with a generated blog index.</li><li>Sitemap and RSS feed files use the configured Base URL from Settings.</li><li>Uploaded media should be reviewed separately if your deployment target requires copied media assets.</li></ul>';
+        $contents = '<ul class="bp-check-list"><li>Published pages are written as static HTML files.</li><li>Published posts are written under the blog path with a generated blog index.</li><li>Uploaded media files are copied into the package under <code>media/</code>.</li><li>Sitemap and RSS feed files use the configured Base URL from Settings.</li></ul>';
         $body .= AdminLayout::section('Package contents', $contents, 'Use this package for static deployment workflows after reviewing the generated files.');
 
         $body .= $this->recentExports($status['exports'] ?? []);

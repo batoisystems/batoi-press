@@ -48,13 +48,12 @@ try {
         'blog/first-post/index.html',
         'sitemap.xml',
         'feed.xml',
-        'media/README.txt',
+        'media/sample-media.txt',
     ] as $entry) {
         assertTrue($zip->locateName($entry) !== false, "static export ZIP should include {$entry}");
     }
 
-    $mediaGuidance = (string)$zip->getFromName('media/README.txt');
-    assertTrue(str_contains($mediaGuidance, 'radpress/content/media'), 'media guidance should name the source media directory');
+    assertTrue((string)$zip->getFromName('media/sample-media.txt') === "sample media\n", 'static export ZIP should include uploaded media file contents');
     assertTrue($zip->locateName('admin/index.html') === false, 'static export ZIP should not include admin output');
     $zip->close();
 
@@ -70,6 +69,7 @@ function createFixture(string $root): void
         'radpress/content/pages/home',
         'radpress/content/pages/about',
         'radpress/content/posts/first-post',
+        'radpress/content/media',
         'radpress/data/export',
         'radpress/data/tmp',
     ] as $dir) {
@@ -92,6 +92,7 @@ function createFixture(string $root): void
         'status' => 'published',
         'published_at' => date(DATE_ATOM),
     ], '<h1>First Post</h1>');
+    file_put_contents($root . '/radpress/content/media/sample-media.txt', "sample media\n", LOCK_EX);
 }
 
 function writeContent(string $dir, array $meta, string $body): void

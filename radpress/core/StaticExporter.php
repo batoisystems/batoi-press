@@ -160,7 +160,7 @@ final class StaticExporter
         $this->write($workDir . '/blog/index.html', $this->html('Blog', $listing));
         $this->write($workDir . '/sitemap.xml', $this->sitemap());
         $this->write($workDir . '/feed.xml', $this->feed());
-        $this->write($workDir . '/media/README.txt', $this->mediaGuidance());
+        $this->writeMedia($workDir);
     }
 
     private function html(string $title, string $body): string
@@ -235,13 +235,16 @@ final class StaticExporter
 
     private function expectedEntries(): array
     {
-        $entries = ['blog/index.html', 'sitemap.xml', 'feed.xml', 'media/README.txt'];
+        $entries = ['blog/index.html', 'sitemap.xml', 'feed.xml'];
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
             $entries[] = $slug === 'home' ? 'index.html' : $slug . '/index.html';
         }
         foreach ($this->posts->allPublished() as $post) {
             $entries[] = 'blog/' . (string)($post['slug'] ?? '') . '/index.html';
+        }
+        foreach ($this->mediaFiles() as $file) {
+            $entries[] = 'media/' . basename($file);
         }
 
         return array_values(array_unique($entries));
@@ -262,12 +265,24 @@ final class StaticExporter
         return false;
     }
 
-    private function mediaGuidance(): string
+    private function writeMedia(string $workDir): void
     {
-        return "Batoi Press static export media guidance\n"
-            . "\n"
-            . "This package contains published static HTML, blog index, sitemap, and feed files.\n"
-            . "Uploaded media files are not copied into the package automatically.\n"
-            . "If published content references /media/{file}, copy the required files from radpress/content/media/ to the target site's media/ directory before publishing.\n";
+        foreach ($this->mediaFiles() as $file) {
+            $target = $workDir . '/media/' . basename($file);
+            $this->ensureDirectory(dirname($target));
+            copy($file, $target);
+        }
+    }
+
+    private function mediaFiles(): array
+    {
+        $mediaDir = $this->paths->contentPath('media');
+        if (!is_dir($mediaDir)) {
+            return [];
+        }
+
+        $files = array_values(array_filter(glob($mediaDir . '/*') ?: [], 'is_file'));
+        usort($files, static fn (string $a, string $b): int => strcasecmp(basename($a), basename($b)));
+        return $files;
     }
 }
