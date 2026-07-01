@@ -141,16 +141,16 @@ final class MediaController
     {
         $type = (string)($filters['type'] ?? '');
         $sort = (string)($filters['sort'] ?? 'newest');
-        $html = '<form method="get" action="/admin/media" class="bp-filter-form"><label>Search <input type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Filename or extension"></label>';
-        $html .= '<label>Type <select name="type"><option value="">All files</option>';
+        $html = '<form method="get" action="/admin/media" class="bp-filter-form"><div class="bp-filter-field bp-filter-field-search"><label for="bp-media-filter-q">Search</label><input id="bp-media-filter-q" type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Filename or extension"></div>';
+        $html .= '<div class="bp-filter-field"><label for="bp-media-filter-type">Type</label><select id="bp-media-filter-type" name="type"><option value="">All files</option>';
         foreach (['images' => 'Images', 'documents' => 'Documents'] as $value => $label) {
             $html .= '<option value="' . $this->e($value) . '"' . ($type === $value ? ' selected' : '') . '>' . $this->e($label) . '</option>';
         }
-        $html .= '</select></label><label>Sort <select name="sort">';
+        $html .= '</select></div><div class="bp-filter-field"><label for="bp-media-filter-sort">Sort</label><select id="bp-media-filter-sort" name="sort">';
         foreach (['newest' => 'Newest first', 'name' => 'Name A-Z', 'size' => 'Largest first'] as $value => $label) {
             $html .= '<option value="' . $this->e($value) . '"' . ($sort === $value ? ' selected' : '') . '>' . $this->e($label) . '</option>';
         }
-        return $html . '</select></label><div class="bp-filter-actions">' . AdminLayout::submitButton('Apply Filters', 'check') . AdminLayout::buttonLink('Reset', '/admin/media', 'back', true) . '</div></form>';
+        return $html . '</select></div><div class="bp-filter-actions">' . AdminLayout::submitButton('Apply Filters', 'check') . AdminLayout::buttonLink('Reset', '/admin/media', 'back', true) . '</div></form>';
     }
 
     private function ensureMediaDirectory(string $dir): bool

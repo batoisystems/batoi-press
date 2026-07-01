@@ -5,7 +5,8 @@ $seoTitle = $page['seo_title'] ?? $post['seo_title'] ?? '';
 $pageTitle = $seoTitle !== '' ? $seoTitle : (isset($title) && $title !== '' ? $title . ' | ' . ($site['name'] ?? 'Batoi Press') : ($site['name'] ?? 'Batoi Press'));
 $description = $page['seo_description'] ?? $post['seo_description'] ?? $site['tagline'] ?? '';
 $favicon = (string)($site['favicon'] ?? '');
-$faviconFile = $favicon !== '' ? dirname(__DIR__, 4) . '/public_html/' . ltrim($favicon, '/') : '';
+$favicon = $favicon !== '' ? $favicon : '/assets/img/batoi-press/press-color-tile-32.png';
+$faviconFile = dirname(__DIR__, 4) . '/public_html/' . ltrim($favicon, '/');
 $faviconHref = $faviconFile !== '' && is_file($faviconFile) ? bp_url($favicon) . '?v=' . filemtime($faviconFile) : '';
 $faviconTypes = [
     'ico' => 'image/x-icon',

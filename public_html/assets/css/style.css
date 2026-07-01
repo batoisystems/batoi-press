@@ -1318,20 +1318,43 @@ p {
     border: 1px solid var(--bp-line);
     border-radius: var(--bp-radius);
     display: grid;
-    gap: 12px;
+    gap: 10px;
     grid-template-columns: minmax(180px, 1fr) minmax(140px, 180px) minmax(140px, 180px) auto;
     margin: 16px 0;
-    padding: 14px;
+    padding: 12px;
 }
 
-.bp-filter-form label {
+.bp-filter-form-compact {
+    grid-template-columns: minmax(220px, 1fr) minmax(140px, 180px) auto;
+}
+
+.bp-filter-field {
+    display: grid;
+    gap: 5px;
     margin: 0;
+}
+
+.bp-filter-field label {
+    color: var(--bp-muted);
+    font-size: 0.76rem;
+    font-weight: 760;
+}
+
+.bp-filter-field input,
+.bp-filter-field select {
+    margin: 0;
+    min-height: 38px;
+}
+
+.bp-filter-field-search input {
+    min-width: 0;
 }
 
 .bp-filter-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+    justify-content: flex-end;
 }
 
 .bp-empty-state {

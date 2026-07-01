@@ -535,13 +535,24 @@ final class ThemeTemplateController
             return json_last_error() === JSON_ERROR_NONE ? null : 'JSON is invalid: ' . json_last_error_msg();
         }
 
-        $tmp = $this->config->paths()->dataPath('tmp/template-lint-' . bin2hex(random_bytes(4)) . '.php');
-        $this->files->write($tmp, $source);
+        $tmpDir = $this->config->paths()->dataPath('tmp');
+        if (!is_dir($tmpDir) && !mkdir($tmpDir, 0775, true) && !is_dir($tmpDir)) {
+            return 'Unable to prepare the template syntax check workspace.';
+        }
+
+        $tmp = $tmpDir . '/template-lint-' . bin2hex(random_bytes(4)) . '.php';
+        try {
+            $this->files->write($tmp, $source);
+        } catch (RuntimeException $exception) {
+            return $exception->getMessage();
+        }
         $command = escapeshellarg(PHP_BINARY) . ' -l ' . escapeshellarg($tmp) . ' 2>&1';
         $output = [];
         $code = 0;
         exec($command, $output, $code);
-        unlink($tmp);
+        if (is_file($tmp)) {
+            unlink($tmp);
+        }
         return $code === 0 ? null : 'PHP syntax check failed: ' . implode(' ', $output);
     }
 

@@ -105,7 +105,7 @@ final class PageController
             'Manage page content, publication state, and search metadata in one workflow.',
             $actions
         );
-        $body .= '<form method="post" action="/admin/pages/save" class="bp-form bp-admin-editor">';
+        $body .= '<form method="post" action="/admin/pages/save" class="bp-form bp-admin-editor" novalidate>';
         $body .= $this->csrf->field();
         $body .= '<input type="hidden" name="original_slug" value="' . $this->e($slug) . '">';
 
@@ -151,12 +151,12 @@ final class PageController
         $draft = count(array_filter($pages, static fn (array $page): bool => ($page['status'] ?? '') !== 'published'));
         $status = (string)($filters['status'] ?? '');
         $html = '<div class="bp-admin-toolbar"><div class="bp-admin-tabs" aria-label="Page status summary"><span class="bp-admin-tab is-active">All ' . count($pages) . '</span><span class="bp-admin-tab">Published ' . $published . '</span><span class="bp-admin-tab">Draft ' . $draft . '</span></div></div>';
-        $html .= '<form method="get" action="/admin/pages" class="bp-filter-form"><label>Search <input type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Title, slug, or SEO text"></label>';
-        $html .= '<label>Status <select name="status"><option value="">All statuses</option>';
+        $html .= '<form method="get" action="/admin/pages" class="bp-filter-form bp-filter-form-compact"><div class="bp-filter-field bp-filter-field-search"><label for="bp-page-filter-q">Search</label><input id="bp-page-filter-q" type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Title, slug, or SEO text"></div>';
+        $html .= '<div class="bp-filter-field"><label for="bp-page-filter-status">Status</label><select id="bp-page-filter-status" name="status"><option value="">All statuses</option>';
         foreach (['published' => 'Published', 'draft' => 'Draft'] as $value => $label) {
             $html .= '<option value="' . $this->e($value) . '"' . ($status === $value ? ' selected' : '') . '>' . $this->e($label) . '</option>';
         }
-        return $html . '</select></label><div class="bp-filter-actions">' . AdminLayout::submitButton('Apply Filters', 'check') . AdminLayout::buttonLink('Reset', '/admin/pages', 'back', true) . '</div></form>';
+        return $html . '</select></div><div class="bp-filter-actions">' . AdminLayout::submitButton('Apply Filters', 'check') . AdminLayout::buttonLink('Reset', '/admin/pages', 'back', true) . '</div></form>';
     }
 
     private function filterPages(array $pages, array $filters): array

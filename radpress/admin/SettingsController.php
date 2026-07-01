@@ -84,9 +84,11 @@ final class SettingsController
     private function faviconField(array $site): string
     {
         $favicon = (string)($site['favicon'] ?? '');
-        $preview = '';
+        $previewUrl = $favicon !== '' ? $this->faviconUrl($favicon) : $this->assetUrl('/assets/img/batoi-press/press-color-tile-32.png');
+        $previewLabel = $favicon !== '' ? 'Current favicon' : 'Current favicon (default)';
+        $preview = '<div class="bp-favicon-current"><span>' . $this->e($previewLabel) . '</span><img src="' . $this->e($previewUrl) . '" alt=""></div>';
         if ($favicon !== '') {
-            $preview = '<div class="bp-favicon-current"><span>Current favicon</span><img src="' . $this->e($this->faviconUrl($favicon)) . '" alt=""></div>';
+            $preview .= '<input type="hidden" name="current_favicon" value="' . $this->e($favicon) . '">';
         }
 
         return '<div class="bp-form-grid">' . $preview . '<label class="bp-field-wide">Upload Favicon <input type="file" name="favicon" accept=".ico,.png,.jpg,.jpeg,.webp,.svg,image/x-icon,image/png,image/jpeg,image/webp,image/svg+xml"><span class="bp-field-help">Use SVG, ICO, PNG, JPG, or WebP up to 1 MB. The admin favicon always remains the Batoi Press logo.</span></label></div>';
@@ -235,6 +237,12 @@ final class SettingsController
         $path = dirname(__DIR__, 2) . '/public_html/' . ltrim($favicon, '/');
         $version = is_file($path) ? '?v=' . filemtime($path) : '';
         return \bp_url($favicon) . $version;
+    }
+
+    private function assetUrl(string $path): string
+    {
+        $file = dirname(__DIR__, 2) . '/public_html/' . ltrim($path, '/');
+        return \bp_url($path) . (is_file($file) ? '?v=' . filemtime($file) : '');
     }
 
     private function e(string $value): string

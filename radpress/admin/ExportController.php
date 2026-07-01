@@ -57,7 +57,12 @@ final class ExportController
             return $this->message('Static Export', 'Security token expired.', true, 400);
         }
 
-        $result = $this->exporter->export();
+        try {
+            $result = $this->exporter->export();
+        } catch (\Throwable $exception) {
+            $this->audit->record((string)($this->user['username'] ?? 'admin'), 'export.failed', 'exception', (string)($_SERVER['REMOTE_ADDR'] ?? ''), 'failed');
+            return $this->message('Static Export', 'Export failed: ' . $exception->getMessage(), true, 500);
+        }
         if (!($result['ok'] ?? false)) {
             return $this->message('Static Export', (string)($result['error'] ?? 'Export failed.'), true, 500);
         }
