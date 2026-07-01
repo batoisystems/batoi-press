@@ -46,6 +46,10 @@ try {
     assertSame($validUpdate, file_get_contents($paths->configPath('update.json')), 'rollback should restore update config');
     assertTrue(!is_file($paths->dataPath('maintenance.json')), 'maintenance mode should be disabled after rollback');
 
+    $missingStage = $runner->apply($paths->dataPath('tmp/update-stage-20990101-000000'));
+    assertTrue(!($missingStage['ok'] ?? false), 'missing staged package should fail apply');
+    assertSame('The selected staged package is no longer available. Stage the package again.', (string)($missingStage['error'] ?? ''), 'missing staged package should return actionable error');
+
     echo "Update runner checks passed\n";
 } finally {
     removeTree($root);

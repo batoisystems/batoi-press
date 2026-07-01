@@ -49,6 +49,10 @@ final class UpdateRunner
 
     public function apply(string $stageDir): array
     {
+        if (!is_dir($stageDir)) {
+            return ['ok' => false, 'error' => 'The selected staged package is no longer available. Stage the package again.'];
+        }
+
         if (!$this->isInside($stageDir, $this->paths->dataPath('tmp'))) {
             return ['ok' => false, 'error' => 'Invalid staged package path.'];
         }

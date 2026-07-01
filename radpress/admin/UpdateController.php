@@ -131,7 +131,15 @@ final class UpdateController
         }
 
         $stage = basename($stage);
+        if (!$this->isStageName($stage)) {
+            return $this->message('Apply Update', 'Select a staged package from the Updates screen before applying.', true, 400);
+        }
+
         $path = $this->config->paths()->dataPath('tmp/' . $stage);
+        if (!is_dir($path)) {
+            return $this->message('Apply Update', 'The selected staged package is no longer available. Stage the package again.', true, 404);
+        }
+
         $result = (new UpdateRunner($this->config->paths()))->apply($path);
         $target = (string)($result['version'] ?? $stage);
         $this->audit->record((string)($this->user['username'] ?? 'admin'), ($result['ok'] ?? false) ? 'update.applied' : 'update.apply_failed', $target, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
@@ -147,6 +155,11 @@ final class UpdateController
         }
 
         return $this->message('Apply Update', $message, true, 500);
+    }
+
+    private function isStageName(string $stage): bool
+    {
+        return preg_match('/^update-stage-\d{8}-\d{6}$/', $stage) === 1;
     }
 
     private function backupList(): string
