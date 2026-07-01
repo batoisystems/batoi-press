@@ -36,6 +36,39 @@ foreach (requiredEntries() as $entry) {
     }
 }
 
+$packageManifestJson = readZipEntry($zipPath, 'release.json');
+$packageManifest = json_decode($packageManifestJson, true);
+if (!is_array($packageManifest)) {
+    fail('Release package root release.json is not valid JSON.');
+}
+
+if ((string)($packageManifest['version'] ?? '') !== $version) {
+    fail('Release package root release.json version does not match current_version.');
+}
+
+$packageFiles = $packageManifest['files'] ?? null;
+if (!is_array($packageFiles) || $packageFiles === []) {
+    fail('Release package root release.json does not list installable files.');
+}
+
+foreach ($packageFiles as $file) {
+    if (!is_array($file)) {
+        fail('Release package root release.json contains an invalid file entry.');
+    }
+
+    $path = (string)($file['source'] ?? $file['path'] ?? '');
+    $checksum = strtolower((string)($file['sha256'] ?? ''));
+    if ($path === '' || !isset($entries[$path])) {
+        fail("Release package manifest references a missing file: {$path}");
+    }
+    if (!isAllowedManifestTarget($path)) {
+        fail("Release package manifest references a non-installable path: {$path}");
+    }
+    if ($checksum === '' || !hash_equals($checksum, hash('sha256', readZipEntry($zipPath, $path)))) {
+        fail("Release package manifest checksum does not match: {$path}");
+    }
+}
+
 foreach (array_keys($entries) as $entry) {
     if (isExcludedEntry($entry)) {
         fail("Release package contains generated runtime state: {$entry}");
@@ -103,6 +136,7 @@ function optionValue(array $argv, string $name): ?string
 function requiredEntries(): array
 {
     return [
+        'release.json',
         'README.md',
         'LICENSE',
         'public_html/index.php',
@@ -119,6 +153,59 @@ function requiredEntries(): array
         'radpress/autoload.php',
         'radpress/config/update.json',
         'radpress/docs/release-management.md',
+    ];
+}
+
+function readZipEntry(string $zipPath, string $entry): string
+{
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath) !== true) {
+        fail("Unable to open release package: {$zipPath}");
+    }
+
+    $contents = $zip->getFromName($entry);
+    $zip->close();
+
+    if ($contents === false) {
+        fail("Unable to read release package entry: {$entry}");
+    }
+
+    return $contents;
+}
+
+function isAllowedManifestTarget(string $relative): bool
+{
+    $relative = trim($relative, '/');
+    foreach (allowedManifestTargetPrefixes() as $prefix) {
+        if ($relative === rtrim($prefix, '/') || str_starts_with($relative, $prefix)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function allowedManifestTargetPrefixes(): array
+{
+    return [
+        'README.md',
+        'LICENSE',
+        'public_html/',
+        'radpress/admin/',
+        'radpress/aif/',
+        'radpress/app/',
+        'radpress/core/',
+        'radpress/docs/',
+        'radpress/helpers/',
+        'radpress/security/',
+        'radpress/tests/',
+        'radpress/theme/',
+        'radpress/uif/',
+        'radpress/updates/',
+        'radpress/autoload.php',
+        'radpress/config/aif.json',
+        'radpress/config/update.json',
+        'radpress/config/paths.json',
     ];
 }
 

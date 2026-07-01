@@ -23,8 +23,16 @@ if ($zip->open($output, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
     exit(1);
 }
 
+$files = [];
 foreach (releaseRoots($root) as $path) {
-    addPath($zip, $root, $path);
+    addPath($zip, $root, $path, $files);
+}
+
+$manifest = releaseManifest($version, $files);
+$encodedManifest = json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+if ($encodedManifest === false || !$zip->addFromString('release.json', $encodedManifest . PHP_EOL)) {
+    fwrite(STDERR, "Unable to add release manifest to ZIP: {$output}\n");
+    exit(1);
 }
 
 if (!$zip->close()) {
@@ -94,14 +102,21 @@ function validateRequiredAssets(string $root): void
     }
 }
 
-function addPath(ZipArchive $zip, string $root, string $path): void
+function addPath(ZipArchive $zip, string $root, string $path, array &$files): void
 {
     if (shouldExclude($root, $path)) {
         return;
     }
 
     if (is_file($path)) {
-        $zip->addFile($path, ltrim(substr($path, strlen($root)), '/'));
+        $relative = ltrim(substr($path, strlen($root)), '/');
+        $zip->addFile($path, $relative);
+        if (isInstallableTarget($relative)) {
+            $files[] = [
+                'path' => $relative,
+                'sha256' => hash_file('sha256', $path),
+            ];
+        }
         return;
     }
 
@@ -113,8 +128,55 @@ function addPath(ZipArchive $zip, string $root, string $path): void
         if ($item === '.' || $item === '..') {
             continue;
         }
-        addPath($zip, $root, $path . '/' . $item);
+        addPath($zip, $root, $path . '/' . $item, $files);
     }
+}
+
+function releaseManifest(string $version, array $files): array
+{
+    usort($files, static fn (array $a, array $b): int => strcmp((string)$a['path'], (string)$b['path']));
+
+    return [
+        'name' => 'Batoi Press',
+        'version' => $version,
+        'files' => $files,
+    ];
+}
+
+function isInstallableTarget(string $relative): bool
+{
+    $relative = trim($relative, '/');
+    foreach (installableTargetPrefixes() as $prefix) {
+        if ($relative === rtrim($prefix, '/') || str_starts_with($relative, $prefix)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function installableTargetPrefixes(): array
+{
+    return [
+        'README.md',
+        'LICENSE',
+        'public_html/',
+        'radpress/admin/',
+        'radpress/aif/',
+        'radpress/app/',
+        'radpress/core/',
+        'radpress/docs/',
+        'radpress/helpers/',
+        'radpress/security/',
+        'radpress/tests/',
+        'radpress/theme/',
+        'radpress/uif/',
+        'radpress/updates/',
+        'radpress/autoload.php',
+        'radpress/config/aif.json',
+        'radpress/config/update.json',
+        'radpress/config/paths.json',
+    ];
 }
 
 function shouldExclude(string $root, string $path): bool
