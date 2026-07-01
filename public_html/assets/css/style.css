@@ -1695,6 +1695,11 @@ p {
     font-weight: 750;
 }
 
+.bp-favicon-current small {
+    color: var(--bp-muted);
+    font-size: 0.8rem;
+}
+
 .bp-favicon-current img {
     background: #fff;
     border: 1px solid var(--bp-line);

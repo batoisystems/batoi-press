@@ -84,9 +84,11 @@ final class SettingsController
     private function faviconField(array $site): string
     {
         $favicon = (string)($site['favicon'] ?? '');
-        $previewUrl = $favicon !== '' ? $this->faviconUrl($favicon) : $this->assetUrl('/assets/img/batoi-press/press-color-tile-32.png');
-        $previewLabel = $favicon !== '' ? 'Current favicon' : 'Current favicon (default)';
-        $preview = '<div class="bp-favicon-current"><span>' . $this->e($previewLabel) . '</span><img src="' . $this->e($previewUrl) . '" alt=""></div>';
+        $faviconExists = $favicon !== '' && is_file($this->publicFile($favicon));
+        $previewUrl = $faviconExists ? $this->faviconUrl($favicon) : $this->assetUrl('/assets/img/batoi-press/press-color-tile-32.png');
+        $previewLabel = $faviconExists ? 'Current favicon' : 'Current favicon (default)';
+        $notice = $favicon !== '' && !$faviconExists ? '<small>Configured favicon file was not found. Showing the default Batoi Press icon.</small>' : '';
+        $preview = '<div class="bp-favicon-current"><span>' . $this->e($previewLabel) . '</span><img src="' . $this->e($previewUrl) . '" alt="">' . $notice . '</div>';
         if ($favicon !== '') {
             $preview .= '<input type="hidden" name="current_favicon" value="' . $this->e($favicon) . '">';
         }
@@ -234,15 +236,20 @@ final class SettingsController
 
     private function faviconUrl(string $favicon): string
     {
-        $path = dirname(__DIR__, 2) . '/public_html/' . ltrim($favicon, '/');
+        $path = $this->publicFile($favicon);
         $version = is_file($path) ? '?v=' . filemtime($path) : '';
-        return \bp_url($favicon) . $version;
+        return '/' . ltrim($favicon, '/') . $version;
     }
 
     private function assetUrl(string $path): string
     {
-        $file = dirname(__DIR__, 2) . '/public_html/' . ltrim($path, '/');
-        return \bp_url($path) . (is_file($file) ? '?v=' . filemtime($file) : '');
+        $file = $this->publicFile($path);
+        return '/' . ltrim($path, '/') . (is_file($file) ? '?v=' . filemtime($file) : '');
+    }
+
+    private function publicFile(string $path): string
+    {
+        return dirname(__DIR__, 2) . '/public_html/' . ltrim($path, '/');
     }
 
     private function e(string $value): string
