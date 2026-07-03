@@ -508,7 +508,7 @@ final class ThemeTemplateController
     {
         return '<ul class="bp-admin-checklist">'
             . '<li>' . AdminLayout::icon('check') . '<span>Only approved files inside the selected theme can be edited.</span></li>'
-            . '<li>' . AdminLayout::icon('check') . '<span>PHP templates are syntax-checked before saving.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>PHP templates are syntax-checked before saving when a PHP CLI binary is available.</span></li>'
             . '<li>' . AdminLayout::icon('check') . '<span>The previous version is snapshotted before each successful save.</span></li>'
             . '<li>' . AdminLayout::icon('check') . '<span>Use the cache page after template changes if public output looks stale.</span></li>'
             . '</ul>';
@@ -551,7 +551,7 @@ final class ThemeTemplateController
             if (is_file($tmp)) {
                 unlink($tmp);
             }
-            return 'PHP CLI binary was not found for template syntax checks.';
+            return null;
         }
 
         $command = escapeshellarg($php) . ' -l ' . escapeshellarg($tmp) . ' 2>&1';
@@ -580,12 +580,27 @@ final class ThemeTemplateController
             }
 
             $name = strtolower(basename($candidate));
-            if ($name === 'php' || str_starts_with($name, 'php')) {
+            if (($name === 'php' || str_starts_with($name, 'php')) && $this->isCliPhpBinary($candidate)) {
                 return $candidate;
             }
         }
 
         return null;
+    }
+
+    private function isCliPhpBinary(string $candidate): bool
+    {
+        $command = escapeshellarg($candidate) . ' -r ' . escapeshellarg('echo PHP_SAPI;') . ' 2>&1';
+        $output = [];
+        $code = 0;
+        exec($command, $output, $code);
+
+        if ($code !== 0 || $output === []) {
+            return false;
+        }
+
+        $sapi = strtolower(trim((string)$output[0]));
+        return in_array($sapi, ['cli', 'phpdbg'], true);
     }
 
     private function snapshot(string $theme, string $key, string $path): void
