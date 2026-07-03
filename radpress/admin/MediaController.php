@@ -141,7 +141,7 @@ final class MediaController
     {
         $type = (string)($filters['type'] ?? '');
         $sort = (string)($filters['sort'] ?? 'newest');
-        $html = '<form method="get" action="/admin/media" class="bp-filter-form"><div class="bp-filter-field bp-filter-field-search"><label for="bp-media-filter-q">Search</label><input id="bp-media-filter-q" type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Filename or extension"></div>';
+        $html = '<form method="get" action="/admin/media" class="bp-filter-form bp-filter-form-media"><div class="bp-filter-field bp-filter-field-search"><label for="bp-media-filter-q">Search</label><input id="bp-media-filter-q" type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Filename or extension"></div>';
         $html .= '<div class="bp-filter-field"><label for="bp-media-filter-type">Type</label><select id="bp-media-filter-type" name="type"><option value="">All files</option>';
         foreach (['images' => 'Images', 'documents' => 'Documents'] as $value => $label) {
             $html .= '<option value="' . $this->e($value) . '"' . ($type === $value ? ' selected' : '') . '>' . $this->e($label) . '</option>';

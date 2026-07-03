@@ -1329,6 +1329,10 @@ p {
     grid-column: 1 / -1;
 }
 
+.bp-filter-form-media {
+    grid-template-columns: minmax(260px, 1fr) minmax(130px, 170px) minmax(150px, 190px) max-content;
+}
+
 .bp-filter-form-compact {
     grid-template-columns: minmax(260px, 1fr) minmax(150px, 200px) max-content;
 }
