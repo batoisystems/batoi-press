@@ -32,6 +32,7 @@ final class ExportController
         $body .= '<dl class="bp-admin-stats bp-admin-stats-compact">';
         $body .= AdminLayout::statCard('Published pages', (string)(int)($status['published_pages'] ?? 0), 'Pages included in the static package.');
         $body .= AdminLayout::statCard('Published posts', (string)(int)($status['published_posts'] ?? 0), 'Blog posts included in the static package.');
+        $body .= AdminLayout::statCard('Media files', (string)(int)($status['media_files'] ?? 0), 'Uploaded files copied into the package under media/.');
         $body .= AdminLayout::statCard('ZIP support', (bool)($status['zip_available'] ?? false) ? 'Available' : 'Unavailable', (bool)($status['zip_available'] ?? false) ? 'PHP ZipArchive is enabled.' : 'Enable PHP ZipArchive to generate packages.');
         $body .= AdminLayout::statCard('Export storage', (bool)($status['export_writable'] ?? false) ? 'Writable' : 'Not writable', (string)($status['export_path'] ?? 'radpress/data/export'));
         $body .= '</dl>';
@@ -130,10 +131,11 @@ final class ExportController
             return AdminLayout::section('Recent exports', '<p>No static export packages have been generated yet.</p>', 'Generated ZIP files will appear here after export.');
         }
 
-        $html = '<div class="bp-table-wrap"><table class="bp-table"><thead><tr><th>Package</th><th>Size</th><th>Modified</th><th>Action</th></tr></thead><tbody>';
+        $html = '<div class="bp-table-wrap"><table class="bp-table"><thead><tr><th>Package</th><th>Size</th><th>Media</th><th>Modified</th><th>Action</th></tr></thead><tbody>';
         foreach ($exports as $export) {
             $name = (string)($export['name'] ?? '');
-            $html .= '<tr><td><code>' . $this->e($name) . '</code></td><td>' . $this->e($this->size((int)($export['size'] ?? 0))) . '</td><td>' . $this->e($this->date((int)($export['modified'] ?? 0))) . '</td><td>' . AdminLayout::buttonLink('Download', '/admin/export-static/download/' . rawurlencode($name), 'download', true) . '</td></tr>';
+            $path = (string)($export['path'] ?? '');
+            $html .= '<tr><td><code>' . $this->e($name) . '</code></td><td>' . $this->e($this->size((int)($export['size'] ?? 0))) . '</td><td>' . $this->e($this->mediaSummary($path)) . '</td><td>' . $this->e($this->date((int)($export['modified'] ?? 0))) . '</td><td>' . AdminLayout::buttonLink('Download', '/admin/export-static/download/' . rawurlencode($name), 'download', true) . '</td></tr>';
         }
         $html .= '</tbody></table></div>';
 
@@ -193,6 +195,29 @@ final class ExportController
     private function date(int $timestamp): string
     {
         return $timestamp > 0 ? date('M j, Y H:i', $timestamp) : 'Unknown';
+    }
+
+    private function mediaSummary(string $zipPath): string
+    {
+        if (!is_file($zipPath) || !class_exists(\ZipArchive::class)) {
+            return 'Unknown';
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath) !== true) {
+            return 'Unknown';
+        }
+
+        $count = 0;
+        for ($index = 0; $index < $zip->numFiles; $index++) {
+            $name = (string)$zip->getNameIndex($index);
+            if (str_starts_with($name, 'media/') && $name !== 'media/' && !str_ends_with($name, '/')) {
+                $count++;
+            }
+        }
+        $zip->close();
+
+        return $count === 1 ? '1 file' : $count . ' files';
     }
 
     private function e(string $value): string

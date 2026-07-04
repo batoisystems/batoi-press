@@ -32,6 +32,9 @@ try {
         ['name' => 'Static Test', 'base_url' => 'https://example.test']
     );
 
+    $status = $exporter->status();
+    assertTrue((int)($status['media_files'] ?? 0) === 1, 'static export status should count uploaded media files');
+
     $result = $exporter->export();
     assertTrue((bool)($result['ok'] ?? false), 'static export should succeed');
     assertTrue((bool)($result['verification']['ok'] ?? false), 'static export verification should pass');

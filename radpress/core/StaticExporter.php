@@ -72,6 +72,7 @@ final class StaticExporter
             'zip_available' => class_exists(ZipArchive::class),
             'published_pages' => count($this->pages->allPublished()),
             'published_posts' => count($this->posts->allPublished()),
+            'media_files' => count($this->mediaFiles()),
             'base_url' => (string)($this->site['base_url'] ?? ''),
             'export_path' => $exportDir,
             'export_writable' => is_dir($exportDir) ? is_writable($exportDir) : is_writable(dirname($exportDir)),
