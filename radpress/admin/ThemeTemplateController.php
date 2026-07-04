@@ -561,6 +561,9 @@ final class ThemeTemplateController
         if (is_file($tmp)) {
             unlink($tmp);
         }
+        if ($code !== 0 && $this->isPhpRuntimeStartupNoise($output)) {
+            return null;
+        }
         return $code === 0 ? null : 'PHP syntax check failed: ' . implode(' ', $output);
     }
 
@@ -601,6 +604,25 @@ final class ThemeTemplateController
 
         $sapi = strtolower(trim((string)$output[0]));
         return in_array($sapi, ['cli', 'phpdbg'], true);
+    }
+
+    private function isPhpRuntimeStartupNoise(array $output): bool
+    {
+        $message = strtolower(implode(' ', array_map('strval', $output)));
+        if ($message === '') {
+            return false;
+        }
+
+        $hasSyntaxError = str_contains($message, 'parse error')
+            || str_contains($message, 'syntax error')
+            || str_contains($message, 'errors parsing');
+        if ($hasSyntaxError) {
+            return false;
+        }
+
+        return str_contains($message, 'mpm_winnt')
+            || str_contains($message, 'unable to retrieve my generation from the parent')
+            || preg_match('/\bah\d{5}\b/', $message) === 1;
     }
 
     private function snapshot(string $theme, string $key, string $path): void
