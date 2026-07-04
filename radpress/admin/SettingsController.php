@@ -85,10 +85,12 @@ final class SettingsController
     {
         $favicon = (string)($site['favicon'] ?? '');
         $faviconExists = $favicon !== '' && is_file($this->publicFile($favicon));
-        $previewUrl = $faviconExists ? $this->faviconUrl($favicon) : $this->assetUrl('/assets/img/batoi-press/press-color-tile-32.png');
+        $fallbackUrl = $this->defaultFaviconDataUri() ?: $this->assetUrl('/assets/img/batoi-press/press-color-tile-32.png');
+        $previewUrl = $faviconExists ? $this->faviconUrl($favicon) : $fallbackUrl;
         $previewLabel = $faviconExists ? 'Current favicon' : 'Current favicon (default)';
         $notice = $favicon !== '' && !$faviconExists ? '<small>Configured favicon file was not found. Showing the default Batoi Press icon.</small>' : '';
-        $preview = '<div class="bp-favicon-current"><span>' . $this->e($previewLabel) . '</span><img src="' . $this->e($previewUrl) . '" alt="">' . $notice . '</div>';
+        $fallback = $fallbackUrl !== $previewUrl ? ' onerror="this.onerror=null;this.src=\'' . $this->e($fallbackUrl) . '\';"' : '';
+        $preview = '<div class="bp-favicon-current"><span>' . $this->e($previewLabel) . '</span><img src="' . $this->e($previewUrl) . '" alt=""' . $fallback . '>' . $notice . '</div>';
         if ($favicon !== '') {
             $preview .= '<input type="hidden" name="current_favicon" value="' . $this->e($favicon) . '">';
         }
@@ -245,6 +247,13 @@ final class SettingsController
     {
         $file = $this->publicFile($path);
         return '/' . ltrim($path, '/') . (is_file($file) ? '?v=' . filemtime($file) : '');
+    }
+
+    private function defaultFaviconDataUri(): string
+    {
+        $file = $this->publicFile('/assets/img/batoi-press/press-color-tile-32.png');
+        $contents = is_file($file) ? file_get_contents($file) : false;
+        return is_string($contents) && $contents !== '' ? 'data:image/png;base64,' . base64_encode($contents) : '';
     }
 
     private function publicFile(string $path): string
