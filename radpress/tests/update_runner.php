@@ -50,6 +50,13 @@ try {
     assertTrue(!($missingStage['ok'] ?? false), 'missing staged package should fail apply');
     assertSame('The selected staged package is no longer available. Stage the package again.', (string)($missingStage['error'] ?? ''), 'missing staged package should return actionable error');
 
+    $outsideStage = sys_get_temp_dir() . '/batoi-press-outside-stage-' . bin2hex(random_bytes(4));
+    mkdir($outsideStage, 0775, true);
+    $outside = $runner->apply($outsideStage);
+    assertTrue(!($outside['ok'] ?? false), 'outside staged package should fail apply');
+    assertSame('The selected staged package is outside update storage. Stage the package again from the Updates screen.', (string)($outside['error'] ?? ''), 'outside staged package should return actionable error');
+    removeTree($outsideStage);
+
     echo "Update runner checks passed\n";
 } finally {
     removeTree($root);

@@ -54,7 +54,7 @@ final class UpdateRunner
         }
 
         if (!$this->isInside($stageDir, $this->paths->dataPath('tmp'))) {
-            return ['ok' => false, 'error' => 'Invalid staged package path.'];
+            return ['ok' => false, 'error' => 'The selected staged package is outside update storage. Stage the package again from the Updates screen.'];
         }
 
         $manifest = $this->findManifest($stageDir);
@@ -139,6 +139,7 @@ final class UpdateRunner
     public function stagedPackages(): array
     {
         $dirs = glob($this->paths->dataPath('tmp/update-stage-*'), GLOB_ONLYDIR) ?: [];
+        $dirs = array_values(array_filter($dirs, fn (string $dir): bool => preg_match('/^update-stage-\d{8}-\d{6}$/', basename($dir)) === 1));
         rsort($dirs);
         return $dirs;
     }
