@@ -88,8 +88,6 @@ Use `--output /path/to/batoi-press.zip` to choose a specific destination.
 
 ## Static Export Notes
 
-The Static Export admin workflow generates a ZIP containing published pages, published posts, the blog index, `sitemap.xml`, `feed.xml`, and `media/README.txt`.
+The Static Export admin workflow generates a ZIP containing published pages, published posts, the blog index, uploaded media files under `media/`, `sitemap.xml`, and `feed.xml`.
 
 Each generated package is verified after creation. The verification checks expected static paths, rejects unsafe archive entries, and reports status on the export completion screen.
-
-Uploaded media files are not copied into static export packages automatically. If published content references `/media/{file}`, copy the required files from `radpress/content/media/` to the target site's `media/` directory before publishing the static site.

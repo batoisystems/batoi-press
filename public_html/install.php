@@ -62,9 +62,11 @@ function bp_install_has_owner(string $configDir): bool
     return false;
 }
 
-if (is_file($lock) && bp_install_has_owner($configDir)) {
-    http_response_code(403);
-    bp_install_layout('Installer Disabled', '<section class="bp-installer-panel bp-uif-surface"><div class="bp-section-kicker">Setup locked</div><h1>Installer Disabled</h1><p>Batoi Press is already installed. Remove <code>radpress/config/installed.lock</code> manually on the server to re-enable setup.</p><p class="bp-actions"><a class="bp-button bp-button-secondary" href="' . bp_install_esc(bp_url('/')) . '">View site</a><a class="bp-button" href="' . bp_install_esc(bp_url('/admin/login')) . '">Admin login</a></p></section>');
+$hasOwner = bp_install_has_owner($configDir);
+$hasLock = is_file($lock);
+
+if ($hasLock && $hasOwner) {
+    bp_install_layout('Installation Already Complete', '<section class="bp-installer-panel bp-uif-surface"><div class="bp-section-kicker">Setup complete</div><h1>Installation Already Complete</h1><p>Batoi Press is installed and the browser setup is locked by <code>radpress/config/installed.lock</code>.</p><p>Use the admin login for normal access. Only remove the lock when intentionally rebuilding the installation from server access.</p><p class="bp-actions"><a class="bp-button bp-button-secondary" href="' . bp_install_esc(bp_url('/')) . '">View site</a><a class="bp-button" href="' . bp_install_esc(bp_url('/admin/login')) . '">Admin login</a></p></section>');
     exit;
 }
 
@@ -149,6 +151,9 @@ if ($errors !== []) {
         $body .= '<li>' . bp_install_esc($error) . '</li>';
     }
     $body .= '</ul></div>';
+}
+if ($hasLock && !$hasOwner) {
+    $body .= '<div class="bp-notice"><strong>Setup lock will be refreshed:</strong> <code>radpress/config/installed.lock</code> exists, but no owner account was found. Complete the form below to repair setup and create the first owner.</div>';
 }
 
 $body .= '<dl class="bp-stats bp-checks">';
