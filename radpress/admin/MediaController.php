@@ -35,7 +35,7 @@ final class MediaController
         $extensions = (array)($this->config->security()['uploads']['allowed_extensions'] ?? []);
         $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Upload asset</h2><p>Supported file types are controlled by the installation security policy.</p></div></header><form method="post" action="/admin/media/upload" enctype="multipart/form-data" class="bp-form bp-compact-form">';
         $body .= $this->csrf->field();
-        $body .= '<label>File <input type="file" name="media" required><span class="bp-field-help">Maximum upload size: ' . $this->e((string)$uploadLimit) . ' MB.</span></label>';
+        $body .= '<label>File <input type="file" name="media" accept="' . $this->e($this->acceptValue($extensions)) . '" required><span class="bp-field-help">Maximum upload size: ' . $this->e((string)$uploadLimit) . ' MB.</span></label>';
         $body .= AdminLayout::submitButton('Upload File', 'upload') . '</form></section>';
         $body .= AdminLayout::section('Upload policy', $this->uploadPolicy($extensions), 'Files are validated before they are stored and exposed under the public media route.');
 
@@ -48,12 +48,13 @@ final class MediaController
             $body .= '<section class="bp-empty-state"><h2>No media files match these filters</h2><p>Adjust the search, type, or sort controls to review other files.</p>' . AdminLayout::buttonLink('Reset Filters', '/admin/media', 'back') . '</section>';
         } else {
             $body .= $this->filterForm($filters);
-            $body .= '<section class="bp-admin-section bp-admin-section-wide"><header><div><h2>Files</h2><p>Copy URLs and snippets for use in content HTML or theme templates.</p></div></header><div class="bp-table-wrap"><table class="bp-table bp-content-table"><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Modified</th><th>URL</th><th>Embed</th><th>Action</th></tr></thead><tbody>';
+            $body .= '<section class="bp-admin-section bp-admin-section-wide"><header><div><h2>Files</h2><p>' . $this->e((string)count($filteredFiles)) . ' of ' . $this->e((string)count($files)) . ' assets shown. Copy a public URL or ready-to-use embed snippet.</p></div></header><div class="bp-table-wrap"><table class="bp-table bp-content-table bp-media-table"><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Modified</th><th>Usage</th><th>Actions</th></tr></thead><tbody>';
             foreach ($filteredFiles as $file) {
                 $name = basename($file);
                 $url = '/media/' . rawurlencode($name);
                 $snippet = $this->snippet($name, $url);
-                $body .= '<tr><td><strong>' . $this->e($name) . '</strong><small>' . $this->e($this->kind($name)) . '</small></td><td>' . $this->e(strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE')) . '</td><td>' . $this->e($this->size($file)) . '</td><td>' . $this->e($this->modified($file)) . '</td><td><input class="bp-code-input" readonly value="' . $this->e($url) . '"></td><td><input class="bp-code-input" readonly value="' . $this->e($snippet) . '"></td><td>' . $this->deleteForm($name) . '</td></tr>';
+                $id = 'bp-media-' . substr(hash('sha256', $name), 0, 12);
+                $body .= '<tr><td><strong>' . $this->e($name) . '</strong><small>' . $this->e($this->kind($name)) . '</small></td><td>' . $this->e(strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE')) . '</td><td>' . $this->e($this->size($file)) . '</td><td>' . $this->e($this->modified($file)) . '</td><td><div class="bp-media-code-stack">' . $this->copyField($id . '-url', 'Public URL', $url) . $this->copyField($id . '-embed', 'Embed snippet', $snippet) . '</div></td><td><div class="bp-table-actions bp-media-actions">' . AdminLayout::buttonLink('View', $url, 'site', true) . $this->deleteForm($name) . '</div></td></tr>';
             }
             $body .= '</tbody></table></div></section>';
         }
@@ -177,11 +178,16 @@ final class MediaController
 
     private function deleteForm(string $name): string
     {
-        return '<form method="post" action="/admin/media/delete" class="bp-inline-form">'
+        return '<form method="post" action="/admin/media/delete" class="bp-inline-form" data-confirm="Delete ' . $this->e($name) . '? Existing pages or templates that reference it may stop working.">'
             . $this->csrf->field()
             . '<input type="hidden" name="file" value="' . $this->e($name) . '">'
             . AdminLayout::submitButton('Delete', 'delete', 'class="bp-button bp-button-secondary bp-button-danger"')
             . '</form>';
+    }
+
+    private function copyField(string $id, string $label, string $value): string
+    {
+        return '<div class="bp-media-code-field"><label for="' . $this->e($id) . '">' . $this->e($label) . '</label><div><input id="' . $this->e($id) . '" class="bp-code-input" readonly value="' . $this->e($value) . '"><button type="button" class="bp-button bp-button-secondary bp-copy-button" data-copy-target="' . $this->e($id) . '" aria-label="Copy ' . $this->e(strtolower($label)) . '">' . AdminLayout::icon('copy') . '<span>Copy</span></button></div></div>';
     }
 
     private function ensureMediaDirectory(string $dir): bool
@@ -260,7 +266,13 @@ final class MediaController
             return '<script src="' . $url . '" defer></script>';
         }
 
-        return '';
+        return '<a href="' . $url . '">Download ' . $this->e($name) . '</a>';
+    }
+
+    private function acceptValue(array $extensions): string
+    {
+        $allowed = array_values(array_filter(array_map('strval', $extensions)));
+        return implode(',', array_map(static fn (string $extension): string => '.' . ltrim(strtolower($extension), '.'), $allowed));
     }
 
     private function size(string $file): string
@@ -288,7 +300,7 @@ final class MediaController
 
         return '<ul class="bp-admin-checklist">'
             . '<li>' . AdminLayout::icon('check') . '<span>Allowed extensions: ' . $this->e($allowedText) . '.</span></li>'
-            . '<li>' . AdminLayout::icon('check') . '<span>Uploaded filenames are normalized before storage.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Each upload receives a unique, normalized filename so an existing asset is never silently replaced.</span></li>'
             . '<li>' . AdminLayout::icon('check') . '<span>Files are saved in <code>radpress/content/media</code> and served from <code>/media/{file}</code>.</span></li>'
             . '<li>' . AdminLayout::icon('check') . '<span>CSS and JavaScript files remain explicit assets; copy the generated embed snippet into the page, post, or theme template that should load them.</span></li>'
             . '<li>' . AdminLayout::icon('check') . '<span>Every successful upload is recorded in the audit log.</span></li>'

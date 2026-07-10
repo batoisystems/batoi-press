@@ -18,6 +18,7 @@ $files = new FileStore();
 $mediaDir = $config->paths()->contentPath('media');
 $cssFile = $mediaDir . '/asset-manager-test.css';
 $jsFile = $mediaDir . '/asset-manager-test.js';
+$txtFile = $mediaDir . '/asset-manager-test.txt';
 $oldGet = $_GET;
 
 try {
@@ -26,6 +27,7 @@ try {
     }
     file_put_contents($cssFile, "body{color:#111}\n", LOCK_EX);
     file_put_contents($jsFile, "console.log('asset');\n", LOCK_EX);
+    file_put_contents($txtFile, "asset notes\n", LOCK_EX);
 
     $uploads = (array)($config->security()['uploads'] ?? []);
     $guard = new UploadGuard((array)($uploads['allowed_extensions'] ?? []), (int)($uploads['max_bytes'] ?? 5242880));
@@ -45,6 +47,9 @@ try {
     assertTrue(str_contains($cssHtml, '&lt;link rel=&quot;stylesheet&quot; href=&quot;/media/asset-manager-test.css&quot;&gt;'), 'Media manager should provide CSS embed snippets.');
     assertTrue(str_contains($cssHtml, 'admin/media/delete') && str_contains($cssHtml, 'bp-inline-form'), 'Media manager should provide delete actions.');
     assertTrue(str_contains($cssHtml, 'name="file" value="asset-manager-test.css"'), 'Media manager should target delete actions to the selected asset.');
+    assertTrue(str_contains($cssHtml, 'data-confirm="Delete asset-manager-test.css?'), 'Media manager should confirm destructive actions.');
+    assertTrue(str_contains($cssHtml, 'data-copy-target="bp-media-'), 'Media manager should provide copy controls.');
+    assertTrue(str_contains($cssHtml, 'accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.md,.css,.js"'), 'Upload input should advertise configured file types.');
     assertTrue(!str_contains($cssHtml, 'asset-manager-test.js'), 'Style filter should exclude JavaScript assets.');
 
     $_GET = ['type' => 'scripts'];
@@ -53,10 +58,14 @@ try {
     assertTrue(str_contains($jsHtml, '&lt;script src=&quot;/media/asset-manager-test.js&quot; defer&gt;&lt;/script&gt;'), 'Media manager should provide JavaScript embed snippets.');
     assertTrue(!str_contains($jsHtml, 'asset-manager-test.css'), 'Script filter should exclude CSS assets.');
 
+    $_GET = ['type' => 'documents'];
+    $documentHtml = $controller->index()->content();
+    assertTrue(str_contains($documentHtml, '&lt;a href=&quot;/media/asset-manager-test.txt&quot;&gt;Download asset-manager-test.txt&lt;/a&gt;'), 'Media manager should provide document embed snippets.');
+
     echo "Media asset management checks passed\n";
 } finally {
     $_GET = $oldGet;
-    foreach ([$cssFile, $jsFile] as $file) {
+    foreach ([$cssFile, $jsFile, $txtFile] as $file) {
         if (is_file($file)) {
             unlink($file);
         }

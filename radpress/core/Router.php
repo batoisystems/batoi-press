@@ -332,7 +332,17 @@ final class Router
             return $this->notFound();
         }
 
-        return Response::body((string)file_get_contents($file), $this->mediaType($file));
+        $body = file_get_contents($file);
+        if ($body === false) {
+            return $this->notFound();
+        }
+
+        return new Response($body, 200, [
+            'Content-Type' => $this->mediaType($file),
+            'Content-Length' => (string)strlen($body),
+            'Cache-Control' => 'public, max-age=31536000, immutable',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     private function mediaType(string $file): string

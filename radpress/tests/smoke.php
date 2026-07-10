@@ -102,8 +102,14 @@ try {
         if ($path === '/media/smoke-test.css' && $body !== 'body{background:#fff}') {
             throw new RuntimeException("Media response mismatch for {$path}");
         }
+        if ($path === '/media/smoke-test.css') {
+            assertMediaHeaders($response, 'text/css; charset=UTF-8');
+        }
         if ($path === '/media/smoke-test.js' && $body !== 'window.batoiPressSmoke=true;') {
             throw new RuntimeException("Media response mismatch for {$path}");
+        }
+        if ($path === '/media/smoke-test.js') {
+            assertMediaHeaders($response, 'application/javascript; charset=UTF-8');
         }
     }
 } finally {
@@ -125,3 +131,17 @@ try {
 }
 
 echo "Smoke checks passed\n";
+
+function assertMediaHeaders(Batoi\Press\Core\Response $response, string $contentType): void
+{
+    $headers = $response->headers();
+    if (($headers['Content-Type'] ?? '') !== $contentType) {
+        throw new RuntimeException('Unexpected media content type.');
+    }
+    if (($headers['X-Content-Type-Options'] ?? '') !== 'nosniff') {
+        throw new RuntimeException('Media responses should disable content sniffing.');
+    }
+    if (!str_contains((string)($headers['Cache-Control'] ?? ''), 'immutable')) {
+        throw new RuntimeException('Uniquely named media should use immutable caching.');
+    }
+}

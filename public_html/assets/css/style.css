@@ -2012,6 +2012,63 @@ p {
     min-width: 220px;
 }
 
+.bp-media-table {
+    min-width: 1060px;
+}
+
+.bp-media-table th:nth-child(5) {
+    width: 40%;
+}
+
+.bp-media-code-stack {
+    display: grid;
+    gap: 8px;
+    min-width: 360px;
+}
+
+.bp-media-code-field {
+    display: grid;
+    gap: 4px;
+}
+
+.bp-media-code-field > label {
+    color: var(--bp-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.bp-media-code-field > div {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.bp-media-code-field .bp-code-input {
+    min-width: 0;
+}
+
+.bp-copy-button,
+.bp-media-actions .bp-button {
+    font-size: 0.82rem;
+    min-height: 36px;
+    padding: 7px 9px;
+}
+
+.bp-media-actions {
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.bp-media-actions .bp-inline-form {
+    margin: 0;
+}
+
+.bp-media-actions .bp-button-danger {
+    background: var(--bp-panel);
+    border: 1px solid var(--bp-line);
+    color: var(--bp-danger);
+}
+
 .bp-form textarea {
     min-height: 120px;
     resize: vertical;
