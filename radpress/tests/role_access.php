@@ -10,6 +10,7 @@ $cases = [
     ['admin', '/admin/updates/apply', 'POST', true],
     ['editor', '/admin/pages/save', 'POST', true],
     ['editor', '/admin/media/upload', 'POST', true],
+    ['editor', '/admin/media/delete', 'POST', true],
     ['editor', '/admin/users', 'GET', false],
     ['editor', '/admin/updates', 'GET', false],
     ['author', '/admin/posts', 'GET', true],

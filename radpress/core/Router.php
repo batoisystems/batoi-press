@@ -152,6 +152,10 @@ final class Router
             return (new MediaController($this->config, $csrf, $audit, $user))->upload();
         }
 
+        if ($request->path === '/admin/media/delete' && $request->method === 'POST') {
+            return (new MediaController($this->config, $csrf, $audit, $user))->delete($request);
+        }
+
         if ($request->path === '/admin/menus') {
             return (new MenuController($this->config, $files, $csrf, $audit, $user))->edit();
         }
@@ -341,6 +345,8 @@ final class Router
             'webp' => 'image/webp',
             'svg' => 'image/svg+xml',
             'pdf' => 'application/pdf',
+            'css' => 'text/css; charset=UTF-8',
+            'js' => 'application/javascript; charset=UTF-8',
             'txt', 'md' => 'text/plain; charset=UTF-8',
             default => 'application/octet-stream',
         };

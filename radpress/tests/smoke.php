@@ -19,8 +19,14 @@ use Batoi\Press\Security\Session;
 $root = dirname(__DIR__, 2);
 $paths = ['/', '/about', '/blog', '/blog/first-blog-post', '/sitemap.xml', '/feed.xml', '/admin', '/admin/login', '/admin/pages', '/admin/posts', '/admin/media', '/admin/menus', '/admin/settings', '/admin/themes', '/admin/theme-templates', '/admin/users', '/admin/audit', '/admin/cache', '/admin/export-static', '/admin/aif', '/admin/updates'];
 $mediaFile = $root . '/radpress/content/media/smoke-test.txt';
+$mediaCssFile = $root . '/radpress/content/media/smoke-test.css';
+$mediaJsFile = $root . '/radpress/content/media/smoke-test.js';
 file_put_contents($mediaFile, 'media ok', LOCK_EX);
+file_put_contents($mediaCssFile, 'body{background:#fff}', LOCK_EX);
+file_put_contents($mediaJsFile, 'window.batoiPressSmoke=true;', LOCK_EX);
 $paths[] = '/media/smoke-test.txt';
+$paths[] = '/media/smoke-test.css';
+$paths[] = '/media/smoke-test.js';
 
 try {
     if (!is_file($root . '/public_html/assets/uif/uif.css')) {
@@ -93,10 +99,18 @@ try {
         if ($path === '/media/smoke-test.txt' && $body !== 'media ok') {
             throw new RuntimeException("Media response mismatch for {$path}");
         }
+        if ($path === '/media/smoke-test.css' && $body !== 'body{background:#fff}') {
+            throw new RuntimeException("Media response mismatch for {$path}");
+        }
+        if ($path === '/media/smoke-test.js' && $body !== 'window.batoiPressSmoke=true;') {
+            throw new RuntimeException("Media response mismatch for {$path}");
+        }
     }
 } finally {
-    if (is_file($mediaFile)) {
-        unlink($mediaFile);
+    foreach ([$mediaFile, $mediaCssFile, $mediaJsFile] as $file) {
+        if (is_file($file)) {
+            unlink($file);
+        }
     }
     if (isset($authRoot) && is_dir($authRoot)) {
         $iterator = new RecursiveIteratorIterator(

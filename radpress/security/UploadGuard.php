@@ -28,8 +28,8 @@ final class UploadGuard
             return 'File type is not allowed.';
         }
 
-        if (in_array($extension, ['php', 'phtml', 'phar', 'js', 'html', 'htm', 'exe', 'sh', 'bat', 'cmd'], true)) {
-            return 'Executable uploads are not allowed.';
+        if (in_array($extension, ['php', 'phtml', 'phar', 'html', 'htm', 'exe', 'sh', 'bat', 'cmd'], true)) {
+            return 'Server-executable uploads are not allowed.';
         }
 
         return null;

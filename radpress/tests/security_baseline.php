@@ -36,6 +36,8 @@ foreach (['index.php', 'admin.php', 'install.php'] as $entrypoint) {
 $uploads = (array)(securityConfig($root)['uploads'] ?? []);
 $guard = new UploadGuard((array)($uploads['allowed_extensions'] ?? []), (int)($uploads['max_bytes'] ?? 5242880));
 assertSame(null, $guard->validate(['error' => UPLOAD_ERR_OK, 'size' => 128, 'name' => 'asset.png']), 'allowed image upload should pass');
+assertSame(null, $guard->validate(['error' => UPLOAD_ERR_OK, 'size' => 128, 'name' => 'theme.css']), 'allowed stylesheet upload should pass');
+assertSame(null, $guard->validate(['error' => UPLOAD_ERR_OK, 'size' => 128, 'name' => 'theme.js']), 'allowed script upload should pass');
 assertSame('File type is not allowed.', $guard->validate(['error' => UPLOAD_ERR_OK, 'size' => 128, 'name' => 'shell.php']), 'PHP upload should be rejected');
 assertSame('File size is not allowed.', $guard->validate(['error' => UPLOAD_ERR_OK, 'size' => 0, 'name' => 'asset.png']), 'empty upload should be rejected');
 $safeName = $guard->safeName('My Unsafe File.PNG');

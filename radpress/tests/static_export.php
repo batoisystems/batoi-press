@@ -33,7 +33,7 @@ try {
     );
 
     $status = $exporter->status();
-    assertTrue((int)($status['media_files'] ?? 0) === 1, 'static export status should count uploaded media files');
+    assertTrue((int)($status['media_files'] ?? 0) === 3, 'static export status should count uploaded media files');
 
     $result = $exporter->export();
     assertTrue((bool)($result['ok'] ?? false), 'static export should succeed');
@@ -52,11 +52,15 @@ try {
         'sitemap.xml',
         'feed.xml',
         'media/sample-media.txt',
+        'media/site.css',
+        'media/site.js',
     ] as $entry) {
         assertTrue($zip->locateName($entry) !== false, "static export ZIP should include {$entry}");
     }
 
     assertTrue((string)$zip->getFromName('media/sample-media.txt') === "sample media\n", 'static export ZIP should include uploaded media file contents');
+    assertTrue((string)$zip->getFromName('media/site.css') === "body{color:#111}\n", 'static export ZIP should include uploaded CSS file contents');
+    assertTrue((string)$zip->getFromName('media/site.js') === "console.log('asset');\n", 'static export ZIP should include uploaded JS file contents');
     assertTrue($zip->locateName('admin/index.html') === false, 'static export ZIP should not include admin output');
     $zip->close();
 
@@ -96,6 +100,8 @@ function createFixture(string $root): void
         'published_at' => date(DATE_ATOM),
     ], '<h1>First Post</h1>');
     file_put_contents($root . '/radpress/content/media/sample-media.txt', "sample media\n", LOCK_EX);
+    file_put_contents($root . '/radpress/content/media/site.css', "body{color:#111}\n", LOCK_EX);
+    file_put_contents($root . '/radpress/content/media/site.js', "console.log('asset');\n", LOCK_EX);
 }
 
 function writeContent(string $dir, array $meta, string $body): void

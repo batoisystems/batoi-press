@@ -31,6 +31,7 @@ final class AdminAccess
                 '/admin/posts/save',
                 '/admin/media',
                 '/admin/media/upload',
+                '/admin/media/delete',
                 '/admin/menus',
                 '/admin/menus/save',
                 '/admin/aif',

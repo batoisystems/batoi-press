@@ -4,6 +4,6 @@
   "installer_lock": "radpress/config/installed.lock",
   "uploads": {
     "max_bytes": 5242880,
-    "allowed_extensions": ["jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "md"]
+    "allowed_extensions": ["jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "md", "css", "js"]
   }
 }
