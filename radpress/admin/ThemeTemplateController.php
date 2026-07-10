@@ -221,7 +221,7 @@ final class ThemeTemplateController
             (string)$template['description'],
             AdminLayout::buttonLink('Back to templates', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . AdminLayout::buttonLink('View site', '/', 'site', true)
         );
-        $body .= '<form method="post" action="/admin/theme-templates/save" class="bp-form bp-admin-editor">';
+        $body .= '<form method="post" action="/admin/theme-templates/save" class="bp-form bp-admin-editor" autocomplete="off">';
         $body .= $this->csrf->field();
         $body .= '<input type="hidden" name="theme" value="' . $this->e($theme) . '">';
         $body .= '<input type="hidden" name="template" value="' . $this->e($key) . '">';
@@ -492,7 +492,7 @@ final class ThemeTemplateController
     private function codeEditor(string $source, string $type): string
     {
         $language = $type === 'json' ? 'JSON' : 'PHP / HTML';
-        return '<label class="bp-field-wide bp-code-editor-label"><span>Source</span><small>' . $this->e($language) . ' source editor</small><textarea class="bp-editor-textarea bp-template-code-editor" name="source" rows="28" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" wrap="off">' . $this->e($source) . '</textarea></label>';
+        return '<label class="bp-field-wide bp-code-editor-label" for="theme-template-source"><span>Source</span><small>' . $this->e($language) . ' source editor</small><textarea id="theme-template-source" class="bp-editor-textarea bp-template-code-editor" name="source" rows="28" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" wrap="off" aria-readonly="false">' . $this->e($source) . '</textarea></label>';
     }
 
     private function themeOperations(): string
