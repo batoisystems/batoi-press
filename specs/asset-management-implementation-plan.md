@@ -12,7 +12,7 @@
 - [x] Automatically load enabled global library CSS and JavaScript entry points in public theme output.
 - [x] Include typed assets, complete library dependency trees, and legacy media in static export packages.
 - [x] Add focused asset/library, security, role-access, static-export, and smoke regression coverage.
-- [ ] Verify the updated Media workflow in the testsite browser.
+- [x] Verify the updated Media workflow in the testsite browser.
 - [x] Commit the implementation and synchronize the local testsite checkout.
 
 ## Goal
@@ -99,6 +99,7 @@ Enabled global library tags are included in generated HTML. Package verification
 - Executable server files are never accepted into asset or library storage.
 - Media and asset responses include `X-Content-Type-Options: nosniff`.
 - Editors can manage ordinary assets; only owners/admins can install, enable, disable, or remove executable library packages.
+- Existing installations using a recognized historical default upload allowlist and 5 MB limit receive the new defaults at runtime; customized allowlists and limits remain unchanged.
 
 ## Acceptance
 
@@ -120,4 +121,4 @@ Enabled global library tags are included in generated HTML. Package verification
 ## Verification Notes
 
 - Repository and synchronized testsite regression suites pass for asset libraries, media UI rendering, security, roles, ownership, static export, smoke routes, theme syntax, and updates.
-- Browser verification remains open because browser control was stopped by the browser security policy before the synchronized Media page could be reloaded. No alternate browser-control path was used to bypass that restriction.
+- Browser verification confirmed the synchronized owner/admin library UI, no desktop page overflow, installed-state controls, base-path-aware public CSS/JS URLs, and deferred script loading. Browser policy prevented programmatic file selection, so ZIP installation remains verified by the executable package tests rather than browser upload automation.

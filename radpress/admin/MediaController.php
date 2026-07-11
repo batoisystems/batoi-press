@@ -32,8 +32,9 @@ final class MediaController
             'sort' => trim((string)($_GET['sort'] ?? 'newest')),
         ];
         $body = AdminLayout::pageHeader('Media', 'Organize site assets and versioned frontend libraries without breaking their public paths.');
-        $uploadLimit = (int)(($this->config->security()['uploads']['max_bytes'] ?? 5242880) / 1048576);
-        $extensions = (array)($this->config->security()['uploads']['allowed_extensions'] ?? []);
+        $uploadLimitBytes = AssetManager::effectiveMaxBytes((int)($this->config->security()['uploads']['max_bytes'] ?? 0));
+        $uploadLimit = (int)($uploadLimitBytes / 1048576);
+        $extensions = AssetManager::effectiveUploadExtensions((array)($this->config->security()['uploads']['allowed_extensions'] ?? []));
         $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Upload asset</h2><p>Files are classified into typed storage automatically.</p></div></header><form method="post" action="/admin/media/upload" enctype="multipart/form-data" class="bp-form bp-compact-form">';
         $body .= $this->csrf->field();
         $body .= '<label>File <input type="file" name="media" accept="' . $this->e($this->acceptValue($extensions)) . '" required><span class="bp-field-help">Maximum upload size: ' . $this->e((string)$uploadLimit) . ' MB.</span></label>';
@@ -76,7 +77,10 @@ final class MediaController
         }
 
         $uploadConfig = $this->config->security()['uploads'] ?? [];
-        $guard = new UploadGuard((array)($uploadConfig['allowed_extensions'] ?? []), (int)($uploadConfig['max_bytes'] ?? 5242880));
+        $guard = new UploadGuard(
+            AssetManager::effectiveUploadExtensions((array)($uploadConfig['allowed_extensions'] ?? [])),
+            AssetManager::effectiveMaxBytes((int)($uploadConfig['max_bytes'] ?? 0))
+        );
         $file = $_FILES['media'] ?? [];
         $error = is_array($file) ? $guard->validate($file) : 'Upload failed.';
         if ($error !== null) {

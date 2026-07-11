@@ -9,6 +9,12 @@ use RuntimeException;
 
 final class AssetManager
 {
+    public const DEFAULT_MAX_BYTES = 26214400;
+    public const DEFAULT_UPLOAD_EXTENSIONS = [
+        'jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'txt', 'md',
+        'css', 'js', 'mjs', 'mp3', 'wav', 'ogg', 'm4a', 'mp4', 'webm', 'mov',
+    ];
+
     private const TYPES = [
         'jpg' => 'images',
         'jpeg' => 'images',
@@ -130,6 +136,33 @@ final class AssetManager
     {
         $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
         return self::TYPES[$extension] ?? 'documents';
+    }
+
+    public static function effectiveUploadExtensions(array $configured): array
+    {
+        $configured = array_values(array_unique(array_filter(array_map(
+            static fn (mixed $extension): string => strtolower(ltrim(trim((string)$extension), '.')),
+            $configured
+        ))));
+        $legacyDefaults = [
+            ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'txt', 'md'],
+            ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'txt', 'md', 'css', 'js'],
+        ];
+        $sortedConfigured = $configured;
+        sort($sortedConfigured);
+        foreach ($legacyDefaults as $legacy) {
+            sort($legacy);
+            if ($sortedConfigured === $legacy) {
+                return self::DEFAULT_UPLOAD_EXTENSIONS;
+            }
+        }
+
+        return $configured === [] ? self::DEFAULT_UPLOAD_EXTENSIONS : $configured;
+    }
+
+    public static function effectiveMaxBytes(int $configured): int
+    {
+        return $configured <= 0 || $configured === 5242880 ? self::DEFAULT_MAX_BYTES : $configured;
     }
 
     public static function kindForName(string $name): string

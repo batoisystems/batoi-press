@@ -27,6 +27,10 @@ try {
     assertSame('multimedia/video/2026/07/demo-a1.mp4', $assets->relativeUploadPath('demo-a1.mp4', $date), 'Video should use dated multimedia storage.');
     assertSame('styles/custom/site-a1.css', $assets->relativeUploadPath('site-a1.css', $date), 'CSS should use custom style storage.');
     assertSame('scripts/custom/app-a1.mjs', $assets->relativeUploadPath('app-a1.mjs', $date), 'Scripts should use custom script storage.');
+    assertSame(AssetManager::DEFAULT_UPLOAD_EXTENSIONS, AssetManager::effectiveUploadExtensions(['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'txt', 'md']), 'Legacy default allowlists should receive the new asset defaults.');
+    assertSame(['png', 'pdf'], AssetManager::effectiveUploadExtensions(['png', 'pdf']), 'Custom upload allowlists should remain unchanged.');
+    assertSame(AssetManager::DEFAULT_MAX_BYTES, AssetManager::effectiveMaxBytes(5242880), 'Legacy default upload limits should receive the new default.');
+    assertSame(1048576, AssetManager::effectiveMaxBytes(1048576), 'Custom upload limits should remain unchanged.');
 
     $typedPath = $assets->prepareTarget('styles/custom/site-a1.css');
     file_put_contents($typedPath, "body{color:#111}\n", LOCK_EX);
