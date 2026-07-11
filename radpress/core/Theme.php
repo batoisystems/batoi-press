@@ -33,6 +33,16 @@ final class Theme
         $baseFile = $this->paths->themePath($theme . '/layouts/base.php');
         ob_start();
         require $baseFile;
-        return Response::html((string)ob_get_clean(), $status);
+        $html = (string)ob_get_clean();
+        $libraries = new AssetLibraryManager($this->paths);
+        $head = $libraries->tags('head');
+        $body = $libraries->tags('body');
+        if ($head !== '') {
+            $html = str_contains($html, '</head>') ? str_replace('</head>', $head . '</head>', $html) : $head . $html;
+        }
+        if ($body !== '') {
+            $html = str_contains($html, '</body>') ? str_replace('</body>', $body . '</body>', $html) : $html . $body;
+        }
+        return Response::html($html, $status);
     }
 }

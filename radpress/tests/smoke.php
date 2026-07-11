@@ -21,12 +21,23 @@ $paths = ['/', '/about', '/blog', '/blog/first-blog-post', '/sitemap.xml', '/fee
 $mediaFile = $root . '/radpress/content/media/smoke-test.txt';
 $mediaCssFile = $root . '/radpress/content/media/smoke-test.css';
 $mediaJsFile = $root . '/radpress/content/media/smoke-test.js';
+$assetCssFile = $root . '/radpress/content/assets/styles/custom/smoke-typed.css';
+$assetMjsFile = $root . '/radpress/content/assets/scripts/custom/smoke-typed.mjs';
+foreach ([dirname($assetCssFile), dirname($assetMjsFile)] as $directory) {
+    if (!is_dir($directory)) {
+        mkdir($directory, 0775, true);
+    }
+}
 file_put_contents($mediaFile, 'media ok', LOCK_EX);
 file_put_contents($mediaCssFile, 'body{background:#fff}', LOCK_EX);
 file_put_contents($mediaJsFile, 'window.batoiPressSmoke=true;', LOCK_EX);
+file_put_contents($assetCssFile, 'body{color:#111}', LOCK_EX);
+file_put_contents($assetMjsFile, 'export const smoke=true;', LOCK_EX);
 $paths[] = '/media/smoke-test.txt';
 $paths[] = '/media/smoke-test.css';
 $paths[] = '/media/smoke-test.js';
+$paths[] = '/assets/styles/custom/smoke-typed.css';
+$paths[] = '/assets/scripts/custom/smoke-typed.mjs';
 
 try {
     if (!is_file($root . '/public_html/assets/uif/uif.css')) {
@@ -111,9 +122,21 @@ try {
         if ($path === '/media/smoke-test.js') {
             assertMediaHeaders($response, 'application/javascript; charset=UTF-8');
         }
+        if ($path === '/assets/styles/custom/smoke-typed.css' && $body !== 'body{color:#111}') {
+            throw new RuntimeException("Typed asset response mismatch for {$path}");
+        }
+        if ($path === '/assets/styles/custom/smoke-typed.css') {
+            assertMediaHeaders($response, 'text/css; charset=UTF-8');
+        }
+        if ($path === '/assets/scripts/custom/smoke-typed.mjs' && $body !== 'export const smoke=true;') {
+            throw new RuntimeException("Typed asset response mismatch for {$path}");
+        }
+        if ($path === '/assets/scripts/custom/smoke-typed.mjs') {
+            assertMediaHeaders($response, 'application/javascript; charset=UTF-8');
+        }
     }
 } finally {
-    foreach ([$mediaFile, $mediaCssFile, $mediaJsFile] as $file) {
+    foreach ([$mediaFile, $mediaCssFile, $mediaJsFile, $assetCssFile, $assetMjsFile] as $file) {
         if (is_file($file)) {
             unlink($file);
         }

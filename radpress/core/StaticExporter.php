@@ -72,7 +72,9 @@ final class StaticExporter
             'zip_available' => class_exists(ZipArchive::class),
             'published_pages' => count($this->pages->allPublished()),
             'published_posts' => count($this->posts->allPublished()),
-            'media_files' => count($this->mediaFiles()),
+            'media_files' => count($this->mediaFiles()) + count($this->assetFiles()),
+            'legacy_media_files' => count($this->mediaFiles()),
+            'asset_files' => count($this->assetFiles()),
             'base_url' => (string)($this->site['base_url'] ?? ''),
             'export_path' => $exportDir,
             'export_writable' => is_dir($exportDir) ? is_writable($exportDir) : is_writable(dirname($exportDir)),
@@ -162,13 +164,15 @@ final class StaticExporter
         $this->write($workDir . '/sitemap.xml', $this->sitemap());
         $this->write($workDir . '/feed.xml', $this->feed());
         $this->writeMedia($workDir);
+        $this->writeAssets($workDir);
     }
 
     private function html(string $title, string $body): string
     {
         $siteName = htmlspecialchars((string)($this->site['name'] ?? 'Batoi Press'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $safeTitle = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>' . $safeTitle . ' | ' . $siteName . '</title></head><body>' . $body . '</body></html>';
+        $libraries = new AssetLibraryManager($this->paths);
+        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>' . $safeTitle . ' | ' . $siteName . '</title>' . $libraries->tags('head', false) . '</head><body>' . $body . $libraries->tags('body', false) . '</body></html>';
     }
 
     private function sitemap(): string
@@ -225,6 +229,9 @@ final class StaticExporter
                 continue;
             }
             $path = $dir . '/' . $item;
+            if (is_link($path)) {
+                continue;
+            }
             if (is_dir($path)) {
                 $files = array_merge($files, $this->files($path));
             } else {
@@ -246,6 +253,9 @@ final class StaticExporter
         }
         foreach ($this->mediaFiles() as $file) {
             $entries[] = 'media/' . basename($file);
+        }
+        foreach ($this->assetFiles() as $relative => $file) {
+            $entries[] = 'assets/' . $relative;
         }
 
         return array_values(array_unique($entries));
@@ -275,6 +285,15 @@ final class StaticExporter
         }
     }
 
+    private function writeAssets(string $workDir): void
+    {
+        foreach ($this->assetFiles() as $relative => $file) {
+            $target = $workDir . '/assets/' . $relative;
+            $this->ensureDirectory(dirname($target));
+            copy($file, $target);
+        }
+    }
+
     private function mediaFiles(): array
     {
         $mediaDir = $this->paths->contentPath('media');
@@ -284,6 +303,23 @@ final class StaticExporter
 
         $files = array_values(array_filter(glob($mediaDir . '/*') ?: [], 'is_file'));
         usort($files, static fn (string $a, string $b): int => strcasecmp(basename($a), basename($b)));
+        return $files;
+    }
+
+    private function assetFiles(): array
+    {
+        $root = $this->paths->contentPath('assets');
+        if (!is_dir($root)) {
+            return [];
+        }
+        $files = [];
+        foreach ($this->files($root) as $file) {
+            $relative = ltrim(substr($file, strlen($root)), '/');
+            if ($relative !== '' && basename($relative) !== '.gitkeep') {
+                $files[$relative] = $file;
+            }
+        }
+        ksort($files, SORT_NATURAL | SORT_FLAG_CASE);
         return $files;
     }
 }

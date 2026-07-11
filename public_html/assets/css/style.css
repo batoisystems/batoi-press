@@ -2069,6 +2069,55 @@ p {
     color: var(--bp-danger);
 }
 
+.bp-library-upload-form {
+    align-items: end;
+    border-bottom: 1px solid var(--bp-line);
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+}
+
+.bp-library-upload-form button {
+    min-height: 40px;
+}
+
+.bp-library-table {
+    min-width: 760px;
+}
+
+.bp-library-actions {
+    flex-wrap: nowrap;
+}
+
+.bp-library-actions .bp-inline-form {
+    margin: 0;
+}
+
+.bp-library-actions .bp-button-secondary {
+    background: var(--bp-panel);
+    border: 1px solid var(--bp-line);
+    color: var(--bp-text);
+}
+
+.bp-library-actions .bp-button-danger {
+    color: var(--bp-danger);
+}
+
+.bp-inline-empty {
+    background: var(--bp-panel-soft);
+    border: 1px dashed var(--bp-line);
+    display: grid;
+    gap: 3px;
+    padding: 14px;
+}
+
+.bp-inline-empty span {
+    color: var(--bp-muted);
+    font-size: 0.86rem;
+}
+
 .bp-form textarea {
     min-height: 120px;
     resize: vertical;
@@ -2152,6 +2201,10 @@ code {
     }
 
     .bp-admin-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .bp-library-upload-form {
         grid-template-columns: 1fr;
     }
 

@@ -3,7 +3,8 @@
   "session_name": "batoi_press_session",
   "installer_lock": "radpress/config/installed.lock",
   "uploads": {
-    "max_bytes": 5242880,
-    "allowed_extensions": ["jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "md", "css", "js"]
+    "max_bytes": 26214400,
+    "library_max_bytes": 26214400,
+    "allowed_extensions": ["jpg", "jpeg", "png", "gif", "webp", "pdf", "txt", "md", "css", "js", "mjs", "mp3", "wav", "ogg", "m4a", "mp4", "webm", "mov"]
   }
 }

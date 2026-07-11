@@ -53,6 +53,10 @@ final class Router
             return $this->media(rawurldecode(substr($request->path, 7)));
         }
 
+        if (str_starts_with($request->path, '/assets/')) {
+            return $this->asset(rawurldecode(substr($request->path, 8)));
+        }
+
         if ($request->path === '/blog') {
             return $this->theme->render('blog', ['posts' => $this->posts->allPublished(), 'title' => 'Blog']);
         }
@@ -154,6 +158,18 @@ final class Router
 
         if ($request->path === '/admin/media/delete' && $request->method === 'POST') {
             return (new MediaController($this->config, $csrf, $audit, $user))->delete($request);
+        }
+
+        if ($request->path === '/admin/media/libraries/upload' && $request->method === 'POST') {
+            return (new MediaController($this->config, $csrf, $audit, $user))->installLibrary($request);
+        }
+
+        if ($request->path === '/admin/media/libraries/toggle' && $request->method === 'POST') {
+            return (new MediaController($this->config, $csrf, $audit, $user))->toggleLibrary($request);
+        }
+
+        if ($request->path === '/admin/media/libraries/delete' && $request->method === 'POST') {
+            return (new MediaController($this->config, $csrf, $audit, $user))->deleteLibrary($request);
         }
 
         if ($request->path === '/admin/menus') {
@@ -332,34 +348,32 @@ final class Router
             return $this->notFound();
         }
 
+        return $this->assetResponse($file);
+    }
+
+    private function asset(string $relative): Response
+    {
+        $file = (new AssetManager($this->config->paths()))->resolveAsset($relative);
+        if ($file === null) {
+            return $this->notFound();
+        }
+
+        return $this->assetResponse($file);
+    }
+
+    private function assetResponse(string $file): Response
+    {
         $body = file_get_contents($file);
         if ($body === false) {
             return $this->notFound();
         }
 
         return new Response($body, 200, [
-            'Content-Type' => $this->mediaType($file),
+            'Content-Type' => AssetManager::mimeType($file),
             'Content-Length' => (string)strlen($body),
             'Cache-Control' => 'public, max-age=31536000, immutable',
             'X-Content-Type-Options' => 'nosniff',
         ]);
-    }
-
-    private function mediaType(string $file): string
-    {
-        $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
-        return match ($extension) {
-            'jpg', 'jpeg' => 'image/jpeg',
-            'png' => 'image/png',
-            'gif' => 'image/gif',
-            'webp' => 'image/webp',
-            'svg' => 'image/svg+xml',
-            'pdf' => 'application/pdf',
-            'css' => 'text/css; charset=UTF-8',
-            'js' => 'application/javascript; charset=UTF-8',
-            'txt', 'md' => 'text/plain; charset=UTF-8',
-            default => 'application/octet-stream',
-        };
     }
 
     private function sitemap(): string

@@ -4,11 +4,15 @@ declare(strict_types=1);
 namespace Batoi\Press\Admin;
 
 use Batoi\Press\Core\AuditLog;
+use Batoi\Press\Core\AssetLibraryManager;
+use Batoi\Press\Core\AssetManager;
 use Batoi\Press\Core\Config;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
+use Batoi\Press\Security\AdminAccess;
 use Batoi\Press\Security\Csrf;
 use Batoi\Press\Security\UploadGuard;
+use RuntimeException;
 
 final class MediaController
 {
@@ -27,36 +31,39 @@ final class MediaController
             'type' => trim((string)($_GET['type'] ?? '')),
             'sort' => trim((string)($_GET['sort'] ?? 'newest')),
         ];
-        $body = AdminLayout::pageHeader(
-            'Media',
-            'Upload and reuse images, documents, stylesheets, and scripts for pages, posts, and theme content.'
-        );
+        $body = AdminLayout::pageHeader('Media', 'Organize site assets and versioned frontend libraries without breaking their public paths.');
         $uploadLimit = (int)(($this->config->security()['uploads']['max_bytes'] ?? 5242880) / 1048576);
         $extensions = (array)($this->config->security()['uploads']['allowed_extensions'] ?? []);
-        $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Upload asset</h2><p>Supported file types are controlled by the installation security policy.</p></div></header><form method="post" action="/admin/media/upload" enctype="multipart/form-data" class="bp-form bp-compact-form">';
+        $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Upload asset</h2><p>Files are classified into typed storage automatically.</p></div></header><form method="post" action="/admin/media/upload" enctype="multipart/form-data" class="bp-form bp-compact-form">';
         $body .= $this->csrf->field();
         $body .= '<label>File <input type="file" name="media" accept="' . $this->e($this->acceptValue($extensions)) . '" required><span class="bp-field-help">Maximum upload size: ' . $this->e((string)$uploadLimit) . ' MB.</span></label>';
         $body .= AdminLayout::submitButton('Upload File', 'upload') . '</form></section>';
-        $body .= AdminLayout::section('Upload policy', $this->uploadPolicy($extensions), 'Files are validated before they are stored and exposed under the public media route.');
+        $body .= AdminLayout::section('Storage policy', $this->uploadPolicy($extensions), 'New uploads use typed paths; existing flat media URLs remain compatible.');
 
-        $files = $this->files();
-        $filteredFiles = $this->filterFiles($files, $filters);
-        if ($files === []) {
-            $body .= '<section class="bp-empty-state"><h2>No media files</h2><p>Upload images, documents, CSS, and JavaScript files here, then copy their public URL or embed snippet into page, post, or theme content.</p></section>';
-        } elseif ($filteredFiles === []) {
+        $assets = (new AssetManager($this->config->paths()))->all();
+        $filteredAssets = $this->filterFiles($assets, $filters);
+        if ($assets === []) {
+            $body .= '<section class="bp-empty-state bp-admin-section-wide"><h2>No assets</h2><p>Upload an image, document, multimedia file, stylesheet, or script to begin the asset library.</p></section>';
+        } elseif ($filteredAssets === []) {
             $body .= $this->filterForm($filters);
-            $body .= '<section class="bp-empty-state"><h2>No media files match these filters</h2><p>Adjust the search, type, or sort controls to review other files.</p>' . AdminLayout::buttonLink('Reset Filters', '/admin/media', 'back') . '</section>';
+            $body .= '<section class="bp-empty-state bp-admin-section-wide"><h2>No assets match these filters</h2><p>Adjust the search, type, or sort controls to review other files.</p>' . AdminLayout::buttonLink('Reset Filters', '/admin/media', 'back') . '</section>';
         } else {
             $body .= $this->filterForm($filters);
-            $body .= '<section class="bp-admin-section bp-admin-section-wide"><header><div><h2>Files</h2><p>' . $this->e((string)count($filteredFiles)) . ' of ' . $this->e((string)count($files)) . ' assets shown. Copy a public URL or ready-to-use embed snippet.</p></div></header><div class="bp-table-wrap"><table class="bp-table bp-content-table bp-media-table"><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Modified</th><th>Usage</th><th>Actions</th></tr></thead><tbody>';
-            foreach ($filteredFiles as $file) {
-                $name = basename($file);
-                $url = '/media/' . rawurlencode($name);
+            $body .= '<section class="bp-admin-section bp-admin-section-wide"><header><div><h2>Assets</h2><p>' . $this->e((string)count($filteredAssets)) . ' of ' . $this->e((string)count($assets)) . ' assets shown. Paths remain stable when copied into content or templates.</p></div></header><div class="bp-table-wrap"><table class="bp-table bp-content-table bp-media-table"><thead><tr><th>Asset</th><th>Type</th><th>Size</th><th>Modified</th><th>Usage</th><th>Actions</th></tr></thead><tbody>';
+            foreach ($filteredAssets as $asset) {
+                $name = (string)$asset['name'];
+                $relative = (string)$asset['relative'];
+                $url = (string)$asset['url'];
                 $snippet = $this->snippet($name, $url);
-                $id = 'bp-media-' . substr(hash('sha256', $name), 0, 12);
-                $body .= '<tr><td><strong>' . $this->e($name) . '</strong><small>' . $this->e($this->kind($name)) . '</small></td><td>' . $this->e(strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE')) . '</td><td>' . $this->e($this->size($file)) . '</td><td>' . $this->e($this->modified($file)) . '</td><td><div class="bp-media-code-stack">' . $this->copyField($id . '-url', 'Public URL', $url) . $this->copyField($id . '-embed', 'Embed snippet', $snippet) . '</div></td><td><div class="bp-table-actions bp-media-actions">' . AdminLayout::buttonLink('View', $url, 'site', true) . $this->deleteForm($name) . '</div></td></tr>';
+                $id = 'bp-media-' . substr(hash('sha256', (string)$asset['storage'] . ':' . $relative), 0, 12);
+                $legacy = (string)$asset['storage'] === 'media' ? ' - Legacy path' : '';
+                $body .= '<tr><td><strong>' . $this->e($name) . '</strong><small>' . $this->e($relative) . '</small><small>' . $this->e((string)$asset['kind'] . $legacy) . '</small></td><td>' . $this->e(strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE')) . '</td><td>' . $this->e($this->size((int)$asset['size'])) . '</td><td>' . $this->e($this->modified((int)$asset['modified'])) . '</td><td><div class="bp-media-code-stack">' . $this->copyField($id . '-url', 'Public URL', $url) . $this->copyField($id . '-embed', 'Embed snippet', $snippet) . '</div></td><td><div class="bp-table-actions bp-media-actions">' . AdminLayout::buttonLink('View', $url, 'site', true) . $this->deleteForm((string)$asset['storage'], $relative) . '</div></td></tr>';
             }
             $body .= '</tbody></table></div></section>';
+        }
+
+        if (in_array(AdminAccess::role($this->user), ['owner', 'admin'], true)) {
+            $body .= $this->librarySection();
         }
         $body .= '</div>';
         return Response::html($this->layout('Media', $body));
@@ -77,17 +84,19 @@ final class MediaController
         }
 
         $name = $guard->safeName((string)$file['name']);
-        $mediaDir = $this->config->paths()->contentPath('media');
-        if (!$this->ensureMediaDirectory($mediaDir)) {
-            return Response::html($this->layout('Media', '<p class="bp-error">Unable to prepare media storage.</p>'), 500);
+        $manager = new AssetManager($this->config->paths());
+        $relative = $manager->relativeUploadPath($name);
+        try {
+            $target = $manager->prepareTarget($relative);
+        } catch (RuntimeException $exception) {
+            return $this->message($exception->getMessage(), true, 500);
         }
 
-        $target = $mediaDir . '/' . $name;
         if (!move_uploaded_file((string)$file['tmp_name'], $target)) {
             return Response::html($this->layout('Media', '<p class="bp-error">Unable to save upload.</p>'), 500);
         }
 
-        $this->audit->record((string)($this->user['username'] ?? 'admin'), 'media.uploaded', $name, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        $this->audit->record((string)($this->user['username'] ?? 'admin'), 'asset.uploaded', $relative, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
         return Response::redirect('/admin/media');
     }
 
@@ -97,46 +106,82 @@ final class MediaController
             return Response::html($this->layout('Media', '<p class="bp-error">Security token expired.</p>'), 400);
         }
 
-        $name = basename($request->input('file'));
-        if ($name === '' || str_contains($name, '..')) {
-            return Response::html($this->layout('Media', '<p class="bp-error">Invalid media file.</p><p><a href="/admin/media">Back to media</a></p>'), 400);
+        $storage = $request->input('storage');
+        $relative = $request->input('file');
+        if (!(new AssetManager($this->config->paths()))->delete($storage, $relative)) {
+            return $this->message('Asset was not found or could not be deleted.', true, 404);
         }
 
-        $file = $this->config->paths()->contentPath('media/' . $name);
-        if (!is_file($file)) {
-            return Response::html($this->layout('Media', '<p class="bp-error">Media file not found.</p><p><a href="/admin/media">Back to media</a></p>'), 404);
-        }
-
-        if (!unlink($file)) {
-            return Response::html($this->layout('Media', '<p class="bp-error">Unable to delete media file.</p><p><a href="/admin/media">Back to media</a></p>'), 500);
-        }
-
-        $this->audit->record((string)($this->user['username'] ?? 'admin'), 'media.deleted', $name, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        $this->audit->record((string)($this->user['username'] ?? 'admin'), 'asset.deleted', $storage . ':' . $relative, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
         return Response::redirect('/admin/media');
     }
 
-    private function files(): array
+    public function installLibrary(Request $request): Response
     {
-        $files = glob($this->config->paths()->contentPath('media/*')) ?: [];
-        $files = array_values(array_filter($files, 'is_file'));
-        usort($files, static fn (string $a, string $b): int => strcasecmp(basename($a), basename($b)));
-        return $files;
+        if (!$this->csrf->validate($request->input('csrf_token'))) {
+            return $this->message('Security token expired.', true, 400);
+        }
+        $file = $_FILES['library_zip'] ?? [];
+        $maxBytes = (int)($this->config->security()['uploads']['library_max_bytes'] ?? 26214400);
+        $error = is_array($file) ? (new UploadGuard(['zip'], $maxBytes))->validate($file) : 'Upload failed.';
+        if ($error !== null) {
+            return $this->message($error, true, 400);
+        }
+        try {
+            $manifest = (new AssetLibraryManager($this->config->paths()))->installZip((string)$file['tmp_name']);
+        } catch (RuntimeException $exception) {
+            return $this->message($exception->getMessage(), true, 400);
+        }
+        $target = (string)$manifest['name'] . '@' . (string)$manifest['version'];
+        $this->audit->record((string)($this->user['username'] ?? 'admin'), 'asset_library.installed', $target, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        return Response::redirect('/admin/media');
+    }
+
+    public function toggleLibrary(Request $request): Response
+    {
+        if (!$this->csrf->validate($request->input('csrf_token'))) {
+            return $this->message('Security token expired.', true, 400);
+        }
+        $enabled = $request->input('enabled') === '1';
+        try {
+            $manifest = (new AssetLibraryManager($this->config->paths()))->setEnabled($request->input('name'), $request->input('version'), $enabled);
+        } catch (RuntimeException $exception) {
+            return $this->message($exception->getMessage(), true, 400);
+        }
+        $target = (string)$manifest['name'] . '@' . (string)$manifest['version'];
+        $this->audit->record((string)($this->user['username'] ?? 'admin'), $enabled ? 'asset_library.enabled' : 'asset_library.disabled', $target, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        return Response::redirect('/admin/media');
+    }
+
+    public function deleteLibrary(Request $request): Response
+    {
+        if (!$this->csrf->validate($request->input('csrf_token'))) {
+            return $this->message('Security token expired.', true, 400);
+        }
+        $name = $request->input('name');
+        $version = $request->input('version');
+        try {
+            (new AssetLibraryManager($this->config->paths()))->delete($name, $version);
+        } catch (RuntimeException $exception) {
+            return $this->message($exception->getMessage(), true, 404);
+        }
+        $this->audit->record((string)($this->user['username'] ?? 'admin'), 'asset_library.deleted', $name . '@' . $version, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        return Response::redirect('/admin/media');
     }
 
     private function filterFiles(array $files, array $filters): array
     {
         $q = strtolower((string)($filters['q'] ?? ''));
         $type = (string)($filters['type'] ?? '');
-        $filtered = array_values(array_filter($files, function (string $file) use ($q, $type): bool {
-            $name = basename($file);
-            if ($type !== '' && $this->assetType($name) !== $type) {
+        $filtered = array_values(array_filter($files, static function (array $file) use ($q, $type): bool {
+            if ($type !== '' && (string)$file['type'] !== $type) {
                 return false;
             }
             if ($q === '') {
                 return true;
             }
 
-            return str_contains(strtolower($name . ' ' . pathinfo($name, PATHINFO_EXTENSION) . ' ' . $this->kind($name)), $q);
+            return str_contains(strtolower((string)$file['relative'] . ' ' . (string)$file['kind']), $q);
         }));
 
         return $this->sortFiles($filtered, (string)($filters['sort'] ?? 'newest'));
@@ -144,17 +189,17 @@ final class MediaController
 
     private function sortFiles(array $files, string $sort): array
     {
-        usort($files, static function (string $a, string $b) use ($sort): int {
+        usort($files, static function (array $a, array $b) use ($sort): int {
             if ($sort === 'name') {
-                return strcasecmp(basename($a), basename($b));
+                return strcasecmp((string)$a['relative'], (string)$b['relative']);
             }
             if ($sort === 'size') {
-                $comparison = ((int)filesize($b)) <=> ((int)filesize($a));
-                return $comparison !== 0 ? $comparison : strcasecmp(basename($a), basename($b));
+                $comparison = ((int)$b['size']) <=> ((int)$a['size']);
+                return $comparison !== 0 ? $comparison : strcasecmp((string)$a['relative'], (string)$b['relative']);
             }
 
-            $comparison = ((int)filemtime($b)) <=> ((int)filemtime($a));
-            return $comparison !== 0 ? $comparison : strcasecmp(basename($a), basename($b));
+            $comparison = ((int)$b['modified']) <=> ((int)$a['modified']);
+            return $comparison !== 0 ? $comparison : strcasecmp((string)$a['relative'], (string)$b['relative']);
         });
 
         return $files;
@@ -166,7 +211,7 @@ final class MediaController
         $sort = (string)($filters['sort'] ?? 'newest');
         $html = '<form method="get" action="/admin/media" class="bp-filter-form bp-filter-form-media"><div class="bp-filter-field bp-filter-field-search"><label for="bp-media-filter-q">Search</label><input id="bp-media-filter-q" type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Filename or extension"></div>';
         $html .= '<div class="bp-filter-field"><label for="bp-media-filter-type">Type</label><select id="bp-media-filter-type" name="type"><option value="">All files</option>';
-        foreach (['images' => 'Images', 'styles' => 'CSS', 'scripts' => 'JavaScript', 'documents' => 'Documents'] as $value => $label) {
+        foreach (['images' => 'Images', 'styles' => 'CSS', 'scripts' => 'JavaScript', 'audio' => 'Audio', 'video' => 'Video', 'documents' => 'Documents'] as $value => $label) {
             $html .= '<option value="' . $this->e($value) . '"' . ($type === $value ? ' selected' : '') . '>' . $this->e($label) . '</option>';
         }
         $html .= '</select></div><div class="bp-filter-field"><label for="bp-media-filter-sort">Sort</label><select id="bp-media-filter-sort" name="sort">';
@@ -176,11 +221,12 @@ final class MediaController
         return $html . '</select></div><div class="bp-filter-actions">' . AdminLayout::submitButton('Apply Filters', 'check') . AdminLayout::buttonLink('Reset', '/admin/media', 'back', true) . '</div></form>';
     }
 
-    private function deleteForm(string $name): string
+    private function deleteForm(string $storage, string $relative): string
     {
-        return '<form method="post" action="/admin/media/delete" class="bp-inline-form" data-confirm="Delete ' . $this->e($name) . '? Existing pages or templates that reference it may stop working.">'
+        return '<form method="post" action="/admin/media/delete" class="bp-inline-form" data-confirm="Delete ' . $this->e($relative) . '? Existing pages or templates that reference it may stop working.">'
             . $this->csrf->field()
-            . '<input type="hidden" name="file" value="' . $this->e($name) . '">'
+            . '<input type="hidden" name="storage" value="' . $this->e($storage) . '">'
+            . '<input type="hidden" name="file" value="' . $this->e($relative) . '">'
             . AdminLayout::submitButton('Delete', 'delete', 'class="bp-button bp-button-secondary bp-button-danger"')
             . '</form>';
     }
@@ -188,15 +234,6 @@ final class MediaController
     private function copyField(string $id, string $label, string $value): string
     {
         return '<div class="bp-media-code-field"><label for="' . $this->e($id) . '">' . $this->e($label) . '</label><div><input id="' . $this->e($id) . '" class="bp-code-input" readonly value="' . $this->e($value) . '"><button type="button" class="bp-button bp-button-secondary bp-copy-button" data-copy-target="' . $this->e($id) . '" aria-label="Copy ' . $this->e(strtolower($label)) . '">' . AdminLayout::icon('copy') . '<span>Copy</span></button></div></div>';
-    }
-
-    private function ensureMediaDirectory(string $dir): bool
-    {
-        if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
-            return false;
-        }
-
-        return is_writable($dir);
     }
 
     private function layout(string $title, string $body): string
@@ -209,61 +246,26 @@ final class MediaController
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
-    private function isImage(string $name): bool
-    {
-        return in_array(strtolower(pathinfo($name, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp'], true);
-    }
-
-    private function isStylesheet(string $name): bool
-    {
-        return strtolower(pathinfo($name, PATHINFO_EXTENSION)) === 'css';
-    }
-
-    private function isScript(string $name): bool
-    {
-        return strtolower(pathinfo($name, PATHINFO_EXTENSION)) === 'js';
-    }
-
-    private function assetType(string $name): string
-    {
-        if ($this->isImage($name)) {
-            return 'images';
-        }
-        if ($this->isStylesheet($name)) {
-            return 'styles';
-        }
-        if ($this->isScript($name)) {
-            return 'scripts';
-        }
-
-        return 'documents';
-    }
-
-    private function kind(string $name): string
-    {
-        if ($this->isImage($name)) {
-            return 'Image asset';
-        }
-        if ($this->isStylesheet($name)) {
-            return 'Stylesheet asset';
-        }
-        if ($this->isScript($name)) {
-            return 'Script asset';
-        }
-
-        return 'Document asset';
-    }
-
     private function snippet(string $name, string $url): string
     {
-        if ($this->isImage($name)) {
+        $type = AssetManager::typeForName($name);
+        if ($type === 'images') {
             return '<img src="' . $url . '" alt="">';
         }
-        if ($this->isStylesheet($name)) {
+        if ($type === 'styles') {
             return '<link rel="stylesheet" href="' . $url . '">';
         }
-        if ($this->isScript($name)) {
+        if ($type === 'scripts') {
+            if (strtolower(pathinfo($name, PATHINFO_EXTENSION)) === 'mjs') {
+                return '<script type="module" src="' . $url . '"></script>';
+            }
             return '<script src="' . $url . '" defer></script>';
+        }
+        if ($type === 'audio') {
+            return '<audio controls src="' . $url . '"></audio>';
+        }
+        if ($type === 'video') {
+            return '<video controls src="' . $url . '"></video>';
         }
 
         return '<a href="' . $url . '">Download ' . $this->e($name) . '</a>';
@@ -275,9 +277,8 @@ final class MediaController
         return implode(',', array_map(static fn (string $extension): string => '.' . ltrim(strtolower($extension), '.'), $allowed));
     }
 
-    private function size(string $file): string
+    private function size(int $bytes): string
     {
-        $bytes = is_file($file) ? (int)filesize($file) : 0;
         if ($bytes >= 1048576) {
             return number_format($bytes / 1048576, 1) . ' MB';
         }
@@ -287,9 +288,8 @@ final class MediaController
         return $bytes . ' B';
     }
 
-    private function modified(string $file): string
+    private function modified(int $time): string
     {
-        $time = is_file($file) ? filemtime($file) : false;
         return $time ? date('M j, Y H:i', $time) : 'Unknown';
     }
 
@@ -301,9 +301,45 @@ final class MediaController
         return '<ul class="bp-admin-checklist">'
             . '<li>' . AdminLayout::icon('check') . '<span>Allowed extensions: ' . $this->e($allowedText) . '.</span></li>'
             . '<li>' . AdminLayout::icon('check') . '<span>Each upload receives a unique, normalized filename so an existing asset is never silently replaced.</span></li>'
-            . '<li>' . AdminLayout::icon('check') . '<span>Files are saved in <code>radpress/content/media</code> and served from <code>/media/{file}</code>.</span></li>'
-            . '<li>' . AdminLayout::icon('check') . '<span>CSS and JavaScript files remain explicit assets; copy the generated embed snippet into the page, post, or theme template that should load them.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>New files are organized below <code>radpress/content/assets</code> and served from <code>/assets/{path}</code>.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Legacy files remain under <code>radpress/content/media</code> so existing <code>/media/{file}</code> references continue working.</span></li>'
             . '<li>' . AdminLayout::icon('check') . '<span>Every successful upload is recorded in the audit log.</span></li>'
             . '</ul>';
+    }
+
+    private function librarySection(): string
+    {
+        $maxBytes = (int)($this->config->security()['uploads']['library_max_bytes'] ?? 26214400);
+        $maxMegabytes = max(1, (int)floor($maxBytes / 1048576));
+        $html = '<section class="bp-admin-section bp-admin-section-wide"><header><div><h2>Frontend libraries</h2><p>Install complete versioned packages so relative fonts, images, maps, CSS, and scripts stay together.</p></div></header>';
+        $html .= '<form method="post" action="/admin/media/libraries/upload" enctype="multipart/form-data" class="bp-form bp-library-upload-form">' . $this->csrf->field();
+        $html .= '<label>Library ZIP <input type="file" name="library_zip" accept=".zip" required><span class="bp-field-help">Maximum package size: ' . $this->e((string)$maxMegabytes) . ' MB. The ZIP must contain <code>library.json</code> at its root.</span></label>';
+        $html .= AdminLayout::submitButton('Install Library', 'upload') . '</form>';
+
+        $libraries = (new AssetLibraryManager($this->config->paths()))->all();
+        if ($libraries === []) {
+            return $html . '<div class="bp-inline-empty"><strong>No libraries installed</strong><span>Upload a manifest-driven ZIP when the site needs a packaged CSS or JavaScript dependency.</span></div></section>';
+        }
+
+        $html .= '<div class="bp-table-wrap"><table class="bp-table bp-content-table bp-library-table"><thead><tr><th>Library</th><th>Status</th><th>Scope</th><th>Entry points</th><th>Actions</th></tr></thead><tbody>';
+        foreach ($libraries as $library) {
+            $name = (string)$library['name'];
+            $version = (string)$library['version'];
+            $enabled = (bool)$library['enabled'];
+            $entries = count((array)$library['styles']) . ' CSS / ' . count((array)$library['scripts']) . ' JS';
+            $html .= '<tr><td><strong>' . $this->e($name) . '</strong><small>Version ' . $this->e($version) . '</small></td><td><span class="bp-status-badge ' . ($enabled ? 'is-published' : 'is-disabled') . '">' . ($enabled ? 'Enabled' : 'Disabled') . '</span></td><td>' . $this->e(ucfirst((string)$library['scope'])) . '</td><td>' . $this->e($entries) . '</td><td><div class="bp-table-actions bp-library-actions">';
+            $html .= '<form method="post" action="/admin/media/libraries/toggle" class="bp-inline-form">' . $this->csrf->field() . '<input type="hidden" name="name" value="' . $this->e($name) . '"><input type="hidden" name="version" value="' . $this->e($version) . '"><input type="hidden" name="enabled" value="' . ($enabled ? '0' : '1') . '">' . AdminLayout::submitButton($enabled ? 'Disable' : 'Enable', 'refresh', 'class="bp-button bp-button-secondary"') . '</form>';
+            $html .= '<form method="post" action="/admin/media/libraries/delete" class="bp-inline-form" data-confirm="Remove ' . $this->e($name . '@' . $version) . '? Public pages using this library may stop working.">' . $this->csrf->field() . '<input type="hidden" name="name" value="' . $this->e($name) . '"><input type="hidden" name="version" value="' . $this->e($version) . '">' . AdminLayout::submitButton('Remove', 'delete', 'class="bp-button bp-button-secondary bp-button-danger"') . '</form>';
+            $html .= '</div></td></tr>';
+        }
+        return $html . '</tbody></table></div></section>';
+    }
+
+    private function message(string $message, bool $error = false, int $status = 200): Response
+    {
+        $class = $error ? 'bp-error' : 'bp-notice';
+        $body = AdminLayout::pageHeader('Media', 'Asset and library management result.');
+        $body .= '<p class="' . $class . '">' . $this->e($message) . '</p><p>' . AdminLayout::buttonLink('Back to Media', '/admin/media', 'back', true) . '</p>';
+        return Response::html($this->layout('Media', $body), $status);
     }
 }
