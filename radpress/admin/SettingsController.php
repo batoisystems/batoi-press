@@ -209,12 +209,19 @@ final class SettingsController
     private function validateImageFavicon(string $path, string $extension): ?string
     {
         if ($extension === 'ico') {
-            $handle = fopen($path, 'rb');
-            $header = is_resource($handle) ? fread($handle, 4) : false;
-            if (is_resource($handle)) {
-                fclose($handle);
+            if ($this->isValidIcoContainer($path)) {
+                return null;
             }
-            return $header === "\x00\x00\x01\x00" ? null : 'ICO favicon has an invalid file header.';
+
+            $info = @getimagesize($path);
+            $mime = is_array($info) ? (string)($info['mime'] ?? '') : '';
+            if (($info[0] ?? 0) > 0
+                && ($info[1] ?? 0) > 0
+                && in_array($mime, ['image/png', 'image/jpeg', 'image/webp'], true)) {
+                return null;
+            }
+
+            return 'ICO favicon must contain a valid icon or browser-compatible image.';
         }
 
         $info = @getimagesize($path);
@@ -234,6 +241,60 @@ final class SettingsController
         }
 
         return null;
+    }
+
+    private function isValidIcoContainer(string $path): bool
+    {
+        $size = filesize($path);
+        if (!is_int($size) || $size < 22) {
+            return false;
+        }
+
+        $handle = fopen($path, 'rb');
+        if (!is_resource($handle)) {
+            return false;
+        }
+
+        $header = fread($handle, 6);
+        if (!is_string($header) || strlen($header) !== 6) {
+            fclose($handle);
+            return false;
+        }
+
+        $directory = unpack('vreserved/vtype/vcount', $header);
+        $count = (int)($directory['count'] ?? 0);
+        $directoryEnd = 6 + ($count * 16);
+        if (($directory['reserved'] ?? -1) !== 0
+            || ($directory['type'] ?? 0) !== 1
+            || $count < 1
+            || $count > 256
+            || $directoryEnd > $size) {
+            fclose($handle);
+            return false;
+        }
+
+        for ($index = 0; $index < $count; $index++) {
+            $entry = fread($handle, 16);
+            if (!is_string($entry) || strlen($entry) !== 16) {
+                fclose($handle);
+                return false;
+            }
+
+            $image = unpack('Cwidth/Cheight/Ccolors/Creserved/vplanes/vbits/Vbytes/Voffset', $entry);
+            $bytes = (int)($image['bytes'] ?? 0);
+            $offset = (int)($image['offset'] ?? 0);
+            if (($image['reserved'] ?? 1) !== 0
+                || $bytes < 1
+                || $offset < $directoryEnd
+                || $offset > $size
+                || $bytes > ($size - $offset)) {
+                fclose($handle);
+                return false;
+            }
+        }
+
+        fclose($handle);
+        return true;
     }
 
     private function faviconUrl(string $favicon): string
