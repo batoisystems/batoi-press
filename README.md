@@ -165,9 +165,9 @@ https://www.batoi.com/pub/press/releases/batoi-press-{version}.zip
 
 ## Release Publication
 
-GitHub Actions publishes release files when a GitHub release is published or when the `Publish release` workflow is run manually. The release gate checks PHP syntax, runs smoke, update, static export, role access, post ownership, and security baseline tests, builds the ZIP, generates `latest.json`, uploads both files as workflow artifacts, and deploys them to the public Batoi website.
+GitHub Actions builds and publishes release artifacts when a GitHub release is published or when the `Publish release` workflow is run manually. The release gate checks PHP syntax, runs smoke, update, static export, role access, post ownership, and security baseline tests, builds the ZIP, generates `latest.json`, and uploads both files as workflow artifacts. Deployment to the public Batoi website runs when the complete deployment secret set is configured; otherwise the workflow succeeds with a deployment-skipped warning.
 
-Required GitHub Actions secrets:
+GitHub Actions secrets required for automatic website deployment:
 
 - `BATOI_WWW_DEPLOY_HOST`
 - `BATOI_WWW_DEPLOY_USER`

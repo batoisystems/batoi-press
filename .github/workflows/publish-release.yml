@@ -54,7 +54,8 @@ jobs:
             dist/latest.json
           if-no-files-found: error
 
-      - name: Validate deployment secrets
+      - name: Check website deployment configuration
+        id: deployment
         env:
           DEPLOY_HOST: ${{ secrets.BATOI_WWW_DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.BATOI_WWW_DEPLOY_USER }}
@@ -62,13 +63,25 @@ jobs:
           DEPLOY_KEY: ${{ secrets.BATOI_WWW_DEPLOY_KEY }}
           DEPLOY_PATH: ${{ secrets.BATOI_WWW_DEPLOY_PATH }}
         run: |
-          test -n "$DEPLOY_HOST"
-          test -n "$DEPLOY_USER"
-          test -n "$DEPLOY_PORT"
-          test -n "$DEPLOY_KEY"
-          test -n "$DEPLOY_PATH"
+          if test -n "$DEPLOY_HOST" \
+            && test -n "$DEPLOY_USER" \
+            && test -n "$DEPLOY_PORT" \
+            && test -n "$DEPLOY_KEY" \
+            && test -n "$DEPLOY_PATH"; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "enabled=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::Website deployment skipped because BATOI_WWW_DEPLOY_* secrets are not fully configured. Release artifacts remain available from this workflow and the GitHub release."
+          {
+            echo "### Website deployment skipped"
+            echo
+            echo "Configure all documented \`BATOI_WWW_DEPLOY_*\` repository secrets to publish the manifest and ZIP to batoi.com automatically."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Configure SSH
+        if: steps.deployment.outputs.enabled == 'true'
         env:
           DEPLOY_HOST: ${{ secrets.BATOI_WWW_DEPLOY_HOST }}
           DEPLOY_PORT: ${{ secrets.BATOI_WWW_DEPLOY_PORT }}
@@ -80,6 +93,7 @@ jobs:
           ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
       - name: Deploy release files
+        if: steps.deployment.outputs.enabled == 'true'
         env:
           DEPLOY_HOST: ${{ secrets.BATOI_WWW_DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.BATOI_WWW_DEPLOY_USER }}
