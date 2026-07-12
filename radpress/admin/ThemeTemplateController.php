@@ -170,6 +170,12 @@ final class ThemeTemplateController
         $layout = in_array($layout, ['home', 'page', 'post', 'blog', 'archive', '404'], true) ? $layout : 'home';
         $page = $layout === 'home' ? $pages->findBySlug('home') : ($pages->allPublished()[0] ?? null);
         $post = $posts->allPublished()[0] ?? null;
+        if (in_array($layout, ['home', 'page'], true) && !is_array($page)) {
+            $page = ['title' => 'Preview Page', 'body' => '<h1>Preview Page</h1><p>Theme page layout preview.</p>'];
+        }
+        if ($layout === 'post' && !is_array($post)) {
+            $post = ['title' => 'Preview Post', 'body' => '<h1>Preview Post</h1><p>Theme post layout preview.</p>', 'published_at' => date(DATE_ATOM)];
+        }
 
         $previewLinks = '';
         foreach (['home', 'page', 'post', 'blog', 'archive', '404'] as $target) {
@@ -184,9 +190,6 @@ final class ThemeTemplateController
             $data = ['page' => $page, 'title' => (string)($page['title'] ?? ucfirst($layout))];
         } elseif ($layout === 'post' && is_array($post)) {
             $data = ['post' => $post, 'title' => (string)($post['title'] ?? 'Post')];
-        } elseif ($layout === 'post') {
-            $renderLayout = 'blog';
-            $data = ['posts' => [], 'title' => 'Blog'];
         } elseif ($layout === 'blog') {
             $data = ['posts' => $posts->allPublished(), 'title' => 'Blog'];
         } elseif ($layout === 'archive') {

@@ -52,6 +52,11 @@ final class BrandAssetManager
         $tmp = (string)($upload['tmp_name'] ?? '');
         $name = (string)($upload['name'] ?? '');
         $bytes = (int)($upload['size'] ?? 0);
+        return $this->storeValidatedFile($tmp, $name, $bytes, $kind, true);
+    }
+
+    private function storeValidatedFile(string $tmp, string $name, int $bytes, string $kind, bool $uploaded): string
+    {
         $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
         $allowed = $kind === 'favicon' ? self::FAVICON_EXTENSIONS : self::LOGO_EXTENSIONS;
         $limit = $kind === 'favicon' ? 1048576 : 2097152;
@@ -66,7 +71,8 @@ final class BrandAssetManager
 
         $relative = 'images/site/' . $kind . '-' . bin2hex(random_bytes(6)) . '.' . $extension;
         $target = (new AssetManager($this->paths))->prepareTarget($relative);
-        if (!move_uploaded_file($tmp, $target)) {
+        $saved = $uploaded ? move_uploaded_file($tmp, $target) : copy($tmp, $target);
+        if (!$saved) {
             throw new RuntimeException('Unable to save the ' . $kind . ' upload.');
         }
         chmod($target, 0664);

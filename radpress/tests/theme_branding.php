@@ -7,11 +7,15 @@ use Batoi\Press\Core\Config;
 use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\Paths;
 use Batoi\Press\Core\ThemeManager;
+use Batoi\Press\Core\Request;
 use Batoi\Press\Admin\ThemeTemplateController;
 use Batoi\Press\Security\Csrf;
 use Batoi\Press\Security\Session;
 
 require dirname(__DIR__) . '/autoload.php';
+require dirname(__DIR__) . '/helpers/url.php';
+require dirname(__DIR__) . '/helpers/esc.php';
+require dirname(__DIR__) . '/helpers/date.php';
 
 $root = sys_get_temp_dir() . '/batoi-press-theme-branding-' . bin2hex(random_bytes(4));
 
@@ -43,7 +47,10 @@ try {
     ];
     file_put_contents($root . '/radpress/theme/demo/theme.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX);
     foreach (['base', 'page', 'post', 'blog', 'archive', '404'] as $layout) {
-        file_put_contents($root . '/radpress/theme/demo/layouts/' . $layout . '.php', '<?php echo "' . $layout . '";', LOCK_EX);
+        $source = $layout === 'base'
+            ? '<!doctype html><html><head></head><body class="custom-preview-body"><?php echo $content; ?></body></html>'
+            : '<?php echo "layout-' . $layout . '";';
+        file_put_contents($root . '/radpress/theme/demo/layouts/' . $layout . '.php', $source, LOCK_EX);
     }
     file_put_contents($root . '/radpress/theme/demo/assets/css/theme.css', 'body{color:#111}', LOCK_EX);
     file_put_contents($root . '/radpress/theme/demo/assets/js/theme.mjs', 'export const ready=true;', LOCK_EX);
@@ -86,6 +93,14 @@ try {
     $safeSvg = $root . '/safe.svg';
     file_put_contents($safeSvg, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0h10v10H0z"/></svg>', LOCK_EX);
     assertTheme((new BrandAssetManager($paths))->validateSvg($safeSvg) === null, 'standard SVG namespace and local geometry should be accepted');
+    $brandManager = new BrandAssetManager($paths);
+    $storeBrand = new ReflectionMethod(BrandAssetManager::class, 'storeValidatedFile');
+    $storedLogoOne = (string)$storeBrand->invoke($brandManager, $safeSvg, 'company-logo.svg', filesize($safeSvg), 'logo', false);
+    assertTheme($brandManager->resolveUrl($storedLogoOne) === $storedLogoOne, 'validated logo fixture should be stored in the owned branding path');
+    $storedLogoTwo = (string)$storeBrand->invoke($brandManager, $safeSvg, 'company-logo.svg', filesize($safeSvg), 'logo', false);
+    assertTheme($storedLogoTwo !== $storedLogoOne && $brandManager->resolveUrl($storedLogoTwo) === $storedLogoTwo, 'replacement logo should use a new immutable path');
+    assertTheme($brandManager->removeOwned($storedLogoOne) && $brandManager->resolveUrl($storedLogoOne) === null, 'superseded logo should be removable after replacement');
+    assertTheme($brandManager->removeOwned($storedLogoTwo) && $brandManager->resolveUrl($storedLogoTwo) === null, 'current owned logo should support explicit removal');
 
     file_put_contents($root . '/radpress/config/paths.json', json_encode([
         'public_root' => 'public_html',
@@ -94,10 +109,18 @@ try {
         'data' => 'radpress/data',
         'theme' => 'radpress/theme',
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX);
+    file_put_contents($root . '/radpress/config/site.json', json_encode(['name' => 'Theme Test', 'theme' => 'demo'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX);
     $config = Config::load($root);
     $files = new FileStore();
     $session = new Session('theme_test', $root . '/radpress/data/sessions');
-    $controller = new ThemeTemplateController($config, $files, new Csrf($session), new AuditLog($config->paths(), $files), ['username' => 'owner', 'role' => 'owner']);
+    $csrf = new Csrf($session);
+    $controller = new ThemeTemplateController($config, $files, $csrf, new AuditLog($config->paths(), $files), ['username' => 'owner', 'role' => 'owner']);
+    foreach (['home' => 'layout-page', 'page' => 'layout-page', 'post' => 'layout-post', 'blog' => 'layout-blog', 'archive' => 'layout-archive', '404' => 'layout-404'] as $previewTarget => $marker) {
+        $preview = $controller->preview('demo', (string)$previewTarget)->content();
+        assertTheme(str_contains($preview, 'bp-preview-banner'), 'preview banner should render for ' . $previewTarget);
+        assertTheme(str_contains($preview, $marker), 'preview should render the intended ' . $previewTarget . ' layout');
+        assertTheme(str_contains($preview, 'custom-preview-body'), 'preview should preserve custom body classes');
+    }
     $installer = new ReflectionMethod(ThemeTemplateController::class, 'installThemeZip');
 
     $packageOne = $root . '/package-1.0.0.zip';
@@ -110,6 +133,10 @@ try {
     assertTheme($installer->invoke($controller, $packageTwo, 'package.zip') === 'package', 'existing theme slug should upgrade');
     assertTheme(str_contains((string)file_get_contents($root . '/radpress/theme/package/theme.json'), '1.1.0'), 'theme upgrade should publish the new manifest');
     assertTheme((glob($root . '/radpress/data/versions/theme-packages/package/*/theme.json') ?: []) !== [], 'theme upgrade should retain a package backup');
+    $activation = $controller->activate(new Request('POST', '/admin/themes/activate', [], ['csrf_token' => $csrf->token(), 'theme' => 'package'], []));
+    assertTheme($activation->status() === 302, 'valid installed theme should activate');
+    $activatedSite = json_decode((string)file_get_contents($root . '/radpress/config/site.json'), true);
+    assertTheme(($activatedSite['theme'] ?? '') === 'package', 'theme activation should persist the selected slug');
 
     $unsafePackage = $root . '/package-unsafe.zip';
     createThemePackage($unsafePackage, '1.2.0', true);

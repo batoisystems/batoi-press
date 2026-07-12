@@ -67,10 +67,10 @@
 ### Phase 7: Verification And Delivery
 
 - [x] Add unit tests for manifest normalization, theme-asset resolution, branding validation, SVG safety, and path traversal rejection.
-- [ ] Add integration tests for logo upload/replace/remove, theme package install/upgrade/activate, preview targets, and fallback behavior.
+- [x] Add integration tests for logo upload/replace/remove, theme package install/upgrade/activate, preview targets, and fallback behavior.
 - [x] Expand static-export tests to assert rendered theme shell and all referenced asset files.
-- [ ] Verify default and uploaded themes at desktop and mobile widths in the synchronized testsite.
-- [ ] Verify text-only, logo-only, logo-with-text, missing-logo, malformed-logo, and long-navigation states.
+- [x] Verify default and uploaded themes at desktop and mobile widths in the synchronized testsite.
+- [x] Verify text-only, logo-only, logo-with-text, missing-logo, malformed-logo, and long-navigation states.
 - [x] Run PHP lint, smoke, role access, security baseline, theme syntax, static export, and update tests.
 - [x] Update theme-development, admin, release-management, and package-author documentation.
 - [x] Commit the implementation, synchronize the testsite, build and verify the next release, and update the neighboring `batoi-www` publication files.
