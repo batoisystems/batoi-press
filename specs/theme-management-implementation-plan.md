@@ -73,7 +73,7 @@
 - [ ] Verify text-only, logo-only, logo-with-text, missing-logo, malformed-logo, and long-navigation states.
 - [x] Run PHP lint, smoke, role access, security baseline, theme syntax, static export, and update tests.
 - [x] Update theme-development, admin, release-management, and package-author documentation.
-- [ ] Commit the implementation, synchronize the testsite, build and verify the next release, and update the neighboring `batoi-www` publication files.
+- [x] Commit the implementation, synchronize the testsite, build and verify the next release, and update the neighboring `batoi-www` publication files.
 
 ## Objective
 
