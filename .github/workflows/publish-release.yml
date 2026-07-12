@@ -5,6 +5,11 @@ on:
     types:
       - published
   workflow_dispatch:
+    inputs:
+      version:
+        description: Existing GitHub release version to publish (for example 1.3.0)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -26,7 +31,7 @@ jobs:
           coverage: none
 
       - name: Check PHP syntax
-        run: find public_html radpress tools -name '*.php' -print0 | xargs -0 -n 1 php -l
+        run: find public_html radpress -name '*.php' -print0 | xargs -0 -n 1 php -l
 
       - name: Run smoke test
         run: php radpress/tests/smoke.php
@@ -37,6 +42,7 @@ jobs:
       - name: Run theme, asset, security, and export tests
         run: |
           php radpress/tests/asset_library.php
+          php radpress/tests/editor_experience.php
           php radpress/tests/media_assets.php
           php radpress/tests/security_baseline.php
           php radpress/tests/role_access.php
@@ -45,16 +51,57 @@ jobs:
           php radpress/tests/theme_branding.php
           php radpress/tests/static_export.php
 
-      - name: Build release package
-        run: php tools/build-release.php
-
-      - name: Generate update manifest
-        run: php tools/generate-release-manifest.php
-
       - name: Resolve release version
         id: release
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+          RELEASED_AT: ${{ github.event.release.published_at }}
         run: |
-          php -r '$config = json_decode(file_get_contents("radpress/config/update.json"), true); echo "version=" . $config["current_version"] . PHP_EOL;' >> "$GITHUB_OUTPUT"
+          CONFIG_VERSION=$(php -r '$config = json_decode(file_get_contents("radpress/config/update.json"), true); echo $config["current_version"];')
+          VERSION=${INPUT_VERSION:-$CONFIG_VERSION}
+          test "$VERSION" = "$CONFIG_VERSION"
+          TAG=${RELEASE_TAG:-v$VERSION}
+          URL=${RELEASE_URL:-https://github.com/${{ github.repository }}/releases/tag/$TAG}
+          PUBLISHED=${RELEASED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "released_at=$PUBLISHED" >> "$GITHUB_OUTPUT"
+
+      - name: Download prebuilt release package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          mkdir -p dist
+          gh release download "$TAG" --pattern "batoi-press-$VERSION.zip" --dir dist
+          unzip -t "dist/batoi-press-$VERSION.zip"
+
+      - name: Generate public update manifest
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_URL: ${{ steps.release.outputs.url }}
+          RELEASED_AT: ${{ steps.release.outputs.released_at }}
+        run: |
+          php -r '
+          $version = getenv("VERSION");
+          $zip = "dist/batoi-press-{$version}.zip";
+          $manifest = [
+              "channel" => "stable",
+              "version" => $version,
+              "released_at" => getenv("RELEASED_AT"),
+              "download_url" => "https://www.batoi.com/pub/press/releases/batoi-press-{$version}.zip",
+              "checksum_sha256" => hash_file("sha256", $zip),
+              "minimum_php" => "8.1",
+              "github_release_url" => getenv("RELEASE_URL"),
+              "notes_url" => "https://www.batoi.com/press/releases#{$version}",
+              "trust" => ["signature_required" => false, "signature_algorithm" => null, "signature_url" => null, "public_key_url" => null],
+          ];
+          file_put_contents("dist/latest.json", json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+          '
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4

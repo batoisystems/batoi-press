@@ -78,13 +78,7 @@ radpress/data/versions/*
 
 Keep `.gitkeep` and `.htaccess` files in protected runtime directories so uploads preserve the expected folders and deny direct access on Apache-compatible hosts.
 
-Build a release ZIP with:
-
-```text
-php tools/build-release.php
-```
-
-Use `--output /path/to/batoi-press.zip` to choose a specific destination.
+Release ZIPs are produced with maintainer-only tooling that is intentionally excluded from the public repository and package. Installers should use the verified ZIP attached to the corresponding GitHub release or published through the stable manifest.
 
 ## Static Export Notes
 

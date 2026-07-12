@@ -29,9 +29,7 @@ php radpress/tests/static_export.php
 php radpress/tests/role_access.php
 php radpress/tests/post_ownership.php
 php radpress/tests/security_baseline.php
-php tools/build-release.php
-php tools/generate-release-manifest.php
-php tools/verify-release-artifacts.php
+php radpress/tests/editor_experience.php
 ```
 
 ## Deferred Items

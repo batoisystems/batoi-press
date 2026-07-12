@@ -23,9 +23,9 @@ From `1.0.0` onward, public content files, theme templates, installer behavior, 
 - [ ] Run PHP syntax checks for changed PHP files.
 - [ ] Run `php radpress/tests/smoke.php`.
 - [ ] Run `php radpress/tests/update_runner.php` when update or release packaging changed.
-- [ ] Build the package with `php tools/build-release.php`.
-- [ ] Generate the manifest with `php tools/generate-release-manifest.php`.
-- [ ] Verify release artifacts with `php tools/verify-release-artifacts.php`.
+- [ ] Build the package with the maintainer's local release tooling.
+- [ ] Generate the public manifest from the verified package.
+- [ ] Verify package structure, version, checksum, and excluded runtime state.
 - [ ] Verify `dist/batoi-press-{version}.zip` excludes generated runtime state.
 - [ ] Verify `dist/latest.json` uses the same version and correct SHA-256 checksum.
 - [ ] Commit the release changes.

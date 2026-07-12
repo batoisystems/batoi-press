@@ -132,17 +132,7 @@ Release ZIPs should include `public_html/`, `radpress/`, `README.md`, and `LICEN
 
 Every repository release must increment `radpress/config/update.json` before building packages or publishing the stable manifest. See `radpress/docs/release-management.md` for version policy, release checklist, and the stable `1.0.0` readiness checklist.
 
-Build a local release ZIP with:
-
-```sh
-php tools/build-release.php
-```
-
-Generate the public update manifest with:
-
-```sh
-php tools/generate-release-manifest.php
-```
+Release packages and manifests are built with maintainers' local, unpublished release tooling. The resulting ZIP is attached to the matching GitHub release. The public workflow validates that prebuilt package, generates `latest.json`, and publishes both artifacts when deployment credentials are configured.
 
 The generated files are:
 
@@ -165,7 +155,7 @@ https://www.batoi.com/pub/press/releases/batoi-press-{version}.zip
 
 ## Release Publication
 
-GitHub Actions builds and publishes release artifacts when a GitHub release is published or when the `Publish release` workflow is run manually. The release gate checks PHP syntax, runs smoke, update, static export, role access, post ownership, and security baseline tests, builds the ZIP, generates `latest.json`, and uploads both files as workflow artifacts. Deployment to the public Batoi website runs when the complete deployment secret set is configured; otherwise the workflow succeeds with a deployment-skipped warning.
+GitHub Actions validates and publishes a prebuilt release package when a GitHub release is published or when the `Publish release` workflow is run manually for an existing release version. The release gate checks PHP syntax, runs the complete regression suite, downloads and verifies the matching GitHub release ZIP, generates `latest.json`, and uploads both files as workflow artifacts. Deployment to the public Batoi website runs when the complete deployment secret set is configured; otherwise the workflow succeeds with a deployment-skipped warning.
 
 GitHub Actions secrets required for automatic website deployment:
 
@@ -182,16 +172,7 @@ The deploy target layout is:
 {BATOI_WWW_DEPLOY_PATH}/public_html/pub/press/releases/batoi-press-{version}.zip
 ```
 
-Manual fallback:
-
-```sh
-php tools/build-release.php
-php tools/generate-release-manifest.php
-VERSION=$(php -r '$config = json_decode(file_get_contents("radpress/config/update.json"), true); echo $config["current_version"];')
-ssh -p "$BATOI_WWW_DEPLOY_PORT" "$BATOI_WWW_DEPLOY_USER@$BATOI_WWW_DEPLOY_HOST" "mkdir -p '$BATOI_WWW_DEPLOY_PATH/public_html/pub/press/releases'"
-scp -P "$BATOI_WWW_DEPLOY_PORT" dist/latest.json "$BATOI_WWW_DEPLOY_USER@$BATOI_WWW_DEPLOY_HOST:$BATOI_WWW_DEPLOY_PATH/public_html/pub/press/latest.json"
-scp -P "$BATOI_WWW_DEPLOY_PORT" "dist/batoi-press-$VERSION.zip" "$BATOI_WWW_DEPLOY_USER@$BATOI_WWW_DEPLOY_HOST:$BATOI_WWW_DEPLOY_PATH/public_html/pub/press/releases/batoi-press-$VERSION.zip"
-```
+Manual publication is performed from the maintainer's local release workspace. Internal `specs/` and `tools/` directories are intentionally excluded from the public repository and release ZIP.
 
 ## Theme Development
 
