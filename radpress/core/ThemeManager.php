@@ -208,6 +208,14 @@ final class ThemeManager
         $relative = AssetManager::validateRelativePath($relative);
         $url = '/theme-assets/' . rawurlencode($this->sanitizeSlug($slug)) . '/'
             . implode('/', array_map('rawurlencode', explode('/', $relative)));
+        try {
+            $version = (string)($this->manifest($slug)['version'] ?? '');
+            if ($version !== '') {
+                $url .= '?v=' . rawurlencode($version);
+            }
+        } catch (RuntimeException) {
+            // Invalid themes retain an unversioned URL and fail normal validation.
+        }
         return $localized && function_exists('bp_url') ? \bp_url($url) : $url;
     }
 

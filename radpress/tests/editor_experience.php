@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 use Batoi\Press\Admin\ContentEditor;
 use Batoi\Press\Core\Config;
+use Batoi\Press\Core\HtmlContent;
 
 require dirname(__DIR__) . '/autoload.php';
 require dirname(__DIR__) . '/helpers/url.php';
@@ -10,6 +11,12 @@ require dirname(__DIR__) . '/helpers/url.php';
 $root = sys_get_temp_dir() . '/batoi-press-editor-experience-' . bin2hex(random_bytes(4));
 
 try {
+    $semanticHtml = '<main><header><h1>Title</h1></header><section class="bp-hero"><article><p>Body</p></article></section><aside>Related</aside><footer>Footer</footer></main>';
+    $sanitizedSemanticHtml = (new HtmlContent())->sanitize($semanticHtml);
+    assertEditor(str_contains($sanitizedSemanticHtml, '<section class="bp-hero">'), 'semantic section wrappers and classes should survive sanitization');
+    assertEditor(str_contains($sanitizedSemanticHtml, '<article>'), 'semantic article wrappers should survive sanitization');
+    assertEditor(str_contains($sanitizedSemanticHtml, '<header>') && str_contains($sanitizedSemanticHtml, '<footer>'), 'semantic header and footer wrappers should survive sanitization');
+
     mkdir($root . '/radpress/config', 0775, true);
     mkdir($root . '/public_html', 0775, true);
     file_put_contents($root . '/radpress/config/paths.json', json_encode([

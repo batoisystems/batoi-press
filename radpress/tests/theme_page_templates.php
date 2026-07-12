@@ -47,6 +47,7 @@ try {
     assertTemplate(!isset($templates['../unsafe']), 'unsafe page-template keys should be discarded');
     assertTemplate($manager->resolvePageLayout('demo', 'shop') === 'shop', 'declared shop template should resolve');
     assertTemplate($manager->resolvePageLayout('demo', 'missing') === 'page', 'unknown template should fall back to page');
+    assertTemplate(str_ends_with($manager->assetUrl('demo', 'css/theme.css', false), '?v=1.0.0'), 'theme asset URLs should include the manifest version for cache invalidation');
 
     $pages = new PageRepository($paths, new FileStore(), new HtmlContent());
     $saved = $pages->save(['title' => 'Store', 'slug' => 'store', 'status' => 'published', 'template' => 'shop', 'body' => '<h1>Store</h1>'], 'owner');

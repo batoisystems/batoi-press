@@ -5,7 +5,7 @@ namespace Batoi\Press\Core;
 
 final class HtmlContent
 {
-    private const ALLOWED_TAGS = '<p><div><span><br><h1><h2><h3><h4><h5><h6><ul><ol><li><strong><b><em><i><del><mark><small><sub><sup><abbr><a><blockquote><code><pre><img><figure><figcaption><hr><table><thead><tbody><tr><th><td><form><label><input><button><select><option><textarea>';
+    private const ALLOWED_TAGS = '<main><header><footer><nav><section><article><aside><p><div><span><br><h1><h2><h3><h4><h5><h6><ul><ol><li><strong><b><em><i><del><mark><small><sub><sup><abbr><a><blockquote><code><pre><img><figure><figcaption><hr><table><thead><tbody><tfoot><tr><th><td><form><fieldset><legend><label><input><button><select><option><textarea>';
 
     public function sanitize(string $html): string
     {

@@ -37,7 +37,7 @@
     align-items: center;
     border-radius: var(--bp-radius);
     display: inline-flex;
-    font-weight: 680;
+    font-weight: 600;
     justify-content: center;
     min-height: 40px;
     padding: 8px 12px;
@@ -99,9 +99,22 @@ body {
     margin: 0;
     background: var(--bp-bg);
     color: var(--bp-text);
-    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "proxima-nova", sans-serif;
+    font-family: "proxima-nova", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 15px;
     line-height: 1.5;
+}
+
+.bp-admin-shell h1,
+.bp-admin-shell h2,
+.bp-admin-shell h3,
+.bp-admin-shell h4,
+.bp-admin-shell strong,
+.bp-admin-shell b,
+.bp-admin-shell button,
+.bp-admin-shell .bp-button,
+.bp-admin-shell .uif-editor-button,
+.bp-admin-shell .uif-button {
+    font-weight: 600;
 }
 
 a {
@@ -149,7 +162,7 @@ p {
     color: var(--bp-text);
     display: inline-flex;
     font-size: 1.05rem;
-    font-weight: 800;
+    font-weight: 600;
     gap: 10px;
     min-width: 0;
     text-decoration: none;
@@ -178,7 +191,7 @@ p {
 .bp-links a {
     border-radius: 6px;
     color: var(--bp-muted);
-    font-weight: 650;
+    font-weight: 600;
     padding: 6px 8px;
     text-decoration: none;
 }
@@ -279,7 +292,7 @@ p {
 
 .bp-admin-brand span {
     font-size: 0.98rem;
-    font-weight: 760;
+    font-weight: 600;
     line-height: 1.2;
     overflow-wrap: anywhere;
 }
@@ -288,7 +301,7 @@ p {
     color: var(--bp-muted);
     display: block;
     font-size: 0.72rem;
-    font-weight: 720;
+    font-weight: 600;
     line-height: 1.2;
     letter-spacing: 0;
     text-transform: uppercase;
@@ -303,7 +316,7 @@ p {
     display: inline-flex;
     flex: 0 0 auto;
     font-size: 0.8rem;
-    font-weight: 900;
+    font-weight: 600;
     height: 36px;
     justify-content: center;
     width: 36px;
@@ -332,7 +345,7 @@ p {
 .bp-admin-sidebar-nav h2 {
     color: var(--bp-muted);
     font-size: 0.68rem;
-    font-weight: 650;
+    font-weight: 600;
     letter-spacing: 0;
     margin: 0 0 2px;
     padding: 0 9px;
@@ -347,7 +360,7 @@ p {
     display: flex;
     font-size: 0.92rem;
     gap: 8px;
-    font-weight: 520;
+    font-weight: 500;
     min-height: 32px;
     padding: 6px 9px;
     text-decoration: none;
@@ -363,7 +376,7 @@ p {
     background: #e6f4ff;
     border-color: transparent;
     color: var(--bp-accent-dark);
-    font-weight: 650;
+    font-weight: 600;
     box-shadow: inset 3px 0 0 var(--bp-accent);
 }
 
@@ -374,7 +387,7 @@ p {
     border-radius: 0;
     display: inline-flex;
     font-size: 0.75rem;
-    font-weight: 800;
+    font-weight: 600;
     height: 20px;
     justify-content: center;
     width: 20px;
@@ -402,7 +415,7 @@ p {
 .bp-admin-sidebar-footer strong {
     color: var(--bp-text);
     font-size: 0.82rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .bp-admin-sidebar-footer small {
@@ -463,7 +476,7 @@ p {
 
 .bp-admin-topbar strong {
     font-size: 0.94rem;
-    font-weight: 720;
+    font-weight: 600;
 }
 
 .bp-admin-topbar span {
@@ -501,7 +514,7 @@ p {
 
 .bp-admin-command span {
     font-size: 0.72rem;
-    font-weight: 760;
+    font-weight: 600;
     text-transform: uppercase;
 }
 
@@ -544,7 +557,7 @@ p {
     border: 1px solid var(--bp-line);
     border-radius: 999px;
     display: inline-flex;
-    font-weight: 800;
+    font-weight: 600;
     gap: 6px;
     padding: 3px 8px;
 }
@@ -582,7 +595,7 @@ p {
 
 .bp-admin-page-header h1 {
     font-size: clamp(1.5rem, 2vw, 1.9rem);
-    font-weight: 700;
+    font-weight: 600;
     letter-spacing: 0;
 }
 
@@ -627,7 +640,7 @@ p {
     display: inline-flex;
     flex: 0 0 auto;
     font-size: 0.72rem;
-    font-weight: 900;
+    font-weight: 600;
     height: 30px;
     justify-content: center;
     width: 30px;
@@ -641,13 +654,13 @@ p {
 .bp-admin-stat dt {
     color: var(--bp-muted);
     font-size: 0.78rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .bp-admin-stat dd {
     color: var(--bp-text);
     font-size: 1.18rem;
-    font-weight: 700;
+    font-weight: 600;
     margin: 4px 0 0;
 }
 
@@ -675,7 +688,7 @@ p {
 
 .bp-admin-section h2 {
     font-size: 0.98rem;
-    font-weight: 720;
+    font-weight: 600;
 }
 
 .bp-admin-section header p {
@@ -709,7 +722,7 @@ p {
     display: inline-flex;
     font-size: 0.76rem;
     font-style: normal;
-    font-weight: 900;
+    font-weight: 600;
     height: 30px;
     justify-content: center;
     width: 30px;
@@ -740,7 +753,7 @@ p {
 
 .bp-command-hero h1 {
     font-size: clamp(1.35rem, 2.2vw, 1.75rem);
-    font-weight: 760;
+    font-weight: 600;
     margin-bottom: 5px;
 }
 
@@ -786,7 +799,7 @@ p {
     display: inline-flex;
     flex: 0 0 auto;
     font-size: 0.8rem;
-    font-weight: 900;
+    font-weight: 600;
     height: 28px;
     justify-content: center;
     width: 28px;
@@ -850,7 +863,7 @@ p {
 
 .bp-admin-guidance-grid strong {
     display: block;
-    font-weight: 760;
+    font-weight: 600;
     margin-bottom: 4px;
 }
 
@@ -877,7 +890,7 @@ p {
 }
 
 .bp-dashboard-chart text {
-    font-weight: 800;
+    font-weight: 600;
 }
 
 .bp-chart-legend {
@@ -947,7 +960,7 @@ p {
     color: var(--bp-muted);
     font-size: 0.75rem;
     font-style: normal;
-    font-weight: 900;
+    font-weight: 600;
     padding: 3px 8px;
 }
 
@@ -993,7 +1006,7 @@ p {
 }
 
 .bp-content-mini-list a {
-    font-weight: 800;
+    font-weight: 600;
 }
 
 .bp-dashboard-logout {
@@ -1034,7 +1047,7 @@ p {
     border-radius: 999px;
     color: var(--bp-muted);
     font-size: 0.86rem;
-    font-weight: 750;
+    font-weight: 600;
     padding: 7px 10px;
 }
 
@@ -1050,7 +1063,7 @@ p {
     display: flex;
     gap: 8px;
     font-size: 0.86rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .bp-admin-search input {
@@ -1106,7 +1119,7 @@ p {
 .bp-audit-details strong {
     color: var(--bp-text);
     display: inline;
-    font-weight: 720;
+    font-weight: 600;
 }
 
 .bp-audit-filter-form {
@@ -1168,7 +1181,7 @@ p {
 
 .bp-aif-requirements strong {
     font-size: 0.92rem;
-    font-weight: 680;
+    font-weight: 600;
 }
 
 .bp-user-role-guide {
@@ -1192,7 +1205,7 @@ p {
 .bp-user-role-guide dt {
     color: var(--bp-text);
     font-size: 0.92rem;
-    font-weight: 760;
+    font-weight: 600;
 }
 
 .bp-user-role-guide dd {
@@ -1248,7 +1261,7 @@ p {
     border-radius: 999px;
     display: inline-flex;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1;
     padding: 7px 9px;
 }
@@ -1272,7 +1285,7 @@ p {
     border-radius: 999px;
     display: inline-flex;
     font-size: 0.78rem;
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1;
     padding: 7px 9px;
 }
@@ -1313,7 +1326,7 @@ p {
 }
 
 .bp-table-actions a {
-    font-weight: 750;
+    font-weight: 600;
 }
 
 .bp-link-button {
@@ -1322,7 +1335,7 @@ p {
     color: var(--bp-accent);
     cursor: pointer;
     font: inherit;
-    font-weight: 750;
+    font-weight: 600;
     padding: 0;
 }
 
@@ -1364,7 +1377,7 @@ p {
 .bp-filter-field label {
     color: var(--bp-muted);
     font-size: 0.76rem;
-    font-weight: 760;
+    font-weight: 600;
 }
 
 .bp-filter-field input,
@@ -1406,7 +1419,7 @@ p {
     display: inline-flex;
     font: inherit;
     font-size: 0.92rem;
-    font-weight: 680;
+    font-weight: 600;
     gap: 7px;
     justify-content: center;
     height: 38px;
@@ -1494,7 +1507,7 @@ p {
 .bp-section-kicker {
     color: var(--bp-accent-dark);
     font-size: 0.72rem;
-    font-weight: 760;
+    font-weight: 600;
     letter-spacing: 0;
     margin-bottom: 8px;
     text-transform: uppercase;
@@ -1531,7 +1544,7 @@ p {
     color: var(--bp-text);
     display: inline-flex;
     font-size: 0.92rem;
-    font-weight: 680;
+    font-weight: 600;
     gap: 7px;
     justify-content: center;
     min-height: 38px;
@@ -1591,13 +1604,13 @@ p {
 .bp-stats dt {
     color: var(--bp-muted);
     font-size: 0.875rem;
-    font-weight: 650;
+    font-weight: 600;
 }
 
 .bp-stats dd {
     margin: 4px 0 0;
     color: var(--bp-text);
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .bp-checks .is-ok {
@@ -1720,7 +1733,7 @@ p {
 .bp-favicon-current span {
     color: var(--bp-muted);
     font-size: 0.86rem;
-    font-weight: 750;
+    font-weight: 600;
 }
 
 .bp-favicon-current small {
@@ -1786,7 +1799,7 @@ p {
     color: var(--bp-muted);
     display: block;
     font-size: 0.86rem;
-    font-weight: 650;
+    font-weight: 600;
     min-height: 36px;
     padding: 8px 12px;
 }
@@ -1872,7 +1885,7 @@ p {
 .bp-admin-editor .bp-editor-toolbar-action span {
     color: inherit;
     font-size: 0.76rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .bp-admin-editor .uif-editor-surface,
@@ -1931,7 +1944,7 @@ p {
     color: var(--bp-muted);
     cursor: pointer;
     font-size: 0.78rem;
-    font-weight: 650;
+    font-weight: 600;
     min-height: 28px;
     padding: 4px 8px;
 }
@@ -1974,7 +1987,7 @@ p {
 }
 
 .bp-code-editor-label > span {
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .bp-code-editor-label > small {
@@ -1993,7 +2006,7 @@ p {
 
 .bp-content-editor > label {
     color: var(--bp-text);
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .bp-editor-assistance {
@@ -2095,7 +2108,7 @@ p {
 
 .bp-preview-banner a {
     color: #99f6e4;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .bp-snapshot-list {
@@ -2130,7 +2143,7 @@ p {
 .bp-meta-list dt {
     color: var(--bp-muted);
     font-size: 0.82rem;
-    font-weight: 750;
+    font-weight: 600;
 }
 
 .bp-meta-list dd {
@@ -2160,7 +2173,7 @@ p {
     border: 1px solid var(--bp-line);
     border-radius: 999px;
     color: var(--bp-text);
-    font-weight: 750;
+    font-weight: 600;
     padding: 7px 10px;
     text-decoration: none;
 }
@@ -2172,7 +2185,7 @@ p {
 
 .bp-details summary {
     cursor: pointer;
-    font-weight: 800;
+    font-weight: 600;
 }
 
 .bp-form label {
@@ -2233,7 +2246,7 @@ p {
 .bp-media-code-field > label {
     color: var(--bp-muted);
     font-size: 0.72rem;
-    font-weight: 700;
+    font-weight: 600;
 }
 
 .bp-media-code-field > div {
@@ -2333,7 +2346,7 @@ p {
     cursor: pointer;
     display: inline-flex;
     font: inherit;
-    font-weight: 680;
+    font-weight: 600;
     gap: 7px;
     padding: 9px 14px;
 }

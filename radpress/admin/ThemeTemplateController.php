@@ -415,10 +415,10 @@ final class ThemeTemplateController
     {
         return '.bp-preview-banner{background:#0f172a;border-bottom:3px solid #00b696;color:#fff;position:sticky;top:0;z-index:9999;box-shadow:0 8px 24px rgba(15,23,42,.18)}'
             . '.bp-preview-banner-inner{align-items:center;display:flex;gap:12px;justify-content:center;margin:0 auto;max-width:1120px;min-height:46px;padding:8px 20px}'
-            . '.bp-preview-banner strong{font-size:.95rem;font-weight:760}'
+            . '.bp-preview-banner strong{font-size:.95rem;font-weight:600}'
             . '.bp-preview-banner span{color:#cbd5e1;font-size:.86rem}'
-            . '.bp-preview-banner .bp-preview-badge{background:rgba(0,182,150,.16);border:1px solid rgba(0,182,150,.42);border-radius:999px;color:#99f6e4;font-size:.72rem;font-weight:800;letter-spacing:.02em;padding:4px 8px;text-transform:uppercase}'
-            . '.bp-preview-banner a{background:#fff;border:1px solid rgba(255,255,255,.78);border-radius:3px;color:#0f172a;font-size:.84rem;font-weight:760;margin-left:auto;padding:7px 10px;text-decoration:none}'
+            . '.bp-preview-banner .bp-preview-badge{background:rgba(0,182,150,.16);border:1px solid rgba(0,182,150,.42);border-radius:999px;color:#99f6e4;font-size:.72rem;font-weight:600;letter-spacing:0;padding:4px 8px;text-transform:uppercase}'
+            . '.bp-preview-banner a{background:#fff;border:1px solid rgba(255,255,255,.78);border-radius:3px;color:#0f172a;font-size:.84rem;font-weight:600;margin-left:auto;padding:7px 10px;text-decoration:none}'
             . '.bp-preview-banner nav{align-items:center;display:flex;flex-wrap:wrap;gap:4px}.bp-preview-banner nav a{background:transparent;border-color:transparent;color:#cbd5e1;margin:0;padding:5px 7px}.bp-preview-banner nav a.is-current{background:rgba(255,255,255,.14);color:#fff}'
             . '.bp-preview-banner a:hover{background:#e6f4ff;color:#07497c}'
             . '@media(max-width:720px){.bp-preview-banner-inner{align-items:flex-start;flex-direction:column;gap:6px}.bp-preview-banner a{margin-left:0}}';
