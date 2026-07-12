@@ -86,7 +86,7 @@ This keeps metadata structured and content human-readable.
 
 ## Stable Contract
 
-Batoi Press `1.0.0` treats content format, public routes, theme template ownership, installer lock behavior, update package structure, and release artifacts as stable. See `radpress/docs/stable-readiness.md` for the stable scope, verification evidence, and deferred `1.x` items.
+Batoi Press `1.0.0` treats content format, public routes, theme template ownership, installer lock behavior, update package structure, and release artifacts as stable.
 
 ## Security Notes
 
@@ -130,9 +130,7 @@ Batoi Press can check the manifest, verify and stage a package, create a backup,
 
 Release ZIPs should include `public_html/`, `radpress/`, `README.md`, and `LICENSE`, while excluding generated runtime files such as sessions, cache, backups, exports, logs, and `radpress/config/installed.lock`. See `radpress/docs/installation.md` for package notes.
 
-Every repository release must increment `radpress/config/update.json` before building packages or publishing the stable manifest. See `radpress/docs/release-management.md` for version policy, release checklist, and the stable `1.0.0` readiness checklist.
-
-Release packages and manifests are built with maintainers' local, unpublished release tooling. The resulting ZIP is attached to the matching GitHub release. The public workflow validates that prebuilt package, generates `latest.json`, and publishes both artifacts when deployment credentials are configured.
+Every repository release increments `radpress/config/update.json`. The resulting verified ZIP is attached to the matching GitHub release and published through the stable update manifest.
 
 The generated files are:
 
@@ -155,24 +153,7 @@ https://www.batoi.com/pub/press/releases/batoi-press-{version}.zip
 
 ## Release Publication
 
-GitHub Actions validates and publishes a prebuilt release package when a GitHub release is published or when the `Publish release` workflow is run manually for an existing release version. The release gate checks PHP syntax, runs the complete regression suite, downloads and verifies the matching GitHub release ZIP, generates `latest.json`, and uploads both files as workflow artifacts. Deployment to the public Batoi website runs when the complete deployment secret set is configured; otherwise the workflow succeeds with a deployment-skipped warning.
-
-GitHub Actions secrets required for automatic website deployment:
-
-- `BATOI_WWW_DEPLOY_HOST`
-- `BATOI_WWW_DEPLOY_USER`
-- `BATOI_WWW_DEPLOY_PORT`
-- `BATOI_WWW_DEPLOY_KEY`
-- `BATOI_WWW_DEPLOY_PATH`
-
-The deploy target layout is:
-
-```text
-{BATOI_WWW_DEPLOY_PATH}/public_html/pub/press/latest.json
-{BATOI_WWW_DEPLOY_PATH}/public_html/pub/press/releases/batoi-press-{version}.zip
-```
-
-Manual publication is performed from the maintainer's local release workspace. Internal `specs/` and `tools/` directories are intentionally excluded from the public repository and release ZIP.
+Official packages are attached to versioned GitHub releases and mirrored through the stable update manifest. Check the published SHA-256 value before installing a package.
 
 ## Theme Development
 

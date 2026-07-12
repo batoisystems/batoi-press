@@ -78,7 +78,7 @@ radpress/data/versions/*
 
 Keep `.gitkeep` and `.htaccess` files in protected runtime directories so uploads preserve the expected folders and deny direct access on Apache-compatible hosts.
 
-Release ZIPs are produced with maintainer-only tooling that is intentionally excluded from the public repository and package. Installers should use the verified ZIP attached to the corresponding GitHub release or published through the stable manifest.
+Installers should use the verified ZIP attached to the corresponding GitHub release or published through the stable manifest.
 
 ## Static Export Notes
 
