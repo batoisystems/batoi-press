@@ -48,6 +48,7 @@ From `1.0.0` onward, public content files, theme templates, installer behavior, 
 - `1.1.0`: Typed asset storage, legacy media compatibility, multimedia uploads, versioned frontend library packages, governed activation, public tag injection, and recursive static export. See `radpress/docs/releases/v1.1.0.md`.
 - `1.2.0`: Site branding controls, versioned theme manifests, bundled theme assets, hardened theme packages, multi-layout preview, and active-theme static export parity. See `radpress/docs/releases/v1.2.0.md`.
 - `1.2.1`: Complete theme integration coverage and correct empty-site page/post preview fixtures. See `radpress/docs/releases/v1.2.1.md`.
+- `1.2.2`: Align Users filters with the shared admin filter grid and normalize filter control heights. See `radpress/docs/releases/v1.2.2.md`.
 
 ## Package Trust Metadata
 
