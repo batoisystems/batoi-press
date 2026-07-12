@@ -149,7 +149,9 @@ final class StaticExporter
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
             $target = $slug === 'home' ? 'index.html' : $slug . '/index.html';
-            $this->writeHtml($workDir, $target, $this->renderTheme('page', ['page' => $page, 'title' => (string)($page['title'] ?? '')], '/' . ($slug === 'home' ? '' : $slug . '/')));
+            $theme = new Theme($this->paths, $this->site);
+            $layout = $theme->pageLayout((string)($page['template'] ?? 'page'));
+            $this->writeHtml($workDir, $target, $this->renderTheme($layout, ['page' => $page, 'title' => (string)($page['title'] ?? '')], '/' . ($slug === 'home' ? '' : $slug . '/')));
         }
 
         $posts = $this->posts->allPublished();

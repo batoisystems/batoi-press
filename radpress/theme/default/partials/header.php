@@ -34,9 +34,14 @@ if ($menuItems === []) {
             <span class="bp-brand-name"><?php echo bp_esc($brandName); ?></span>
             <?php endif; ?>
         </a>
-        <div class="bp-links">
+        <button class="bp-nav-toggle" type="button" aria-expanded="false" aria-controls="bp-primary-links">
+            <span class="bp-nav-toggle-icon" aria-hidden="true"></span>
+            <span>Menu</span>
+        </button>
+        <div class="bp-links" id="bp-primary-links">
             <?php foreach ($menuItems as $item): ?>
-            <a href="<?php echo bp_attr(bp_url((string)$item['url'])); ?>"><?php echo bp_esc((string)$item['label']); ?></a>
+            <?php $current = parse_url((string)$item['url'], PHP_URL_PATH) === parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH); ?>
+            <a<?php echo $current ? ' aria-current="page"' : ''; ?> href="<?php echo bp_attr(bp_url((string)$item['url'])); ?>"><?php echo bp_esc((string)$item['label']); ?></a>
             <?php endforeach; ?>
         </div>
     </nav>

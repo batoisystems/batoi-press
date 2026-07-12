@@ -167,26 +167,30 @@ final class ThemeTemplateController
         $html = new HtmlContent();
         $pages = new PageRepository($this->config->paths(), $files, $html);
         $posts = new PostRepository($this->config->paths(), $files, $html);
-        $layout = in_array($layout, ['home', 'page', 'post', 'blog', 'archive', '404'], true) ? $layout : 'home';
+        $previewTargets = ['home', 'page', 'landing', 'shop', 'product', 'cart', 'checkout', 'account', 'contact', 'post', 'blog', 'archive', '404'];
+        $layout = in_array($layout, $previewTargets, true) ? $layout : 'home';
         $page = $layout === 'home' ? $pages->findBySlug('home') : ($pages->allPublished()[0] ?? null);
         $post = $posts->allPublished()[0] ?? null;
-        if (in_array($layout, ['home', 'page'], true) && !is_array($page)) {
-            $page = ['title' => 'Preview Page', 'body' => '<h1>Preview Page</h1><p>Theme page layout preview.</p>'];
+        $pageTargets = ['home', 'page', 'landing', 'shop', 'product', 'cart', 'checkout', 'account', 'contact'];
+        if (in_array($layout, $pageTargets, true) && ($layout !== 'home' || !is_array($page))) {
+            $page = $this->previewPage($layout);
         }
         if ($layout === 'post' && !is_array($post)) {
             $post = ['title' => 'Preview Post', 'body' => '<h1>Preview Post</h1><p>Theme post layout preview.</p>', 'published_at' => date(DATE_ATOM)];
         }
 
         $previewLinks = '';
-        foreach (['home', 'page', 'post', 'blog', 'archive', '404'] as $target) {
-            $previewLinks .= '<a' . ($layout === $target ? ' class="is-current"' : '') . ' href="' . $this->e(\bp_url('/admin/themes/preview/' . rawurlencode($theme)) . '?layout=' . $target) . '">' . $this->e(ucfirst($target)) . '</a>';
+        foreach ($previewTargets as $target) {
+            $label = $target === '404' ? '404' : ucwords(str_replace('-', ' ', $target));
+            $previewLinks .= '<a' . ($layout === $target ? ' class="is-current"' : '') . ' href="' . $this->e(\bp_url('/admin/themes/preview/' . rawurlencode($theme)) . '?layout=' . $target) . '">' . $this->e($label) . '</a>';
         }
         $previewBanner = '<div class="bp-preview-banner"><div class="bp-preview-banner-inner"><span class="bp-preview-badge">Preview</span><strong>' . $this->e($this->themeName($theme)) . '</strong><nav aria-label="Preview layout">' . $previewLinks . '</nav><a href="' . $this->e(\bp_url('/admin/themes')) . '">Back to Themes</a></div></div>';
 
         $renderLayout = $layout;
         $data = ['title' => ucfirst($layout)];
-        if (in_array($layout, ['home', 'page'], true) && is_array($page)) {
-            $renderLayout = 'page';
+        if (in_array($layout, $pageTargets, true) && is_array($page)) {
+            $renderer = new Theme($this->config->paths(), $site);
+            $renderLayout = $renderer->pageLayout((string)($page['template'] ?? 'page'));
             $data = ['page' => $page, 'title' => (string)($page['title'] ?? ucfirst($layout))];
         } elseif ($layout === 'post' && is_array($post)) {
             $data = ['post' => $post, 'title' => (string)($post['title'] ?? 'Post')];
@@ -201,6 +205,37 @@ final class ThemeTemplateController
         $body = $response->content();
         $body = str_replace('</head>', '<style>' . $this->previewCss() . '</style></head>', $body);
         return Response::html($body);
+    }
+
+    private function previewPage(string $template): array
+    {
+        $asset = '/assets/img/batoi-press/press-color-512.png';
+        $fixtures = [
+            'page' => '<h1>Built for clear communication</h1><p>This standard page supports long-form company, service, policy, and informational content.</p><h2>Flexible by design</h2><p>Use headings, lists, tables, media, quotes, and links while the theme keeps reading width and rhythm consistent.</p>',
+            'landing' => '<section class="bp-hero"><div class="bp-hero-copy"><p class="bp-eyebrow">A stronger digital presence</p><h1>Publish a site that works as hard as you do</h1><p class="bp-hero-lead">A versatile foundation for company sites, campaigns, services, editorial content, and commerce journeys.</p><div class="bp-button-row"><a class="bp-button" href="#capabilities">Explore capabilities</a><a class="bp-button bp-button-secondary" href="/contact">Talk to us</a></div></div><div class="bp-hero-media"><img src="' . $asset . '" alt="Batoi Press"></div></section><section class="bp-section bp-section-alt" id="capabilities"><div class="bp-section-inner"><header class="bp-section-header"><p class="bp-eyebrow">One theme, many uses</p><h2>Adapt without rebuilding</h2></header><div class="bp-grid bp-grid-3"><article class="bp-feature"><span class="bp-feature-mark">01</span><h3>Corporate</h3><p>Present services, teams, credentials, and contact paths.</p></article><article class="bp-feature"><span class="bp-feature-mark">02</span><h3>Publishing</h3><p>Share articles and durable reference content.</p></article><article class="bp-feature"><span class="bp-feature-mark">03</span><h3>Commerce</h3><p>Build product discovery and purchase handoff pages.</p></article></div></div></section>',
+            'shop' => '<header class="bp-commerce-toolbar"><div><p class="bp-eyebrow">Collection</p><h1>Shop essentials</h1><p>Thoughtfully selected products for modern work.</p></div><div class="bp-filter-row"><a class="bp-filter-chip is-active" href="#">All</a><a class="bp-filter-chip" href="#">Featured</a><a class="bp-filter-chip" href="#">New</a></div></header><section class="bp-product-grid">' . $this->previewProducts($asset) . '</section>',
+            'product' => '<section class="bp-product-detail"><div class="bp-product-gallery"><div class="bp-product-thumbnails"><button class="bp-product-thumbnail"><img src="' . $asset . '" alt="Product thumbnail"></button></div><div class="bp-product-gallery-main"><img src="' . $asset . '" alt="Batoi Press product preview"></div></div><div class="bp-product-summary"><p class="bp-eyebrow">Featured</p><h1>Versatile digital edition</h1><p class="bp-rating" aria-label="Rated 4.8 out of 5">4.8 / 5 · 24 reviews</p><p class="bp-price">$49.00</p><p>A focused product summary with clear benefits, options, fulfilment notes, and a purchase handoff.</p><fieldset class="bp-option-group"><legend>Edition</legend><div class="bp-swatches"><button class="bp-swatch is-selected" type="button" data-bp-swatch>Standard</button><button class="bp-swatch" type="button" data-bp-swatch>Extended</button></div></fieldset><div class="bp-purchase-row"><div class="bp-quantity" data-bp-quantity><button type="button" data-step="-1" aria-label="Decrease quantity">−</button><input type="number" min="1" max="99" value="1" aria-label="Quantity"><button type="button" data-step="1" aria-label="Increase quantity">+</button></div><a class="bp-button" href="/cart">Add to cart</a></div><div class="bp-product-notes"><p><strong>Delivery:</strong> Instant digital access</p><p><strong>Support:</strong> Email assistance included</p></div></div></section>',
+            'cart' => '<header class="bp-page-heading"><p class="bp-eyebrow">Your order</p><h1>Shopping cart</h1></header><div class="bp-commerce-shell"><section class="bp-cart-list"><article class="bp-cart-item"><img class="bp-cart-item-media" src="' . $asset . '" alt="Digital edition"><div><h2>Versatile digital edition</h2><p>Standard edition</p><a class="bp-text-link" href="#">Remove</a></div><div class="bp-quantity" data-bp-quantity><button type="button" data-step="-1" aria-label="Decrease quantity">−</button><input type="number" min="1" max="99" value="1" aria-label="Quantity"><button type="button" data-step="1" aria-label="Increase quantity">+</button></div><strong>$49.00</strong></article></section>' . $this->previewOrderSummary('Proceed to checkout', '/checkout') . '</div>',
+            'checkout' => '<header class="bp-page-heading"><p class="bp-eyebrow">Secure checkout</p><h1>Complete your order</h1></header><div class="bp-commerce-shell"><form><section class="bp-form-section"><h2>Contact</h2><div class="bp-field-grid"><label class="bp-field-wide">Email address<input type="email" autocomplete="email"></label></div></section><section class="bp-form-section"><h2>Billing details</h2><div class="bp-field-grid"><label>First name<input type="text" autocomplete="given-name"></label><label>Last name<input type="text" autocomplete="family-name"></label><label class="bp-field-wide">Address<input type="text" autocomplete="street-address"></label><label>City<input type="text" autocomplete="address-level2"></label><label>Postal code<input type="text" autocomplete="postal-code"></label></div></section><button type="submit">Continue to payment provider</button></form>' . $this->previewOrderSummary('Order total', '#') . '</div>',
+            'account' => '<header class="bp-page-heading"><p class="bp-eyebrow">Customer area</p><h1>Your account</h1><p>Review profile details, purchases, and available downloads.</p></header><nav class="bp-account-nav" aria-label="Account sections"><a aria-current="page" href="#">Overview</a><a href="#">Orders</a><a href="#">Downloads</a><a href="#">Profile</a></nav><section class="bp-card"><h2>Recent orders</h2><div class="bp-data-list"><div class="bp-data-row"><strong>#BP-1042</strong><span>Versatile digital edition</span><span>Complete</span><a class="bp-text-link" href="#">View</a></div></div></section>',
+            'contact' => '<div class="bp-contact-grid"><section><p class="bp-eyebrow">Contact</p><h1>Let us help</h1><p>Tell us what you are building and the team will route your enquiry.</p><div class="bp-card"><h2>Support</h2><p>support@example.com<br>Monday–Friday, 09:00–17:00</p></div></section><form><div class="bp-field-grid"><label>First name<input type="text"></label><label>Last name<input type="text"></label><label class="bp-field-wide">Email<input type="email"></label><label class="bp-field-wide">How can we help?<textarea></textarea></label></div><div class="bp-button-row"><button type="submit">Send enquiry</button></div></form></div>',
+        ];
+        $resolved = $template === 'home' ? 'landing' : $template;
+        return ['title' => ucwords($resolved), 'template' => $resolved, 'body' => $fixtures[$resolved] ?? $fixtures['page'], 'seo_description' => 'Theme preview for ' . $resolved . '.'];
+    }
+
+    private function previewProducts(string $asset): string
+    {
+        $items = '';
+        foreach ([['Essential edition', '$29.00'], ['Versatile edition', '$49.00'], ['Team edition', '$89.00'], ['Complete collection', '$129.00']] as [$name, $price]) {
+            $items .= '<article class="bp-product-card"><a class="bp-product-card-media" href="/product"><img src="' . $asset . '" alt="' . $this->e($name) . '"></a><h2><a href="/product">' . $this->e($name) . '</a></h2><p class="bp-price">' . $this->e($price) . '</p></article>';
+        }
+        return $items;
+    }
+
+    private function previewOrderSummary(string $label, string $url): string
+    {
+        return '<aside class="bp-order-summary"><h2>Summary</h2><div class="bp-order-line"><span>Subtotal</span><strong>$49.00</strong></div><div class="bp-order-line"><span>Delivery</span><span>Digital</span></div><div class="bp-order-line bp-order-total"><span>Total</span><strong>$49.00</strong></div><a class="bp-button" href="' . $this->e($url) . '">' . $this->e($label) . '</a></aside>';
     }
 
     public function index(?string $theme = null): Response

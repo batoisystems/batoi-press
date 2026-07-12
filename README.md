@@ -106,7 +106,7 @@ The admin console uses bundled Batoi UIF assets and a persistent business consol
 - Governance: users, updates, audit log.
 - Intelligence: Batoi AIF.
 
-Pages and posts use structured list screens, publication badges, preview links, and editor panels for content, publishing, and SEO. Media organizes images, documents, multimedia, custom styles, and scripts into typed paths while preserving existing `/media/` URLs. Owners and admins can install versioned frontend library ZIPs with dependency-preserving manifests, activation controls, and automatic public CSS/JS loading. Menus use label/URL rows with a legacy `Label|/url` fallback. Settings are grouped by identity, branding, URL, localization, editor configuration, and theme; branding supports text, logo, and logo-plus-text public header modes. Theme management supports validated manifests, bundled assets, activation, multi-layout preview, upload/upgrade, and constrained template editing. Users show roles, creation dates, account status, filtering, edit flows, password reset, and disable/reactivate controls with owner safeguards.
+Pages and posts use structured list screens, publication badges, preview links, and editor panels for content, publishing, and SEO. Pages can select manifest-declared layouts, with bundled templates for standard content, landing pages, contact pages, and presentation-ready shop, product, cart, checkout, and customer-account journeys. Media organizes images, documents, multimedia, custom styles, and scripts into typed paths while preserving existing `/media/` URLs. Owners and admins can install versioned frontend library ZIPs with dependency-preserving manifests, activation controls, and automatic public CSS/JS loading. Menus use label/URL rows with a legacy `Label|/url` fallback. Settings are grouped by identity, branding, URL, localization, editor configuration, and theme; branding supports text, logo, and logo-plus-text public header modes. Theme management supports validated manifests, bundled assets, activation, multi-layout preview, upload/upgrade, and constrained template editing. Users show roles, creation dates, account status, filtering, edit flows, password reset, and disable/reactivate controls with owner safeguards.
 
 Admin routes are role-aware. Owners and admins have full access. Editors can manage pages, posts, media, menus, and Batoi AIF assist. Authors can use post workflow routes for posts assigned to their username. Viewers can access only the dashboard. Blocked route and post ownership attempts return a 403 page and are written to the audit log.
 
@@ -158,6 +158,8 @@ Official packages are attached to versioned GitHub releases and mirrored through
 ## Theme Development
 
 Themes live under `radpress/theme/{theme-name}/` with PHP layouts and optional bundled files below `assets/`. The active theme is configured in `radpress/config/site.json`; declared theme files are served from `/theme-assets/{theme}/{path}`. See `radpress/docs/theme-development.md` for the manifest and template-context contracts.
+
+The bundled Batoi Versatile theme supports corporate, service, editorial, campaign, and ecommerce presentation pages. Ecommerce templates provide the public experience layer; inventory, payments, tax, shipping, customer authentication, and order processing require an external integration or a future commerce module.
 
 ## Batoi UIF and AIF
 

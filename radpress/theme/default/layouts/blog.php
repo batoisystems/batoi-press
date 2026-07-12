@@ -1,20 +1,20 @@
 <?php
 declare(strict_types=1);
 ?>
-<section class="bp-article">
-    <h1>Blog</h1>
+<section class="bp-listing-page">
+    <header class="bp-page-heading"><p class="bp-eyebrow">Insights</p><h1>Blog</h1><p>News, ideas, and practical guidance from <?php echo bp_esc((string)($site['name'] ?? 'our team')); ?>.</p></header>
     <?php if (empty($posts)): ?>
         <p>No published posts yet.</p>
     <?php else: ?>
-        <ul class="bp-post-list">
+        <div class="bp-post-grid">
             <?php foreach ($posts as $item): ?>
-                <li>
-                    <h2><a href="/blog/<?php echo bp_attr((string)$item['slug']); ?>"><?php echo bp_esc((string)$item['title']); ?></a></h2>
+                <article class="bp-post-card">
                     <p class="bp-meta"><?php echo bp_esc(bp_date((string)($item['published_at'] ?? ''))); ?></p>
+                    <h2><a href="/blog/<?php echo bp_attr((string)$item['slug']); ?>"><?php echo bp_esc((string)$item['title']); ?></a></h2>
                     <p><?php echo bp_esc((string)($item['seo_description'] ?? '')); ?></p>
-                </li>
+                    <a class="bp-text-link" href="/blog/<?php echo bp_attr((string)$item['slug']); ?>">Read article <span aria-hidden="true">&rarr;</span></a>
+                </article>
             <?php endforeach; ?>
-        </ul>
+        </div>
     <?php endif; ?>
 </section>
-

@@ -82,6 +82,7 @@ final class ThemeManager
             'version' => $version,
             'author' => $author,
             'supports' => $supports,
+            'page_templates' => $this->normalizePageTemplates((array)($raw['page_templates'] ?? [])),
             'assets' => [
                 'styles' => $this->normalizeEntries((array)($assets['styles'] ?? []), 'style'),
                 'scripts' => $this->normalizeEntries((array)($assets['scripts'] ?? []), 'script'),
@@ -110,6 +111,12 @@ final class ThemeManager
                 }
             }
         }
+        foreach ((array)$manifest['page_templates'] as $template) {
+            $layout = (string)($template['layout'] ?? '');
+            if (!is_file($this->paths->themePath($slug . '/layouts/' . $layout . '.php'))) {
+                $errors[] = 'Missing declared page template: layouts/' . $layout . '.php';
+            }
+        }
 
         return ['ok' => $errors === [], 'errors' => $errors, 'manifest' => $manifest];
     }
@@ -124,9 +131,28 @@ final class ThemeManager
             'version' => '0.0.0',
             'author' => 'Unknown',
             'supports' => [],
+            'page_templates' => $this->normalizePageTemplates([]),
             'assets' => ['styles' => [], 'scripts' => []],
         ];
         return $manifest + ['valid' => (bool)$validation['ok'], 'errors' => (array)$validation['errors']];
+    }
+
+    public function pageTemplates(string $slug): array
+    {
+        try {
+            return (array)($this->manifest($slug)['page_templates'] ?? $this->normalizePageTemplates([]));
+        } catch (RuntimeException) {
+            return $this->normalizePageTemplates([]);
+        }
+    }
+
+    public function resolvePageLayout(string $slug, string $template): string
+    {
+        $templates = $this->pageTemplates($slug);
+        $template = strtolower(trim($template));
+        $selected = $templates[$template] ?? $templates['page'];
+        $layout = (string)($selected['layout'] ?? 'page');
+        return is_file($this->paths->themePath($slug . '/layouts/' . $layout . '.php')) ? $layout : 'page';
     }
 
     public function resolveAsset(string $slug, string $relative): ?string
@@ -151,6 +177,30 @@ final class ThemeManager
         return $realRoot !== false && $realFile !== false && str_starts_with($realFile, $realRoot . DIRECTORY_SEPARATOR)
             ? $realFile
             : null;
+    }
+
+    private function normalizePageTemplates(array $templates): array
+    {
+        $normalized = [
+            'page' => ['label' => 'Standard Page', 'layout' => 'page'],
+        ];
+        foreach ($templates as $key => $definition) {
+            $key = strtolower(trim((string)$key));
+            if (preg_match('/^[a-z][a-z0-9_-]*$/', $key) !== 1) {
+                continue;
+            }
+            $definition = is_array($definition) ? $definition : ['label' => (string)$definition];
+            $layout = strtolower(trim((string)($definition['layout'] ?? $key)));
+            if (preg_match('/^[a-z][a-z0-9_-]*$/', $layout) !== 1) {
+                continue;
+            }
+            $label = trim((string)($definition['label'] ?? ucwords(str_replace(['-', '_'], ' ', $key))));
+            $normalized[$key] = [
+                'label' => $label !== '' ? $label : ucfirst($key),
+                'layout' => $layout,
+            ];
+        }
+        return $normalized;
     }
 
     public function assetUrl(string $slug, string $relative, bool $localized = true): string

@@ -66,4 +66,11 @@ final class Theme
         }
         return Response::html($html, $status);
     }
+
+    public function pageLayout(string $template): string
+    {
+        $manager = new ThemeManager($this->paths);
+        $slug = $manager->activeSlug($this->site);
+        return $manager->resolvePageLayout($slug, $template);
+    }
 }

@@ -101,6 +101,8 @@ try {
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './assets/libraries/demo-lib/1.0.0/dist/demo.css'), 'Static HTML should load enabled library styles.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './assets/libraries/demo-lib/1.0.0/dist/demo.js'), 'Static HTML should load enabled library scripts.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), 'class="bp-header"'), 'Static HTML should use the active theme header.');
+    assertTrue(str_contains((string)$zip->getFromName('index.html'), 'bp-template-landing'), 'Static HTML should preserve the selected page template.');
+    assertTrue(str_contains((string)$zip->getFromName('index.html'), 'bp-page-landing'), 'Static HTML should render the selected landing layout.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './assets/images/site/logo.png'), 'Static HTML should render the configured brand logo.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './theme-assets/default/css/theme.css'), 'Static HTML should load declared theme styles.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './theme-assets/default/js/theme.js'), 'Static HTML should load declared theme scripts.');
@@ -137,6 +139,7 @@ function createFixture(string $root): void
         'title' => 'Home',
         'slug' => 'home',
         'status' => 'published',
+        'template' => 'landing',
     ], '<h1>Home</h1>');
     writeContent($root . '/radpress/content/pages/about', [
         'title' => 'About',
@@ -167,8 +170,12 @@ function createFixture(string $root): void
     file_put_contents($root . '/radpress/content/assets/libraries/demo-lib/1.0.0/fonts/demo.woff2', 'font-data', LOCK_EX);
 
     copyTree(dirname(__DIR__) . '/theme/default', $root . '/radpress/theme/default');
-    mkdir($root . '/radpress/theme/default/assets/css', 0775, true);
-    mkdir($root . '/radpress/theme/default/assets/js', 0775, true);
+    if (!is_dir($root . '/radpress/theme/default/assets/css')) {
+        mkdir($root . '/radpress/theme/default/assets/css', 0775, true);
+    }
+    if (!is_dir($root . '/radpress/theme/default/assets/js')) {
+        mkdir($root . '/radpress/theme/default/assets/js', 0775, true);
+    }
     file_put_contents($root . '/radpress/theme/default/assets/css/theme.css', '.theme{display:block}', LOCK_EX);
     file_put_contents($root . '/radpress/theme/default/assets/js/theme.js', 'window.themeReady=true;', LOCK_EX);
     $manifest = json_decode((string)file_get_contents($root . '/radpress/theme/default/theme.json'), true);

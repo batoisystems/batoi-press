@@ -77,7 +77,7 @@ final class Router
         $slug = $request->path === '/' ? 'home' : trim($request->path, '/');
         $page = $this->pages->findBySlug($slug);
 
-        return $page ? $this->theme->render('page', ['page' => $page, 'title' => (string)$page['title']]) : $this->notFound();
+        return $page ? $this->theme->render($this->theme->pageLayout((string)($page['template'] ?? 'page')), ['page' => $page, 'title' => (string)$page['title']]) : $this->notFound();
     }
 
     private function admin(Request $request): Response

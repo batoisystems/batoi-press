@@ -1,14 +1,5 @@
 # Theme Development
 
-## Tasks
-
-- [x] Identify the Batoi Press public shell owner.
-- [x] Identify the Batoi Press admin shell owner.
-- [x] Document where shared header and footer changes belong.
-- [x] Document what should remain page-specific.
-- [x] Document verification steps for shell changes.
-- [x] Link to the canonical `batoi-www` resource documentation.
-
 Themes live under:
 
 ```text
@@ -24,6 +15,13 @@ post.php
 blog.php
 archive.php
 404.php
+landing.php
+shop.php
+product.php
+cart.php
+checkout.php
+account.php
+contact.php
 ```
 
 Theme layouts receive sanitized content and metadata from the engine plus normalized `$theme` and `$branding` contexts.
@@ -47,6 +45,18 @@ Theme layouts receive sanitized content and metadata from the engine plus normal
 }
 ```
 
+Themes may declare additional page templates in the manifest. Existing themes without this field continue to expose the standard page template.
+
+```json
+"page_templates": {
+  "page": {"label": "Standard Page", "layout": "page"},
+  "landing": {"label": "Landing Page", "layout": "landing"},
+  "shop": {"label": "Shop / Collection", "layout": "shop"}
+}
+```
+
+Template keys and layout names use lowercase letters, numbers, underscores, and hyphens. Declared layouts must exist below `layouts/`. Missing or unsupported selections fall back to `layouts/page.php`.
+
 Bundled files resolve from `/theme-assets/{theme}/{path}`. Use `bp_theme_asset('images/example.webp')` inside a template instead of calculating filesystem or public paths. Keep site-owned logos and content images in the typed site asset store, and keep reusable third-party packages in Media Libraries.
 
 ## Template Context
@@ -55,7 +65,7 @@ Bundled files resolve from `/theme-assets/{theme}/{path}`. Use `bp_theme_asset('
 
 `$theme` includes normalized manifest metadata, declared assets, validation status, and errors. The renderer injects declared asset tags; layouts should not duplicate those entry points.
 
-The Admin Themes preview supports home, page, post, blog, archive, and 404 layouts without activating the candidate theme. Static export uses the same renderer and copies active-theme assets to matching public paths.
+The Admin Themes preview supports home, standard, landing, ecommerce, post, blog, archive, and 404 layouts without activating the candidate theme. Static export uses the same page-template resolver and copies active-theme assets to matching public paths.
 
 ## Header and Footer Ownership
 
@@ -86,13 +96,3 @@ For Batoi Press admin pages:
   tables, and actions.
 - Keep logout, account, update, and view-site actions in the topbar rather than
   in the lower sidebar.
-
-After changing public or admin shell files, run:
-
-```sh
-php -l radpress/admin/AdminLayout.php
-php radpress/tests/smoke.php
-```
-
-Also inspect the admin first viewport and sidebar in a browser when layout or
-navigation behavior changes.

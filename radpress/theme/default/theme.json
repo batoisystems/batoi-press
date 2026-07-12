@@ -1,12 +1,22 @@
 {
   "schema": 1,
   "slug": "default",
-  "name": "Default",
-  "version": "0.1.0",
+  "name": "Batoi Versatile",
+  "version": "2.0.0",
   "author": "Batoi",
-  "supports": ["pages", "posts", "menus", "seo", "brand_logo"],
+  "supports": ["pages", "posts", "menus", "seo", "brand_logo", "landing_pages", "ecommerce_pages", "responsive_navigation", "accessibility"],
+  "page_templates": {
+    "page": {"label": "Standard Page", "layout": "page"},
+    "landing": {"label": "Landing Page", "layout": "landing"},
+    "shop": {"label": "Shop / Collection", "layout": "shop"},
+    "product": {"label": "Product Detail", "layout": "product"},
+    "cart": {"label": "Cart", "layout": "cart"},
+    "checkout": {"label": "Checkout", "layout": "checkout"},
+    "account": {"label": "Customer Account", "layout": "account"},
+    "contact": {"label": "Contact", "layout": "contact"}
+  },
   "assets": {
-    "styles": [],
-    "scripts": []
+    "styles": [{"file": "css/theme.css", "media": "all"}],
+    "scripts": [{"file": "js/theme.js", "defer": true}]
   }
 }

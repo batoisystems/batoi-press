@@ -53,13 +53,17 @@ final class PageRepository
             throw new RuntimeException('A page with this slug already exists.');
         }
         $status = in_array(($input['status'] ?? 'draft'), ['draft', 'published'], true) ? (string)($input['status'] ?? 'draft') : 'draft';
+        $template = strtolower(trim((string)($input['template'] ?? $existing['template'] ?? 'page')));
+        if (preg_match('/^[a-z][a-z0-9_-]*$/', $template) !== 1) {
+            $template = 'page';
+        }
         $meta = [
             'id' => (string)($existing['id'] ?? 'pg_' . bin2hex(random_bytes(6))),
             'type' => 'page',
             'title' => trim((string)($input['title'] ?? 'Untitled Page')),
             'slug' => $slug,
             'status' => $status,
-            'template' => 'page',
+            'template' => $template,
             'author' => (string)($existing['author'] ?? $actor),
             'created_at' => (string)($existing['created_at'] ?? $now),
             'updated_at' => $now,

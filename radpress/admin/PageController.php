@@ -9,6 +9,7 @@ use Batoi\Press\Core\Config;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
 use Batoi\Press\Core\Slug;
+use Batoi\Press\Core\ThemeManager;
 use Batoi\Press\Security\Csrf;
 use RuntimeException;
 
@@ -110,7 +111,7 @@ final class PageController
         $body .= '<input type="hidden" name="original_slug" value="' . $this->e($slug) . '">';
 
         $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($page['title'] ?? '')) . $this->input('Slug', 'slug', $slug) . $this->bodyEditor((string)($page['body'] ?? ''), 'Use clean HTML. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.') . '</div>';
-        $publishing = $this->select((string)($page['status'] ?? 'draft')) . $this->metaList($page);
+        $publishing = $this->select((string)($page['status'] ?? 'draft')) . $this->templateSelect((string)($page['template'] ?? 'page')) . $this->metaList($page);
         $seo = $this->input('SEO Title', 'seo_title', (string)($page['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($page['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short page summary for search snippets and social previews.</span></label>';
 
         $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible page content.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Publishing', $publishing, 'Control draft or live availability.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->pageChecklist(), 'Review before publishing or changing a live page.') . '</aside>';
@@ -134,6 +135,19 @@ final class PageController
         $draft = $status === 'draft' ? ' selected' : '';
         $published = $status === 'published' ? ' selected' : '';
         return '<label>Status <select name="status"><option value="draft"' . $draft . '>Draft</option><option value="published"' . $published . '>Published</option></select></label>';
+    }
+
+    private function templateSelect(string $selected): string
+    {
+        $manager = new ThemeManager($this->config->paths());
+        $theme = $manager->activeSlug($this->config->site());
+        $templates = $manager->pageTemplates($theme);
+        $selected = isset($templates[$selected]) ? $selected : 'page';
+        $options = '';
+        foreach ($templates as $key => $template) {
+            $options .= '<option value="' . $this->e((string)$key) . '"' . ($selected === $key ? ' selected' : '') . '>' . $this->e((string)($template['label'] ?? $key)) . '</option>';
+        }
+        return '<label>Page template <select name="template">' . $options . '</select><span class="bp-field-help">Controls the public layout. Content remains portable between templates.</span></label>';
     }
 
     private function toolbar(array $pages, array $filters): string
