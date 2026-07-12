@@ -1,4 +1,11 @@
-/.DS_Store
+.DS_Store
+.D_Store
+AGENTS.md
+CLAUDE.md
+.codex/
+.agents/
+*.local
+*.local.*
 /dist/
 /specs/
 /tools/
