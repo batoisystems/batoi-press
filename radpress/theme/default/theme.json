@@ -1,7 +1,12 @@
 {
+  "schema": 1,
+  "slug": "default",
   "name": "Default",
   "version": "0.1.0",
   "author": "Batoi",
-  "supports": ["pages", "posts", "menus", "seo"]
+  "supports": ["pages", "posts", "menus", "seo", "brand_logo"],
+  "assets": {
+    "styles": [],
+    "scripts": []
+  }
 }
-

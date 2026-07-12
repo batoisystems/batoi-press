@@ -12,7 +12,7 @@ use Batoi\Press\Core\Config;
 use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\Paths;
 use Batoi\Press\Aif\AifManager;
-use Batoi\Press\Admin\SettingsController;
+use Batoi\Press\Core\BrandAssetManager;
 use Batoi\Press\Security\Auth;
 use Batoi\Press\Security\Password;
 use Batoi\Press\Security\Session;
@@ -41,8 +41,8 @@ $paths[] = '/assets/styles/custom/smoke-typed.css';
 $paths[] = '/assets/scripts/custom/smoke-typed.mjs';
 
 try {
-    $settings = (new ReflectionClass(SettingsController::class))->newInstanceWithoutConstructor();
-    $faviconValidator = new ReflectionMethod(SettingsController::class, 'validateImageFavicon');
+    $brandAssets = new BrandAssetManager(new Paths($root));
+    $faviconValidator = new ReflectionMethod(BrandAssetManager::class, 'validateRaster');
     $icoPath = sys_get_temp_dir() . '/batoi-press-valid-' . bin2hex(random_bytes(4)) . '.ico';
     $invalidIcoPath = sys_get_temp_dir() . '/batoi-press-invalid-' . bin2hex(random_bytes(4)) . '.ico';
     $icoPayload = str_repeat("\x00", 40);
@@ -51,13 +51,13 @@ try {
     file_put_contents($icoPath, $icoHeader . $icoEntry . $icoPayload, LOCK_EX);
     file_put_contents($invalidIcoPath, 'not an icon', LOCK_EX);
     try {
-        if ($faviconValidator->invoke($settings, $icoPath, 'ico') !== null) {
+        if ($faviconValidator->invoke($brandAssets, $icoPath, 'ico', 'favicon') !== null) {
             throw new RuntimeException('A structurally valid ICO favicon should pass validation.');
         }
-        if ($faviconValidator->invoke($settings, $root . '/public_html/assets/img/batoi-press/press-color-tile-32.png', 'ico') !== null) {
+        if ($faviconValidator->invoke($brandAssets, $root . '/public_html/assets/img/batoi-press/press-color-tile-32.png', 'ico', 'favicon') !== null) {
             throw new RuntimeException('A browser-compatible PNG favicon with an ICO filename should pass validation.');
         }
-        if ($faviconValidator->invoke($settings, $invalidIcoPath, 'ico') === null) {
+        if ($faviconValidator->invoke($brandAssets, $invalidIcoPath, 'ico', 'favicon') === null) {
             throw new RuntimeException('An invalid ICO favicon should fail validation.');
         }
     } finally {

@@ -106,11 +106,11 @@ The admin console uses bundled Batoi UIF assets and a persistent business consol
 - Governance: users, updates, audit log.
 - Intelligence: Batoi AIF.
 
-Pages and posts use structured list screens, publication badges, preview links, and editor panels for content, publishing, and SEO. Media organizes images, documents, multimedia, custom styles, and scripts into typed paths while preserving existing `/media/` URLs. Owners and admins can install versioned frontend library ZIPs with dependency-preserving manifests, activation controls, and automatic public CSS/JS loading. Menus use label/URL rows with a legacy `Label|/url` fallback. Settings are grouped by identity, branding, URL, localization, editor configuration, and theme. Theme management supports active theme selection, upload, preview, and template editing. Users show roles, creation dates, account status, filtering, edit flows, password reset, and disable/reactivate controls with owner safeguards.
+Pages and posts use structured list screens, publication badges, preview links, and editor panels for content, publishing, and SEO. Media organizes images, documents, multimedia, custom styles, and scripts into typed paths while preserving existing `/media/` URLs. Owners and admins can install versioned frontend library ZIPs with dependency-preserving manifests, activation controls, and automatic public CSS/JS loading. Menus use label/URL rows with a legacy `Label|/url` fallback. Settings are grouped by identity, branding, URL, localization, editor configuration, and theme; branding supports text, logo, and logo-plus-text public header modes. Theme management supports validated manifests, bundled assets, activation, multi-layout preview, upload/upgrade, and constrained template editing. Users show roles, creation dates, account status, filtering, edit flows, password reset, and disable/reactivate controls with owner safeguards.
 
 Admin routes are role-aware. Owners and admins have full access. Editors can manage pages, posts, media, menus, and Batoi AIF assist. Authors can use post workflow routes for posts assigned to their username. Viewers can access only the dashboard. Blocked route and post ownership attempts return a 403 page and are written to the audit log.
 
-Operations are separated from publishing work. Static Export creates verified downloadable ZIP packages containing typed assets, complete library dependency trees, and legacy media at their stable public paths. Cache explains safe maintenance actions and runtime directory status. Updates expose version status, stable manifest, package staging, backup creation, staged packages, and rollback backups. Audit Log provides paginated search, filters, CSV/JSONL export, and retention cleanup with a 90-day minimum while recording authenticated admin views, actions, downloads, semantic changes, outcomes, and safe request details.
+Operations are separated from publishing work. Static Export renders through the active theme and creates verified downloadable ZIP packages containing the public shell, branding, application assets, theme assets, typed assets, complete library dependency trees, and legacy media at their stable public paths. Cache explains safe maintenance actions and runtime directory status. Updates expose version status, stable manifest, package staging, backup creation, staged packages, and rollback backups. Audit Log provides paginated search, filters, CSV/JSONL export, and retention cleanup with a 90-day minimum while recording authenticated admin views, actions, downloads, semantic changes, outcomes, and safe request details.
 
 ## Installer Lifecycle
 
@@ -195,7 +195,7 @@ scp -P "$BATOI_WWW_DEPLOY_PORT" "dist/batoi-press-$VERSION.zip" "$BATOI_WWW_DEPL
 
 ## Theme Development
 
-Themes live under `radpress/theme/{theme-name}/` with PHP layouts and optional assets. The active theme is configured in `radpress/config/site.json`.
+Themes live under `radpress/theme/{theme-name}/` with PHP layouts and optional bundled files below `assets/`. The active theme is configured in `radpress/config/site.json`; declared theme files are served from `/theme-assets/{theme}/{path}`. See `radpress/docs/theme-development.md` for the manifest and template-context contracts.
 
 ## Batoi UIF and AIF
 

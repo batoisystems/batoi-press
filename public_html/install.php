@@ -116,6 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $errors === []) {
             'tagline' => 'A secure flat-file CMS and publishing engine aligned with Batoi RAD.',
             'base_url' => rtrim($baseUrl, '/'),
             'theme' => 'default',
+            'brand_display' => 'text',
+            'brand_logo_alt' => $siteName,
             'locale' => 'en',
             'timezone' => date_default_timezone_get() ?: 'UTC',
         ]);

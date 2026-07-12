@@ -4,10 +4,8 @@ declare(strict_types=1);
 $seoTitle = $page['seo_title'] ?? $post['seo_title'] ?? '';
 $pageTitle = $seoTitle !== '' ? $seoTitle : (isset($title) && $title !== '' ? $title . ' | ' . ($site['name'] ?? 'Batoi Press') : ($site['name'] ?? 'Batoi Press'));
 $description = $page['seo_description'] ?? $post['seo_description'] ?? $site['tagline'] ?? '';
-$favicon = (string)($site['favicon'] ?? '');
-$favicon = $favicon !== '' ? $favicon : '/assets/img/batoi-press/press-color-tile-32.png';
-$faviconFile = dirname(__DIR__, 4) . '/public_html/' . ltrim($favicon, '/');
-$faviconHref = $faviconFile !== '' && is_file($faviconFile) ? bp_url($favicon) . '?v=' . filemtime($faviconFile) : '';
+$favicon = (string)($branding['favicon_url'] ?? '');
+$faviconHref = $favicon !== '' ? bp_url($favicon) : '';
 $faviconTypes = [
     'ico' => 'image/x-icon',
     'jpeg' => 'image/jpeg',
@@ -16,7 +14,7 @@ $faviconTypes = [
     'svg' => 'image/svg+xml',
     'webp' => 'image/webp',
 ];
-$faviconType = $faviconHref !== '' ? ($faviconTypes[strtolower((string)pathinfo($faviconFile, PATHINFO_EXTENSION))] ?? 'image/x-icon') : '';
+$faviconType = $faviconHref !== '' ? ($faviconTypes[strtolower((string)pathinfo($favicon, PATHINFO_EXTENSION))] ?? 'image/x-icon') : '';
 ?>
 <!doctype html>
 <html lang="en">

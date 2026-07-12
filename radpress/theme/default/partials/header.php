@@ -21,7 +21,19 @@ if ($menuItems === []) {
 ?>
 <header class="bp-header">
     <nav class="bp-nav" aria-label="Main navigation">
-        <a class="bp-brand" href="<?php echo bp_attr(bp_url('/')); ?>"><?php echo bp_esc((string)($site['name'] ?? 'Batoi Press')); ?></a>
+        <?php
+        $brandDisplay = (string)($branding['display'] ?? 'text');
+        $brandName = (string)($branding['site_name'] ?? ($site['name'] ?? 'Batoi Press'));
+        $brandLogo = (string)($branding['logo_url'] ?? '');
+        ?>
+        <a class="bp-brand bp-brand-mode-<?php echo bp_attr($brandDisplay); ?>" href="<?php echo bp_attr(bp_url('/')); ?>" aria-label="<?php echo bp_attr($brandName); ?>">
+            <?php if ($brandLogo !== '' && in_array($brandDisplay, ['logo', 'logo_with_text'], true)): ?>
+            <img class="bp-brand-logo" src="<?php echo bp_attr(bp_url($brandLogo)); ?>" alt="<?php echo bp_attr((string)($branding['logo_alt'] ?? $brandName)); ?>">
+            <?php endif; ?>
+            <?php if ($brandDisplay !== 'logo'): ?>
+            <span class="bp-brand-name"><?php echo bp_esc($brandName); ?></span>
+            <?php endif; ?>
+        </a>
         <div class="bp-links">
             <?php foreach ($menuItems as $item): ?>
             <a href="<?php echo bp_attr(bp_url((string)$item['url'])); ?>"><?php echo bp_esc((string)$item['label']); ?></a>

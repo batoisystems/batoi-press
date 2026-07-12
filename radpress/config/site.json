@@ -3,6 +3,8 @@
   "tagline": "A secure flat-file CMS and publishing engine aligned with Batoi RAD.",
   "base_url": "http://127.0.0.1:8081",
   "theme": "default",
+  "brand_display": "text",
+  "brand_logo_alt": "Batoi Press Demo",
   "locale": "en",
   "timezone": "Asia/Kolkata"
 }

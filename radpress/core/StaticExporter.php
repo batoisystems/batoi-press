@@ -149,30 +149,45 @@ final class StaticExporter
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
             $target = $slug === 'home' ? 'index.html' : $slug . '/index.html';
-            $this->write($workDir . '/' . $target, $this->html((string)($page['title'] ?? ''), (string)($page['body'] ?? '')));
+            $this->writeHtml($workDir, $target, $this->renderTheme('page', ['page' => $page, 'title' => (string)($page['title'] ?? '')], '/' . ($slug === 'home' ? '' : $slug . '/')));
         }
 
         $posts = $this->posts->allPublished();
-        $listing = '<h1>Blog</h1><ul>';
         foreach ($posts as $post) {
             $slug = (string)($post['slug'] ?? '');
-            $listing .= '<li><a href="/blog/' . htmlspecialchars($slug, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '/">' . htmlspecialchars((string)($post['title'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</a></li>';
-            $this->write($workDir . '/blog/' . $slug . '/index.html', $this->html((string)($post['title'] ?? ''), (string)($post['body'] ?? '')));
+            $this->writeHtml($workDir, 'blog/' . $slug . '/index.html', $this->renderTheme('post', ['post' => $post, 'title' => (string)($post['title'] ?? '')], '/blog/' . $slug . '/'));
         }
-        $listing .= '</ul>';
-        $this->write($workDir . '/blog/index.html', $this->html('Blog', $listing));
+        $this->writeHtml($workDir, 'blog/index.html', $this->renderTheme('blog', ['posts' => $posts, 'title' => 'Blog'], '/blog/'));
+        $this->writeHtml($workDir, 'archive/index.html', $this->renderTheme('archive', ['posts' => $posts, 'title' => 'Archive'], '/archive/'));
+        $this->writeHtml($workDir, '404.html', $this->renderTheme('404', ['title' => 'Page Not Found'], '/404.html', 404));
         $this->write($workDir . '/sitemap.xml', $this->sitemap());
         $this->write($workDir . '/feed.xml', $this->feed());
+        $this->writePublicAssets($workDir);
         $this->writeMedia($workDir);
         $this->writeAssets($workDir);
+        $this->writeThemeAssets($workDir);
     }
 
-    private function html(string $title, string $body): string
+    private function renderTheme(string $layout, array $data, string $requestUri, int $status = 200): string
     {
-        $siteName = htmlspecialchars((string)($this->site['name'] ?? 'Batoi Press'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $safeTitle = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $libraries = new AssetLibraryManager($this->paths);
-        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>' . $safeTitle . ' | ' . $siteName . '</title>' . $libraries->tags('head', false) . '</head><body>' . $body . $libraries->tags('body', false) . '</body></html>';
+        $previousMode = $GLOBALS['bp_static_export_mode'] ?? null;
+        $previousUri = $_SERVER['REQUEST_URI'] ?? null;
+        $GLOBALS['bp_static_export_mode'] = true;
+        $_SERVER['REQUEST_URI'] = $requestUri;
+        try {
+            return (new Theme($this->paths, $this->site))->render($layout, $data, $status, ['localized_assets' => false])->content();
+        } finally {
+            if ($previousMode === null) {
+                unset($GLOBALS['bp_static_export_mode']);
+            } else {
+                $GLOBALS['bp_static_export_mode'] = $previousMode;
+            }
+            if ($previousUri === null) {
+                unset($_SERVER['REQUEST_URI']);
+            } else {
+                $_SERVER['REQUEST_URI'] = $previousUri;
+            }
+        }
     }
 
     private function sitemap(): string
@@ -214,6 +229,22 @@ final class StaticExporter
         file_put_contents($path, $contents, LOCK_EX);
     }
 
+    private function writeHtml(string $workDir, string $target, string $html): void
+    {
+        $directory = dirname($target);
+        $depth = $directory === '.' ? 0 : count(array_filter(explode('/', $directory), static fn(string $part): bool => $part !== ''));
+        $prefix = str_repeat('../', $depth);
+        $html = preg_replace_callback(
+            "/\\b(href|src|action)=([\"'])\\/(?!\\/)/i",
+            static function (array $match) use ($prefix): string {
+                $valuePrefix = $prefix !== '' ? $prefix : './';
+                return $match[1] . '=' . $match[2] . $valuePrefix;
+            },
+            $html
+        ) ?? $html;
+        $this->write($workDir . '/' . $target, $html);
+    }
+
     private function ensureDirectory(string $dir): void
     {
         if (!is_dir($dir)) {
@@ -243,7 +274,7 @@ final class StaticExporter
 
     private function expectedEntries(): array
     {
-        $entries = ['blog/index.html', 'sitemap.xml', 'feed.xml'];
+        $entries = ['blog/index.html', 'archive/index.html', '404.html', 'sitemap.xml', 'feed.xml'];
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
             $entries[] = $slug === 'home' ? 'index.html' : $slug . '/index.html';
@@ -256,6 +287,11 @@ final class StaticExporter
         }
         foreach ($this->assetFiles() as $relative => $file) {
             $entries[] = 'assets/' . $relative;
+        }
+        $theme = new ThemeManager($this->paths);
+        $slug = $theme->activeSlug($this->site);
+        foreach ($theme->assetFiles($slug) as $relative => $file) {
+            $entries[] = 'theme-assets/' . $slug . '/' . $relative;
         }
 
         return array_values(array_unique($entries));
@@ -288,6 +324,31 @@ final class StaticExporter
     private function writeAssets(string $workDir): void
     {
         foreach ($this->assetFiles() as $relative => $file) {
+            $target = $workDir . '/assets/' . $relative;
+            $this->ensureDirectory(dirname($target));
+            copy($file, $target);
+        }
+    }
+
+    private function writeThemeAssets(string $workDir): void
+    {
+        $manager = new ThemeManager($this->paths);
+        $slug = $manager->activeSlug($this->site);
+        foreach ($manager->assetFiles($slug) as $relative => $file) {
+            $target = $workDir . '/theme-assets/' . $slug . '/' . $relative;
+            $this->ensureDirectory(dirname($target));
+            copy($file, $target);
+        }
+    }
+
+    private function writePublicAssets(string $workDir): void
+    {
+        $root = $this->paths->publicPath('assets');
+        if (!is_dir($root)) {
+            return;
+        }
+        foreach ($this->files($root) as $file) {
+            $relative = ltrim(substr($file, strlen($root)), '/');
             $target = $workDir . '/assets/' . $relative;
             $this->ensureDirectory(dirname($target));
             copy($file, $target);

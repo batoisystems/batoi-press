@@ -57,6 +57,10 @@ final class Router
             return $this->asset(rawurldecode(substr($request->path, 8)));
         }
 
+        if (str_starts_with($request->path, '/theme-assets/')) {
+            return $this->themeAsset(rawurldecode(substr($request->path, 14)));
+        }
+
         if ($request->path === '/blog') {
             return $this->theme->render('blog', ['posts' => $this->posts->allPublished(), 'title' => 'Blog']);
         }
@@ -201,7 +205,7 @@ final class Router
         }
 
         if (str_starts_with($request->path, '/admin/themes/preview/')) {
-            return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->preview(rawurldecode(substr($request->path, 22)));
+            return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->preview(rawurldecode(substr($request->path, 22)), $request->input('layout'));
         }
 
         if ($request->path === '/admin/theme-templates') {
@@ -359,6 +363,17 @@ final class Router
         }
 
         return $this->assetResponse($file);
+    }
+
+    private function themeAsset(string $target): Response
+    {
+        $parts = explode('/', ltrim(str_replace('\\', '/', $target), '/'), 2);
+        if (count($parts) !== 2) {
+            return $this->notFound();
+        }
+        $manager = new ThemeManager($this->config->paths());
+        $file = $manager->resolveAsset($parts[0], $parts[1]);
+        return $file !== null ? $this->assetResponse($file) : $this->notFound();
     }
 
     private function assetResponse(string $file): Response

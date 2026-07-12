@@ -37,14 +37,14 @@ final class ExportController
         $body .= AdminLayout::statCard('Export storage', (bool)($status['export_writable'] ?? false) ? 'Writable' : 'Not writable', (string)($status['export_path'] ?? 'radpress/data/export'));
         $body .= '</dl>';
 
-        $action = '<p>The export includes published pages, published posts, the blog listing, typed assets, installed library files, legacy media, sitemap.xml, and feed.xml. Draft content, admin screens, users, sessions, backups, and audit logs are not included.</p>';
+        $action = '<p>The export renders the active theme for pages, posts, blog, archive, and 404 output and includes branding, application assets, theme assets, typed assets, installed library files, legacy media, sitemap.xml, and feed.xml. Draft content, admin screens, users, sessions, backups, and audit logs are not included.</p>';
         $action .= '<form method="post" action="/admin/export-static/run" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Generate Export', 'download', $ready ? '' : 'disabled aria-disabled="true"') . '</form>';
         if (!$ready) {
             $action .= '<p class="bp-field-help">Resolve ZIP support or directory permissions before generating an export.</p>';
         }
         $body .= AdminLayout::section('Generate package', $action, 'Create a new timestamped ZIP in the export storage directory.');
 
-        $contents = '<ul class="bp-check-list"><li>Published pages are written as static HTML files.</li><li>Published posts are written under the blog path with a generated blog index.</li><li>Typed assets and library dependency trees are copied under <code>assets/</code>.</li><li>Existing flat media remains under <code>media/</code> for compatibility.</li><li>Sitemap and RSS feed files use the configured Base URL from Settings.</li></ul>';
+        $contents = '<ul class="bp-check-list"><li>Published output uses the same active-theme shell, navigation, branding, and asset declarations as the live site.</li><li>Pages, posts, blog, archive, and 404 views are written as static HTML files.</li><li>Application, branding, typed assets, and library dependency trees are copied under <code>assets/</code>.</li><li>Active-theme bundles are copied under <code>theme-assets/{theme}/</code>.</li><li>Existing flat media remains under <code>media/</code> for compatibility.</li><li>Sitemap and RSS feed files use the configured Base URL from Settings.</li></ul>';
         $body .= AdminLayout::section('Package contents', $contents, 'Use this package for static deployment workflows after reviewing the generated files.');
 
         $body .= $this->recentExports($status['exports'] ?? []);

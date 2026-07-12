@@ -4,17 +4,16 @@ declare(strict_types=1);
 namespace Batoi\Press\Admin;
 
 use Batoi\Press\Core\AuditLog;
+use Batoi\Press\Core\BrandAssetManager;
 use Batoi\Press\Core\Config;
 use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
 use Batoi\Press\Security\Csrf;
+use RuntimeException;
 
 final class SettingsController
 {
-    private const FAVICON_EXTENSIONS = ['ico', 'png', 'jpg', 'jpeg', 'webp', 'svg'];
-    private const FAVICON_MAX_BYTES = 1048576;
-
     public function __construct(
         private readonly Config $config,
         private readonly FileStore $files,
@@ -26,23 +25,29 @@ final class SettingsController
 
     public function edit(): Response
     {
-        $site = $this->config->site();
-        $editor = $this->config->editor();
+        return Response::html($this->layout('Settings', $this->form($this->config->site(), $this->config->editor())));
+    }
+
+    private function form(array $site, array $editor, string $error = ''): string
+    {
         $body = AdminLayout::pageHeader(
             'Settings',
             'Control site identity, URLs, localization, and active theme configuration.'
         );
+        if ($error !== '') {
+            $body .= '<p class="bp-error">' . $this->e($error) . '</p>';
+        }
         $body .= '<form method="post" action="/admin/settings/save" enctype="multipart/form-data" class="bp-form bp-settings-form">';
         $body .= $this->csrf->field();
         $body .= AdminLayout::section('Change guidance', $this->changeGuidance(), 'Review these notes before changing site-wide configuration.');
         $body .= $this->section('Identity', 'Public site name and supporting text.', '<div class="bp-form-grid">' . $this->input('Site Name', 'name', (string)($site['name'] ?? '')) . $this->input('Tagline', 'tagline', (string)($site['tagline'] ?? '')) . '</div>');
-        $body .= $this->section('Branding', 'Website favicon shown in browser tabs and bookmarks.', $this->faviconField($site));
+        $body .= $this->section('Branding', 'Control the public header identity and browser favicon.', $this->brandingField($site));
         $body .= $this->section('URLs', 'Canonical public URL used for links, feeds, and update metadata.', $this->input('Base URL', 'base_url', (string)($site['base_url'] ?? '')));
         $body .= $this->section('Localization', 'Locale and timezone used for date formatting and future language-aware features.', '<div class="bp-form-grid">' . $this->input('Locale', 'locale', (string)($site['locale'] ?? 'en')) . $this->input('Timezone', 'timezone', (string)($site['timezone'] ?? 'UTC')) . '</div>');
         $body .= $this->section('Editor', 'Configure the body editor used by pages and posts.', '<div class="bp-form-grid">' . $this->editorSelect((string)($editor['body_editor'] ?? 'rich_html')) . $this->input('Editor Height', 'editor_html_height', (string)($editor['html_height'] ?? '24rem')) . '<label class="bp-field-wide">HTML Toolbar <input type="text" name="editor_html_toolbar" value="' . $this->e((string)($editor['html_toolbar'] ?? 'undo redo bold italic underline strike heading quote code ul ol task link image table hr preview source')) . '" required><span class="bp-field-help">Space-separated Batoi UIF editor commands.</span></label></div>');
         $body .= $this->section('Theme', 'Current frontend theme and shared public shell templates.', '<dl class="bp-meta-list"><div><dt>Active theme</dt><dd>' . $this->e((string)($site['theme'] ?? 'default')) . '</dd></div></dl><p>' . AdminLayout::buttonLink('Manage Themes', '/admin/themes', 'code', true) . AdminLayout::buttonLink('Edit Templates', '/admin/theme-templates', 'code', true) . '</p>');
         $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin', 'back', true) . AdminLayout::submitButton('Save Settings', 'save') . '</div></form>';
-        return Response::html($this->layout('Settings', $body));
+        return $body;
     }
 
     public function save(Request $request): Response
@@ -51,26 +56,70 @@ final class SettingsController
             return Response::html($this->layout('Settings', '<p class="bp-error">Security token expired.</p>'), 400);
         }
 
-        $site = $this->config->site();
+        $original = $this->config->site();
+        $site = $original;
         foreach (['name', 'tagline', 'base_url', 'locale', 'timezone'] as $key) {
             $site[$key] = $request->input($key);
         }
         $site['theme'] = $site['theme'] ?? 'default';
-        $faviconResult = $this->saveFaviconUpload();
-        if (is_string($faviconResult) && str_starts_with($faviconResult, 'error:')) {
-            return Response::html($this->layout('Settings', '<p class="bp-error">' . $this->e(substr($faviconResult, 6)) . '</p>'), 400);
-        }
-        if (is_string($faviconResult) && $faviconResult !== '') {
-            $site['favicon'] = $faviconResult;
-        }
-        $this->files->writeJson($this->config->paths()->configPath('site.json'), $site);
+        $site['brand_display'] = in_array($request->input('brand_display'), ['text', 'logo', 'logo_with_text'], true)
+            ? $request->input('brand_display')
+            : 'text';
+        $site['brand_logo_alt'] = trim($request->input('brand_logo_alt')) !== '' ? trim($request->input('brand_logo_alt')) : $site['name'];
         $bodyEditor = in_array($request->input('editor_body_editor'), ['rich_html', 'source_html'], true) ? $request->input('editor_body_editor') : 'rich_html';
         $editor = [
             'body_editor' => $bodyEditor,
             'html_toolbar' => trim($request->input('editor_html_toolbar')) !== '' ? trim($request->input('editor_html_toolbar')) : 'undo redo bold italic underline strike heading quote code ul ol task link image table hr preview source',
             'html_height' => trim($request->input('editor_html_height')) !== '' ? trim($request->input('editor_html_height')) : '24rem',
         ];
-        $this->files->writeJson($this->config->paths()->configPath('editor.json'), $editor);
+
+        $branding = new BrandAssetManager($this->config->paths());
+        $newFiles = [];
+        try {
+            $logo = $branding->saveUpload((array)($_FILES['brand_logo'] ?? []), 'logo');
+            if ($logo !== null) {
+                $newFiles[] = $logo;
+                $site['brand_logo'] = $logo;
+            } elseif ($request->input('remove_brand_logo') === '1') {
+                unset($site['brand_logo']);
+                $site['brand_display'] = 'text';
+            }
+
+            $favicon = $branding->saveUpload((array)($_FILES['favicon'] ?? []), 'favicon');
+            if ($favicon !== null) {
+                $newFiles[] = $favicon;
+                $site['favicon'] = $favicon;
+            } elseif ($request->input('remove_favicon') === '1') {
+                unset($site['favicon']);
+            }
+
+            if ($site['brand_display'] !== 'text' && $branding->resolveUrl((string)($site['brand_logo'] ?? '')) === null) {
+                throw new RuntimeException('Upload a valid brand logo before selecting a logo display mode.');
+            }
+
+            $this->files->writeJson($this->config->paths()->configPath('editor.json'), $editor);
+            $this->files->writeJson($this->config->paths()->configPath('site.json'), $site);
+        } catch (RuntimeException $exception) {
+            foreach ($newFiles as $newFile) {
+                $branding->removeOwned($newFile);
+            }
+            return Response::html($this->layout('Settings', $this->form($site, $editor, $exception->getMessage())), 400);
+        }
+
+        foreach (['brand_logo', 'favicon'] as $key) {
+            $before = (string)($original[$key] ?? '');
+            $after = (string)($site[$key] ?? '');
+            if ($before !== '' && $before !== $after) {
+                $branding->removeOwned($before);
+            }
+            if ($before !== $after) {
+                $action = 'branding.' . $key . '.' . ($after === '' ? 'removed' : ($before === '' ? 'uploaded' : 'replaced'));
+                $this->audit->record((string)($this->user['username'] ?? 'admin'), $action, $after !== '' ? $after : $before, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+            }
+        }
+        if ((string)($original['brand_display'] ?? 'text') !== (string)$site['brand_display']) {
+            $this->audit->record((string)($this->user['username'] ?? 'admin'), 'branding.display.updated', (string)$site['brand_display'], (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        }
         $this->audit->record((string)($this->user['username'] ?? 'admin'), 'settings.updated', 'site', (string)($_SERVER['REMOTE_ADDR'] ?? ''));
 
         return Response::redirect('/admin/settings');
@@ -81,21 +130,42 @@ final class SettingsController
         return '<label>' . $this->e($label) . ' <input type="text" name="' . $this->e($name) . '" value="' . $this->e($value) . '" required></label>';
     }
 
-    private function faviconField(array $site): string
+    private function brandingField(array $site): string
     {
-        $favicon = (string)($site['favicon'] ?? '');
-        $faviconExists = $favicon !== '' && is_file($this->publicFile($favicon));
-        $fallbackUrl = $this->defaultFaviconDataUri() ?: $this->assetUrl('/assets/img/batoi-press/press-color-tile-32.png');
-        $previewUrl = $faviconExists ? $this->faviconUrl($favicon) : $fallbackUrl;
-        $previewLabel = $faviconExists ? 'Current favicon' : 'Current favicon (default)';
-        $notice = $favicon !== '' && !$faviconExists ? '<small>Configured favicon file was not found. Showing the default Batoi Press icon.</small>' : '';
-        $fallback = $fallbackUrl !== $previewUrl ? ' onerror="this.onerror=null;this.src=\'' . $this->e($fallbackUrl) . '\';"' : '';
-        $preview = '<div class="bp-favicon-current"><span>' . $this->e($previewLabel) . '</span><img src="' . $this->e($previewUrl) . '" alt=""' . $fallback . '>' . $notice . '</div>';
-        if ($favicon !== '') {
-            $preview .= '<input type="hidden" name="current_favicon" value="' . $this->e($favicon) . '">';
+        $manager = new BrandAssetManager($this->config->paths());
+        $branding = $manager->branding($site);
+        $logo = (string)($branding['logo_url'] ?? '');
+        $logoPreview = '<div class="bp-branding-current"><strong>Current public identity</strong>'
+            . ($logo !== '' ? '<img src="' . $this->e(\bp_url($logo)) . '" alt="' . $this->e((string)$branding['logo_alt']) . '">' : '<span>' . $this->e((string)$branding['site_name']) . '</span>')
+            . '<small>Effective mode: ' . $this->e(str_replace('_', ' + ', (string)$branding['display'])) . '</small></div>';
+
+        $display = (string)($site['brand_display'] ?? 'text');
+        $modes = '<fieldset class="bp-field-wide"><legend>Header identity</legend><div class="bp-segmented-control">';
+        foreach (['text' => 'Text', 'logo' => 'Logo', 'logo_with_text' => 'Logo + text'] as $value => $label) {
+            $modes .= '<label><input type="radio" name="brand_display" value="' . $this->e($value) . '"' . ($display === $value ? ' checked' : '') . '><span>' . $this->e($label) . '</span></label>';
+        }
+        $modes .= '</div></fieldset>';
+
+        $logoFields = '<label>Logo alt text <input type="text" name="brand_logo_alt" value="' . $this->e((string)($site['brand_logo_alt'] ?? $site['name'] ?? '')) . '"><span class="bp-field-help">Defaults to the site name.</span></label>'
+            . '<label>Upload brand logo <input type="file" name="brand_logo" accept=".svg,.png,.jpg,.jpeg,.gif,.webp,image/svg+xml,image/png,image/jpeg,image/gif,image/webp"><span class="bp-field-help">SVG, PNG, JPG, GIF, or WebP up to 2 MB and 4096 x 4096.</span></label>';
+        if ((string)($site['brand_logo'] ?? '') !== '') {
+            $logoFields .= '<label class="bp-field-wide"><input type="checkbox" name="remove_brand_logo" value="1"> Remove current brand logo</label>';
         }
 
-        return '<div class="bp-form-grid">' . $preview . '<label class="bp-field-wide">Upload Favicon <input type="file" name="favicon" accept=".ico,.png,.jpg,.jpeg,.webp,.svg,image/x-icon,image/png,image/jpeg,image/webp,image/svg+xml"><span class="bp-field-help">Use SVG, ICO, PNG, JPG, or WebP up to 1 MB. The admin favicon always remains the Batoi Press logo.</span></label></div>';
+        $favicon = (string)($site['favicon'] ?? '');
+        $fallbackUrl = $this->defaultFaviconDataUri() ?: $this->assetUrl('/assets/img/batoi-press/press-color-tile-32.png');
+        $effectiveFavicon = (string)($branding['favicon_url'] ?? '');
+        $previewUrl = $effectiveFavicon !== '' ? (str_starts_with($effectiveFavicon, '/assets/images/site/') ? \bp_url($effectiveFavicon) : $this->assetUrl($effectiveFavicon)) : $fallbackUrl;
+        $previewLabel = $favicon !== '' && $manager->resolveUrl($favicon) !== null ? 'Current favicon' : 'Current favicon (default)';
+        $notice = $favicon !== '' && $manager->resolveUrl($favicon) === null ? '<small>Configured favicon file was not found. Showing the default Batoi Press icon.</small>' : '';
+        $fallback = $fallbackUrl !== $previewUrl ? ' onerror="this.onerror=null;this.src=\'' . $this->e($fallbackUrl) . '\';"' : '';
+        $preview = '<div class="bp-favicon-current"><span>' . $this->e($previewLabel) . '</span><img src="' . $this->e($previewUrl) . '" alt=""' . $fallback . '>' . $notice . '</div>';
+        $faviconFields = '<label class="bp-field-wide">Upload favicon <input type="file" name="favicon" accept=".ico,.png,.jpg,.jpeg,.webp,.svg,image/x-icon,image/png,image/jpeg,image/webp,image/svg+xml"><span class="bp-field-help">SVG, ICO, PNG, JPG, or WebP up to 1 MB. The admin favicon remains the Batoi Press logo.</span></label>';
+        if ($favicon !== '') {
+            $faviconFields .= '<label class="bp-field-wide"><input type="checkbox" name="remove_favicon" value="1"> Restore default favicon</label>';
+        }
+
+        return '<div class="bp-form-grid">' . $logoPreview . $preview . $modes . $logoFields . $faviconFields . '</div>';
     }
 
     private function editorSelect(string $value): string
@@ -113,7 +183,7 @@ final class SettingsController
     private function changeGuidance(): string
     {
         return '<div class="bp-admin-guidance-grid">'
-            . $this->guidanceCard('Public identity', 'Name, tagline, favicon, locale, and timezone can affect public presentation.', 'site')
+            . $this->guidanceCard('Public identity', 'Name, logo, favicon, locale, and timezone affect public presentation.', 'site')
             . $this->guidanceCard('Canonical URL', 'Base URL is used by feeds, sitemap output, and static export metadata.', 'file')
             . $this->guidanceCard('Editor behavior', 'Editor settings apply to page and post body fields after the next editor load.', 'edit')
             . '</div>';
@@ -127,181 +197,6 @@ final class SettingsController
     private function layout(string $title, string $body): string
     {
         return AdminLayout::render($title, $body);
-    }
-
-    private function saveFaviconUpload(): ?string
-    {
-        $upload = $_FILES['favicon'] ?? null;
-        if (!is_array($upload) || (int)($upload['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
-            return null;
-        }
-
-        if ((int)($upload['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
-            return 'error:Unable to read the favicon upload.';
-        }
-
-        $name = (string)($upload['name'] ?? '');
-        $tmpName = (string)($upload['tmp_name'] ?? '');
-        $size = (int)($upload['size'] ?? 0);
-        $extension = strtolower((string)pathinfo($name, PATHINFO_EXTENSION));
-
-        if ($size <= 0 || $size > self::FAVICON_MAX_BYTES) {
-            return 'error:Favicon must be a non-empty file up to 1 MB.';
-        }
-        if (!in_array($extension, self::FAVICON_EXTENSIONS, true)) {
-            return 'error:Favicon must be SVG, ICO, PNG, JPG, or WebP.';
-        }
-        if ($tmpName === '' || !is_file($tmpName)) {
-            return 'error:Favicon upload was not saved by PHP.';
-        }
-        if ($extension === 'svg') {
-            $svgError = $this->validateSvgFavicon($tmpName);
-            if ($svgError !== null) {
-                return 'error:' . $svgError;
-            }
-        } else {
-            $imageError = $this->validateImageFavicon($tmpName, $extension);
-            if ($imageError !== null) {
-                return 'error:' . $imageError;
-            }
-        }
-
-        $relative = '/assets/site/favicon.' . $extension;
-        $directory = dirname(__DIR__, 2) . '/public_html/assets/site';
-        if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
-            return 'error:Unable to prepare the favicon directory.';
-        }
-
-        $destination = $directory . '/favicon.' . $extension;
-        if (!move_uploaded_file($tmpName, $destination)) {
-            return 'error:Unable to save the favicon upload.';
-        }
-
-        chmod($destination, 0664);
-        return $relative;
-    }
-
-    private function validateSvgFavicon(string $path): ?string
-    {
-        $contents = file_get_contents($path);
-        if (!is_string($contents) || trim($contents) === '') {
-            return 'SVG favicon is empty.';
-        }
-
-        $lower = strtolower($contents);
-        if (!str_contains($lower, '<svg')) {
-            return 'SVG favicon must contain an SVG root.';
-        }
-
-        foreach (['<script', 'javascript:', '<foreignobject', 'data:'] as $blocked) {
-            if (str_contains($lower, $blocked)) {
-                return 'SVG favicon contains unsupported active content.';
-            }
-        }
-
-        if (preg_match('/\son[a-z]+\s*=/i', $contents) === 1) {
-            return 'SVG favicon cannot contain event handler attributes.';
-        }
-
-        return null;
-    }
-
-    private function validateImageFavicon(string $path, string $extension): ?string
-    {
-        if ($extension === 'ico') {
-            if ($this->isValidIcoContainer($path)) {
-                return null;
-            }
-
-            $info = @getimagesize($path);
-            $mime = is_array($info) ? (string)($info['mime'] ?? '') : '';
-            if (($info[0] ?? 0) > 0
-                && ($info[1] ?? 0) > 0
-                && in_array($mime, ['image/png', 'image/jpeg', 'image/webp'], true)) {
-                return null;
-            }
-
-            return 'ICO favicon must contain a valid icon or browser-compatible image.';
-        }
-
-        $info = @getimagesize($path);
-        if (!is_array($info) || ($info[0] ?? 0) <= 0 || ($info[1] ?? 0) <= 0) {
-            return 'Favicon must be a valid image file.';
-        }
-
-        $allowedMimes = [
-            'jpeg' => 'image/jpeg',
-            'jpg' => 'image/jpeg',
-            'png' => 'image/png',
-            'webp' => 'image/webp',
-        ];
-        $mime = (string)($info['mime'] ?? '');
-        if (($allowedMimes[$extension] ?? '') !== $mime) {
-            return 'Favicon image type does not match the file extension.';
-        }
-
-        return null;
-    }
-
-    private function isValidIcoContainer(string $path): bool
-    {
-        $size = filesize($path);
-        if (!is_int($size) || $size < 22) {
-            return false;
-        }
-
-        $handle = fopen($path, 'rb');
-        if (!is_resource($handle)) {
-            return false;
-        }
-
-        $header = fread($handle, 6);
-        if (!is_string($header) || strlen($header) !== 6) {
-            fclose($handle);
-            return false;
-        }
-
-        $directory = unpack('vreserved/vtype/vcount', $header);
-        $count = (int)($directory['count'] ?? 0);
-        $directoryEnd = 6 + ($count * 16);
-        if (($directory['reserved'] ?? -1) !== 0
-            || ($directory['type'] ?? 0) !== 1
-            || $count < 1
-            || $count > 256
-            || $directoryEnd > $size) {
-            fclose($handle);
-            return false;
-        }
-
-        for ($index = 0; $index < $count; $index++) {
-            $entry = fread($handle, 16);
-            if (!is_string($entry) || strlen($entry) !== 16) {
-                fclose($handle);
-                return false;
-            }
-
-            $image = unpack('Cwidth/Cheight/Ccolors/Creserved/vplanes/vbits/Vbytes/Voffset', $entry);
-            $bytes = (int)($image['bytes'] ?? 0);
-            $offset = (int)($image['offset'] ?? 0);
-            if (($image['reserved'] ?? 1) !== 0
-                || $bytes < 1
-                || $offset < $directoryEnd
-                || $offset > $size
-                || $bytes > ($size - $offset)) {
-                fclose($handle);
-                return false;
-            }
-        }
-
-        fclose($handle);
-        return true;
-    }
-
-    private function faviconUrl(string $favicon): string
-    {
-        $path = $this->publicFile($favicon);
-        $version = is_file($path) ? '?v=' . filemtime($path) : '';
-        return '/' . ltrim($favicon, '/') . $version;
     }
 
     private function assetUrl(string $path): string

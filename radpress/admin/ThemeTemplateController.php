@@ -12,6 +12,7 @@ use Batoi\Press\Core\HtmlContent;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
 use Batoi\Press\Core\Theme;
+use Batoi\Press\Core\ThemeManager;
 use Batoi\Press\Security\Csrf;
 use Batoi\Press\Security\UploadGuard;
 use RuntimeException;
@@ -41,7 +42,10 @@ final class ThemeTemplateController
         'layouts/404.php',
     ];
 
-    private const UPLOAD_EXTENSIONS = ['php', 'json', 'css', 'js', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'txt', 'md'];
+    private const UPLOAD_EXTENSIONS = ['php', 'json', 'css', 'js', 'mjs', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'woff', 'woff2', 'ttf', 'otf', 'eot', 'map', 'txt', 'md'];
+    private const MAX_THEME_FILES = 500;
+    private const MAX_THEME_FILE_BYTES = 5242880;
+    private const MAX_THEME_EXTRACTED_BYTES = 52428800;
 
     public function __construct(
         private readonly Config $config,
@@ -71,11 +75,14 @@ final class ThemeTemplateController
             $cards .= '<em>' . AdminLayout::icon($isActive ? 'check' : 'code') . '</em>';
             $cards .= '<strong>' . $this->e((string)$theme['name']) . '</strong>';
             $cards .= '<span>Version ' . $this->e((string)$theme['version']) . ' by ' . $this->e((string)$theme['author']) . '</span>';
-            $cards .= '<small>' . ($isActive ? 'Active theme' : 'Installed theme') . '</small>';
+            $cards .= '<small>' . ($isActive ? 'Active theme' : 'Installed theme') . ' · ' . (int)$theme['asset_count'] . ' assets · ' . ((bool)$theme['valid'] ? 'Valid' : 'Needs attention') . '</small>';
+            if (!(bool)$theme['valid']) {
+                $cards .= '<span class="bp-error">' . $this->e(implode(' ', (array)$theme['errors'])) . '</span>';
+            }
             $cards .= '<div class="bp-uif-toolbar">';
             $cards .= AdminLayout::buttonLink('Edit', '/admin/theme-templates?theme=' . rawurlencode($slug), 'code', true);
-            $cards .= AdminLayout::buttonLink('Preview', '/admin/themes/preview/' . rawurlencode($slug), 'site', true);
-            if (!$isActive) {
+            $cards .= AdminLayout::buttonLink('Preview', '/admin/themes/preview/' . rawurlencode($slug) . '?layout=home', 'site', true);
+            if (!$isActive && (bool)$theme['valid']) {
                 $cards .= '<form method="post" action="/admin/themes/activate" class="bp-inline-form">' . $this->csrf->field() . '<input type="hidden" name="theme" value="' . $this->e($slug) . '">' . AdminLayout::submitButton('Activate', 'check') . '</form>';
             }
             $cards .= '</div></section>';
@@ -106,6 +113,10 @@ final class ThemeTemplateController
         $theme = $this->sanitizeSlug($request->input('theme'));
         if ($theme === '' || !$this->themeExists($theme)) {
             return Response::html($this->layout('Themes', '<p class="bp-error">Theme not found.</p><p>' . AdminLayout::buttonLink('Back to themes', '/admin/themes', 'back', true) . '</p>'), 404);
+        }
+        $validation = (new ThemeManager($this->config->paths(), $this->files))->validate($theme);
+        if (!($validation['ok'] ?? false)) {
+            return Response::html($this->layout('Themes', '<p class="bp-error">Theme cannot be activated: ' . $this->e(implode(' ', (array)$validation['errors'])) . '</p><p>' . AdminLayout::buttonLink('Back to themes', '/admin/themes', 'back', true) . '</p>'), 400);
         }
 
         $site = $this->config->site();
@@ -143,7 +154,7 @@ final class ThemeTemplateController
         return Response::redirect('/admin/themes');
     }
 
-    public function preview(string $theme): Response
+    public function preview(string $theme, string $layout = 'home'): Response
     {
         if ($blocked = $this->authorize()) {
             return $blocked;
@@ -156,18 +167,36 @@ final class ThemeTemplateController
         $html = new HtmlContent();
         $pages = new PageRepository($this->config->paths(), $files, $html);
         $posts = new PostRepository($this->config->paths(), $files, $html);
-        $page = $pages->findBySlug('home');
+        $layout = in_array($layout, ['home', 'page', 'post', 'blog', 'archive', '404'], true) ? $layout : 'home';
+        $page = $layout === 'home' ? $pages->findBySlug('home') : ($pages->allPublished()[0] ?? null);
+        $post = $posts->allPublished()[0] ?? null;
 
-        $previewBanner = '<div class="bp-preview-banner"><div class="bp-preview-banner-inner"><span class="bp-preview-badge">Preview</span><strong>' . $this->e($this->themeName($theme)) . '</strong><span>Reviewing theme without changing the live site.</span><a href="' . $this->e(\bp_url('/admin/themes')) . '">Back to Themes</a></div></div>';
-        if ($page !== null) {
-            $response = (new Theme($this->config->paths(), $site))->render('page', ['page' => $page, 'title' => (string)($page['title'] ?? 'Home')]);
-        } else {
-            $response = (new Theme($this->config->paths(), $site))->render('blog', ['posts' => $posts->allPublished(), 'title' => 'Blog']);
+        $previewLinks = '';
+        foreach (['home', 'page', 'post', 'blog', 'archive', '404'] as $target) {
+            $previewLinks .= '<a' . ($layout === $target ? ' class="is-current"' : '') . ' href="' . $this->e(\bp_url('/admin/themes/preview/' . rawurlencode($theme)) . '?layout=' . $target) . '">' . $this->e(ucfirst($target)) . '</a>';
         }
+        $previewBanner = '<div class="bp-preview-banner"><div class="bp-preview-banner-inner"><span class="bp-preview-badge">Preview</span><strong>' . $this->e($this->themeName($theme)) . '</strong><nav aria-label="Preview layout">' . $previewLinks . '</nav><a href="' . $this->e(\bp_url('/admin/themes')) . '">Back to Themes</a></div></div>';
+
+        $renderLayout = $layout;
+        $data = ['title' => ucfirst($layout)];
+        if (in_array($layout, ['home', 'page'], true) && is_array($page)) {
+            $renderLayout = 'page';
+            $data = ['page' => $page, 'title' => (string)($page['title'] ?? ucfirst($layout))];
+        } elseif ($layout === 'post' && is_array($post)) {
+            $data = ['post' => $post, 'title' => (string)($post['title'] ?? 'Post')];
+        } elseif ($layout === 'post') {
+            $renderLayout = 'blog';
+            $data = ['posts' => [], 'title' => 'Blog'];
+        } elseif ($layout === 'blog') {
+            $data = ['posts' => $posts->allPublished(), 'title' => 'Blog'];
+        } elseif ($layout === 'archive') {
+            $data = ['posts' => $posts->allPublished(), 'title' => 'Archive'];
+        }
+
+        $response = (new Theme($this->config->paths(), $site))->render($renderLayout, $data, $layout === '404' ? 404 : 200, ['preview_banner' => $previewBanner]);
 
         $body = $response->content();
         $body = str_replace('</head>', '<style>' . $this->previewCss() . '</style></head>', $body);
-        $body = str_replace('<body class="bp-public-body">', '<body class="bp-public-body is-theme-preview">' . $previewBanner, $body);
         return Response::html($body);
     }
 
@@ -308,11 +337,16 @@ final class ThemeTemplateController
         foreach (glob($this->config->paths()->themePath('*'), GLOB_ONLYDIR) ?: [] as $dir) {
             $slug = basename($dir);
             $manifest = $this->readManifest($slug);
+            $manager = new ThemeManager($this->config->paths(), $this->files);
+            $validation = $manager->validate($slug);
             $themes[] = [
                 'slug' => $slug,
                 'name' => (string)($manifest['name'] ?? ucfirst($slug)),
                 'version' => (string)($manifest['version'] ?? 'unknown'),
                 'author' => (string)($manifest['author'] ?? 'Unknown'),
+                'asset_count' => count($manager->assetFiles($slug)),
+                'valid' => (bool)($validation['ok'] ?? false),
+                'errors' => (array)($validation['errors'] ?? []),
             ];
         }
         usort($themes, static fn (array $a, array $b): int => strcmp((string)$a['name'], (string)$b['name']));
@@ -347,6 +381,7 @@ final class ThemeTemplateController
             . '.bp-preview-banner span{color:#cbd5e1;font-size:.86rem}'
             . '.bp-preview-banner .bp-preview-badge{background:rgba(0,182,150,.16);border:1px solid rgba(0,182,150,.42);border-radius:999px;color:#99f6e4;font-size:.72rem;font-weight:800;letter-spacing:.02em;padding:4px 8px;text-transform:uppercase}'
             . '.bp-preview-banner a{background:#fff;border:1px solid rgba(255,255,255,.78);border-radius:3px;color:#0f172a;font-size:.84rem;font-weight:760;margin-left:auto;padding:7px 10px;text-decoration:none}'
+            . '.bp-preview-banner nav{align-items:center;display:flex;flex-wrap:wrap;gap:4px}.bp-preview-banner nav a{background:transparent;border-color:transparent;color:#cbd5e1;margin:0;padding:5px 7px}.bp-preview-banner nav a.is-current{background:rgba(255,255,255,.14);color:#fff}'
             . '.bp-preview-banner a:hover{background:#e6f4ff;color:#07497c}'
             . '@media(max-width:720px){.bp-preview-banner-inner{align-items:flex-start;flex-direction:column;gap:6px}.bp-preview-banner a{margin-left:0}}';
     }
@@ -361,6 +396,7 @@ final class ThemeTemplateController
         if ($zip->open($uploadPath) !== true) {
             throw new RuntimeException('Unable to open theme ZIP.');
         }
+        $zipOpen = true;
 
         $tmp = $this->config->paths()->dataPath('tmp/theme-upload-' . bin2hex(random_bytes(4)));
         if (!is_dir($tmp) && !mkdir($tmp, 0775, true) && !is_dir($tmp)) {
@@ -369,13 +405,40 @@ final class ThemeTemplateController
         }
 
         try {
+            if ($zip->numFiles < 1 || $zip->numFiles > self::MAX_THEME_FILES) {
+                throw new RuntimeException('Theme ZIP contains too many files.');
+            }
+            $seen = [];
+            $totalBytes = 0;
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $name = (string)$zip->getNameIndex($i);
-                $this->validateZipEntry($name);
+                $normalized = $this->validateZipEntry($name);
+                if (isset($seen[$normalized])) {
+                    throw new RuntimeException('Theme ZIP contains a duplicate path: ' . $normalized);
+                }
+                $seen[$normalized] = true;
+                $stat = $zip->statIndex($i);
+                $entryBytes = (int)($stat['size'] ?? 0);
+                if ($entryBytes > self::MAX_THEME_FILE_BYTES) {
+                    throw new RuntimeException('Theme ZIP entry is too large: ' . $normalized);
+                }
+                $totalBytes += $entryBytes;
+                if ($totalBytes > self::MAX_THEME_EXTRACTED_BYTES) {
+                    throw new RuntimeException('Theme ZIP extracted size is too large.');
+                }
+                $opsys = 0;
+                $attributes = 0;
+                $zip->getExternalAttributesIndex($i, $opsys, $attributes);
+                if (($attributes & 0xF0000000) === 0xA0000000) {
+                    throw new RuntimeException('Theme ZIP cannot contain symbolic links.');
+                }
+                if (isset($stat['encryption_method']) && (int)$stat['encryption_method'] !== 0) {
+                    throw new RuntimeException('Theme ZIP cannot contain encrypted entries.');
+                }
                 if (str_ends_with($name, '/')) {
                     continue;
                 }
-                $target = $tmp . '/' . $name;
+                $target = $tmp . '/' . $normalized;
                 $dir = dirname($target);
                 if (!is_dir($dir)) {
                     mkdir($dir, 0775, true);
@@ -387,17 +450,34 @@ final class ThemeTemplateController
                 $this->files->write($target, $contents);
             }
             $zip->close();
+            $zipOpen = false;
 
             $source = $this->locateThemeRoot($tmp);
             $this->validateThemeRoot($source);
             $slug = $this->themeSlugFromUpload($source, $originalName);
             $target = $this->config->paths()->themePath($slug);
+            $staging = $this->config->paths()->themePath('.install-' . $slug . '-' . bin2hex(random_bytes(3)));
+            $this->copyDirectory($source, $staging);
             if (is_dir($target)) {
-                throw new RuntimeException('A theme with this slug already exists.');
+                $backup = $this->config->paths()->dataPath('versions/theme-packages/' . $slug . '/' . date('Ymd-His'));
+                $this->copyDirectory($target, $backup);
+                $rollback = $this->config->paths()->themePath('.rollback-' . $slug . '-' . bin2hex(random_bytes(3)));
+                if (!rename($target, $rollback)) {
+                    $this->removeDirectory($staging);
+                    throw new RuntimeException('Unable to prepare the existing theme for upgrade.');
+                }
+                if (!rename($staging, $target)) {
+                    rename($rollback, $target);
+                    $this->removeDirectory($staging);
+                    throw new RuntimeException('Unable to publish the validated theme upgrade.');
+                }
+                $this->removeDirectory($rollback);
+            } elseif (!rename($staging, $target)) {
+                $this->removeDirectory($staging);
+                throw new RuntimeException('Unable to publish the validated theme.');
             }
-            $this->copyDirectory($source, $target);
         } finally {
-            if (isset($zip) && $zip instanceof ZipArchive) {
+            if (($zipOpen ?? false) && isset($zip) && $zip instanceof ZipArchive) {
                 $zip->close();
             }
             $this->removeDirectory($tmp);
@@ -406,19 +486,28 @@ final class ThemeTemplateController
         return $slug;
     }
 
-    private function validateZipEntry(string $name): void
+    private function validateZipEntry(string $name): string
     {
         $normalized = str_replace('\\', '/', $name);
-        if ($normalized === '' || str_starts_with($normalized, '/') || str_contains($normalized, '../') || str_contains($normalized, '..\\')) {
+        if ($normalized === '' || str_starts_with($normalized, '/') || preg_match('/^[a-z]:/i', $normalized) === 1 || preg_match('/[\x00-\x1f\x7f]/', $normalized) === 1) {
             throw new RuntimeException('Theme ZIP contains an unsafe path.');
         }
+        foreach (explode('/', rtrim($normalized, '/')) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new RuntimeException('Theme ZIP contains an unsafe path.');
+            }
+        }
         if (str_ends_with($normalized, '/')) {
-            return;
+            return $normalized;
         }
         $extension = strtolower(pathinfo($normalized, PATHINFO_EXTENSION));
         if (!in_array($extension, self::UPLOAD_EXTENSIONS, true)) {
             throw new RuntimeException('Theme ZIP contains an unsupported file type: ' . $extension);
         }
+        if ($extension === 'php' && preg_match('#(?:^|/)(?:layouts|partials)/[^/]+\.php$#', $normalized) !== 1) {
+            throw new RuntimeException('Theme PHP files are restricted to layouts and partials.');
+        }
+        return $normalized;
     }
 
     private function locateThemeRoot(string $tmp): string
@@ -440,6 +529,16 @@ final class ThemeTemplateController
         foreach (self::REQUIRED_THEME_FILES as $file) {
             if (!is_file($source . '/' . $file)) {
                 throw new RuntimeException('Theme ZIP is missing required file: ' . $file);
+            }
+        }
+        $manifest = $this->files->readJson($source . '/theme.json');
+        $slug = $this->sanitizeSlug((string)($manifest['slug'] ?? $manifest['name'] ?? 'theme'));
+        $normalized = (new ThemeManager($this->config->paths(), $this->files))->normalizeManifest($slug, $manifest);
+        foreach (['styles', 'scripts'] as $group) {
+            foreach ($normalized['assets'][$group] as $entry) {
+                if (!is_file($source . '/assets/' . (string)$entry['file'])) {
+                    throw new RuntimeException('Theme ZIP is missing declared asset: assets/' . (string)$entry['file']);
+                }
             }
         }
     }

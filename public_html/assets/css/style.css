@@ -145,10 +145,28 @@ p {
 }
 
 .bp-brand {
+    align-items: center;
     color: var(--bp-text);
+    display: inline-flex;
     font-size: 1.05rem;
     font-weight: 800;
+    gap: 10px;
+    min-width: 0;
     text-decoration: none;
+}
+
+.bp-brand-logo {
+    display: block;
+    flex: 0 1 auto;
+    height: 42px;
+    max-width: min(240px, 38vw);
+    object-fit: contain;
+    object-position: left center;
+    width: auto;
+}
+
+.bp-brand-name {
+    overflow-wrap: anywhere;
 }
 
 .bp-links {
@@ -1712,6 +1730,70 @@ p {
     object-fit: contain;
     padding: 6px;
     width: 40px;
+}
+
+.bp-branding-current {
+    align-items: center;
+    background: var(--bp-panel-soft);
+    border: 1px solid var(--bp-line);
+    border-radius: var(--bp-radius);
+    display: grid;
+    gap: 10px;
+    min-height: 96px;
+    padding: 14px;
+}
+
+.bp-branding-current img {
+    background: #fff;
+    border: 1px solid var(--bp-line);
+    border-radius: var(--bp-radius);
+    display: block;
+    height: 54px;
+    max-width: min(100%, 260px);
+    object-fit: contain;
+    object-position: left center;
+    padding: 6px;
+    width: auto;
+}
+
+.bp-segmented-control {
+    display: inline-grid;
+    gap: 2px;
+    grid-auto-flow: column;
+    justify-content: start;
+}
+
+.bp-segmented-control label {
+    cursor: pointer;
+    margin: 0;
+}
+
+.bp-segmented-control input {
+    opacity: 0;
+    position: absolute;
+    pointer-events: none;
+}
+
+.bp-segmented-control span {
+    background: #fff;
+    border: 1px solid var(--bp-line);
+    color: var(--bp-muted);
+    display: block;
+    font-size: 0.86rem;
+    font-weight: 650;
+    min-height: 36px;
+    padding: 8px 12px;
+}
+
+.bp-segmented-control input:checked + span {
+    background: #e6f4ff;
+    border-color: rgba(14, 104, 176, 0.42);
+    color: var(--bp-accent-dark);
+}
+
+.bp-segmented-control input:focus-visible + span {
+    outline: 2px solid var(--bp-accent);
+    outline-offset: 2px;
 }
 
 .bp-editor-textarea {

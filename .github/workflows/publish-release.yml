@@ -34,6 +34,17 @@ jobs:
       - name: Run update test
         run: php radpress/tests/update_runner.php
 
+      - name: Run theme, asset, security, and export tests
+        run: |
+          php radpress/tests/asset_library.php
+          php radpress/tests/media_assets.php
+          php radpress/tests/security_baseline.php
+          php radpress/tests/role_access.php
+          php radpress/tests/post_ownership.php
+          php radpress/tests/theme_template_syntax.php
+          php radpress/tests/theme_branding.php
+          php radpress/tests/static_export.php
+
       - name: Build release package
         run: php tools/build-release.php
 

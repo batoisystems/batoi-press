@@ -11,6 +11,9 @@ function bp_url(string $path = ''): string
 
 function bp_base_path(): string
 {
+    if (($GLOBALS['bp_static_export_mode'] ?? false) === true) {
+        return '';
+    }
     $script = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
     $dir = dirname($script);
 
@@ -33,4 +36,14 @@ function bp_localize_markup_urls(string $html): string
         static fn(array $match): string => $match[1] . '=' . $match[2] . $base . '/',
         $html
     ) ?? $html;
+}
+
+function bp_theme_asset(string $path): string
+{
+    $resolver = $GLOBALS['bp_theme_asset_resolver'] ?? null;
+    if (!is_callable($resolver)) {
+        return '#';
+    }
+
+    return (string)$resolver($path);
 }

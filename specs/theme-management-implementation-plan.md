@@ -12,67 +12,67 @@
 
 ### Phase 1: Contracts And Shared Services
 
-- [ ] Define and validate a versioned `theme.json` schema for metadata, capabilities, bundled assets, and template requirements.
-- [ ] Add a `ThemeManager` service that resolves the active theme, validates manifests, resolves safe bundled-asset paths, and exposes normalized theme metadata.
-- [ ] Add a `BrandAssetManager` service for logo/favicon upload, validation, replacement, removal, URL resolution, and orphan cleanup.
-- [ ] Add base-path-aware helpers for site assets and theme assets instead of resolving public paths directly inside templates.
-- [ ] Preserve compatibility with existing themes whose manifests contain only `name`, `version`, `author`, and `supports`.
+- [x] Define and validate a versioned `theme.json` schema for metadata, capabilities, bundled assets, and template requirements.
+- [x] Add a `ThemeManager` service that resolves the active theme, validates manifests, resolves safe bundled-asset paths, and exposes normalized theme metadata.
+- [x] Add a `BrandAssetManager` service for logo/favicon upload, validation, replacement, removal, URL resolution, and orphan cleanup.
+- [x] Add base-path-aware helpers for site assets and theme assets instead of resolving public paths directly inside templates.
+- [x] Preserve compatibility with existing themes whose manifests contain only `name`, `version`, `author`, and `supports`.
 
 ### Phase 2: Branding Settings
 
-- [ ] Extend Admin Settings with public brand-logo upload, preview, replacement, and removal controls.
-- [ ] Support safe SVG, PNG, WebP, JPG/JPEG, and GIF logo files with verified content, bounded dimensions, and a documented size limit.
-- [ ] Add display modes for `text`, `logo`, and `logo_with_text`, with accessible logo alt text and site-name fallback.
-- [ ] Store site-owned branding below `radpress/content/assets/images/site/` and save only normalized relative URLs in `site.json`.
-- [ ] Remove superseded favicon/logo files only after the new settings and file write complete successfully.
-- [ ] Audit logo upload, replacement, removal, and branding-setting changes.
+- [x] Extend Admin Settings with public brand-logo upload, preview, replacement, and removal controls.
+- [x] Support safe SVG, PNG, WebP, JPG/JPEG, and GIF logo files with verified content, bounded dimensions, and a documented size limit.
+- [x] Add display modes for `text`, `logo`, and `logo_with_text`, with accessible logo alt text and site-name fallback.
+- [x] Store site-owned branding below `radpress/content/assets/images/site/` and save only normalized relative URLs in `site.json`.
+- [x] Remove superseded favicon/logo files only after the new settings and file write complete successfully.
+- [x] Audit logo upload, replacement, removal, and branding-setting changes.
 
 ### Phase 3: Theme Asset Delivery
 
-- [ ] Establish `assets/` inside each theme as the only public theme-bundle asset root.
-- [ ] Add a traversal-safe route such as `/theme-assets/{theme}/{path}` with MIME, length, cache, and `nosniff` headers.
-- [ ] Let manifests declare ordered stylesheet and script entry points, including safe `media`, `defer`, `async`, and module options.
-- [ ] Inject declared active-theme assets through the renderer without hardcoding theme CSS/JS in `layouts/base.php`.
-- [ ] Keep application-owned Batoi UIF/runtime assets separate from theme-owned presentation assets.
-- [ ] Show bundled asset counts, entry points, missing files, and validation state on the Themes screen.
+- [x] Establish `assets/` inside each theme as the only public theme-bundle asset root.
+- [x] Add a traversal-safe route such as `/theme-assets/{theme}/{path}` with MIME, length, cache, and `nosniff` headers.
+- [x] Let manifests declare ordered stylesheet and script entry points, including safe `media`, `defer`, `async`, and module options.
+- [x] Inject declared active-theme assets through the renderer without hardcoding theme CSS/JS in `layouts/base.php`.
+- [x] Keep application-owned Batoi UIF/runtime assets separate from theme-owned presentation assets.
+- [x] Show bundled asset counts, entry points, missing files, and validation state on the Themes screen.
 
 ### Phase 4: Rendering And Template Context
 
-- [ ] Pass a documented normalized `$theme` context to every layout and partial: slug, manifest, capabilities, assets, and asset URL helper.
-- [ ] Pass a documented normalized `$branding` context: display mode, site name, logo URL, logo alt text, and favicon metadata.
-- [ ] Update the default public header to render the uploaded logo according to display mode and fall back to the escaped site name.
-- [ ] Add responsive logo constraints that preserve intrinsic aspect ratio and prevent navigation displacement on mobile and desktop.
-- [ ] Keep theme templates free to place branding elsewhere while providing one consistent data contract.
-- [ ] Replace preview banner injection based on an exact body class with renderer-supported preview markup that works across valid themes.
-- [ ] Add preview targets for home, page, post, blog, archive, and 404 layouts, including missing-content fallback fixtures.
+- [x] Pass a documented normalized `$theme` context to every layout and partial: slug, manifest, capabilities, assets, and asset URL helper.
+- [x] Pass a documented normalized `$branding` context: display mode, site name, logo URL, logo alt text, and favicon metadata.
+- [x] Update the default public header to render the uploaded logo according to display mode and fall back to the escaped site name.
+- [x] Add responsive logo constraints that preserve intrinsic aspect ratio and prevent navigation displacement on mobile and desktop.
+- [x] Keep theme templates free to place branding elsewhere while providing one consistent data contract.
+- [x] Replace preview banner injection based on an exact body class with renderer-supported preview markup that works across valid themes.
+- [x] Add preview targets for home, page, post, blog, archive, and 404 layouts, including missing-content fallback fixtures.
 
 ### Phase 5: Theme Package Hardening
 
-- [ ] Validate manifest JSON structure, schema version, slug, semantic version, capabilities, asset declarations, and required templates before installation.
-- [ ] Enforce archive file-count, per-file size, and total-extracted-size limits.
-- [ ] Reject links, encrypted entries, duplicate normalized paths, control characters, absolute paths, drive-letter paths, traversal, and executable server files.
-- [ ] Validate every declared asset entry exists below the theme `assets/` root and has an allowed type.
-- [ ] Extract entry-by-entry into a temporary directory and publish through an atomic rename only after complete validation.
-- [ ] Add safe upgrade behavior for an existing theme slug with backup and rollback rather than requiring manual replacement.
-- [ ] Prevent activation when the manifest or required runtime files are invalid.
+- [x] Validate manifest JSON structure, schema version, slug, semantic version, capabilities, asset declarations, and required templates before installation.
+- [x] Enforce archive file-count, per-file size, and total-extracted-size limits.
+- [x] Reject links, encrypted entries, duplicate normalized paths, control characters, absolute paths, drive-letter paths, traversal, and executable server files.
+- [x] Validate every declared asset entry exists below the theme `assets/` root and has an allowed type.
+- [x] Extract entry-by-entry into a temporary directory and publish through an atomic rename only after complete validation.
+- [x] Add safe upgrade behavior for an existing theme slug with backup and rollback rather than requiring manual replacement.
+- [x] Prevent activation when the manifest or required runtime files are invalid.
 
 ### Phase 6: Static Export Parity
 
-- [ ] Render exported pages, posts, blog, archive, and 404 output through the active `Theme` renderer instead of the current minimal standalone HTML builder.
-- [ ] Copy active-theme bundled assets to stable exported paths and rewrite/localize theme-asset URLs for subdirectory-safe static hosting.
-- [ ] Copy configured brand logo and favicon assets and verify every generated branding reference exists in the ZIP.
-- [ ] Preserve typed site assets, legacy media, and enabled frontend-library dependency trees.
-- [ ] Verify exported navigation, branding, styles, scripts, favicon, canonical URLs, and nested page/post paths.
+- [x] Render exported pages, posts, blog, archive, and 404 output through the active `Theme` renderer instead of the current minimal standalone HTML builder.
+- [x] Copy active-theme bundled assets to stable exported paths and rewrite/localize theme-asset URLs for subdirectory-safe static hosting.
+- [x] Copy configured brand logo and favicon assets and verify every generated branding reference exists in the ZIP.
+- [x] Preserve typed site assets, legacy media, and enabled frontend-library dependency trees.
+- [x] Verify exported navigation, branding, styles, scripts, favicon, canonical URLs, and nested page/post paths.
 
 ### Phase 7: Verification And Delivery
 
-- [ ] Add unit tests for manifest normalization, theme-asset resolution, branding validation, SVG safety, and path traversal rejection.
+- [x] Add unit tests for manifest normalization, theme-asset resolution, branding validation, SVG safety, and path traversal rejection.
 - [ ] Add integration tests for logo upload/replace/remove, theme package install/upgrade/activate, preview targets, and fallback behavior.
-- [ ] Expand static-export tests to assert rendered theme shell and all referenced asset files.
+- [x] Expand static-export tests to assert rendered theme shell and all referenced asset files.
 - [ ] Verify default and uploaded themes at desktop and mobile widths in the synchronized testsite.
 - [ ] Verify text-only, logo-only, logo-with-text, missing-logo, malformed-logo, and long-navigation states.
-- [ ] Run PHP lint, smoke, role access, security baseline, theme syntax, static export, and update tests.
-- [ ] Update theme-development, admin, release-management, and package-author documentation.
+- [x] Run PHP lint, smoke, role access, security baseline, theme syntax, static export, and update tests.
+- [x] Update theme-development, admin, release-management, and package-author documentation.
 - [ ] Commit the implementation, synchronize the testsite, build and verify the next release, and update the neighboring `batoi-www` publication files.
 
 ## Objective

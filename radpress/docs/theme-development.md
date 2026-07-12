@@ -26,7 +26,36 @@ archive.php
 404.php
 ```
 
-Theme layouts receive sanitized content and metadata from the engine.
+Theme layouts receive sanitized content and metadata from the engine plus normalized `$theme` and `$branding` contexts.
+
+## Manifest And Assets
+
+`theme.json` uses schema version 1. Existing minimal manifests remain compatible. Themes can declare ordered CSS and JavaScript entry points below their own `assets/` directory:
+
+```json
+{
+  "schema": 1,
+  "slug": "example",
+  "name": "Example",
+  "version": "1.0.0",
+  "author": "Example Studio",
+  "supports": ["pages", "posts", "menus", "seo", "brand_logo"],
+  "assets": {
+    "styles": [{"file": "css/theme.css", "media": "all"}],
+    "scripts": [{"file": "js/theme.js", "defer": true}]
+  }
+}
+```
+
+Bundled files resolve from `/theme-assets/{theme}/{path}`. Use `bp_theme_asset('images/example.webp')` inside a template instead of calculating filesystem or public paths. Keep site-owned logos and content images in the typed site asset store, and keep reusable third-party packages in Media Libraries.
+
+## Template Context
+
+`$branding` includes `display`, `site_name`, `logo_url`, `logo_alt`, and `favicon_url`. A theme should support `text`, `logo`, and `logo_with_text` display modes and fall back to the site name when no valid logo is available.
+
+`$theme` includes normalized manifest metadata, declared assets, validation status, and errors. The renderer injects declared asset tags; layouts should not duplicate those entry points.
+
+The Admin Themes preview supports home, page, post, blog, archive, and 404 layouts without activating the candidate theme. Static export uses the same renderer and copies active-theme assets to matching public paths.
 
 ## Header and Footer Ownership
 
