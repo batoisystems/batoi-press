@@ -414,16 +414,16 @@ final class UserController
     {
         $role = (string)($filters['role'] ?? '');
         $status = (string)($filters['status'] ?? '');
-        $html = '<form method="get" action="/admin/users" class="bp-filter-form"><label>Search <input type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Username or email"></label>';
-        $html .= '<label>Role <select name="role"><option value="">All roles</option>';
+        $html = '<form method="get" action="/admin/users" class="bp-filter-form"><div class="bp-filter-field bp-filter-field-search"><label for="bp-user-filter-q">Search</label><input id="bp-user-filter-q" type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Username or email"></div>';
+        $html .= '<div class="bp-filter-field"><label for="bp-user-filter-role">Role</label><select id="bp-user-filter-role" name="role"><option value="">All roles</option>';
         foreach ($this->roles() as $option) {
             $html .= '<option value="' . $this->e($option) . '"' . ($role === $option ? ' selected' : '') . '>' . $this->e(ucfirst($option)) . '</option>';
         }
-        $html .= '</select></label><label>Status <select name="status"><option value="">All statuses</option>';
+        $html .= '</select></div><div class="bp-filter-field"><label for="bp-user-filter-status">Status</label><select id="bp-user-filter-status" name="status"><option value="">All statuses</option>';
         foreach (['active' => 'Active', 'disabled' => 'Disabled'] as $value => $label) {
             $html .= '<option value="' . $this->e($value) . '"' . ($status === $value ? ' selected' : '') . '>' . $this->e($label) . '</option>';
         }
-        return $html . '</select></label><div class="bp-filter-actions">' . AdminLayout::submitButton('Apply Filters', 'check') . AdminLayout::buttonLink('Reset', '/admin/users', 'back', true) . '</div></form>';
+        return $html . '</select></div><div class="bp-filter-actions">' . AdminLayout::submitButton('Apply Filters', 'check') . AdminLayout::buttonLink('Reset', '/admin/users', 'back', true) . '</div></form>';
     }
 
     private function accessGovernance(): string
