@@ -50,6 +50,7 @@ From `1.0.0` onward, public content files, theme templates, installer behavior, 
 - `1.2.1`: Complete theme integration coverage and correct empty-site page/post preview fixtures. See `radpress/docs/releases/v1.2.1.md`.
 - `1.2.2`: Align Users filters with the shared admin filter grid and normalize filter control heights. See `radpress/docs/releases/v1.2.2.md`.
 - `1.2.3`: Keep the Static Export action clickable while reporting server capability and permission failures after submission. See `radpress/docs/releases/v1.2.3.md`.
+- `1.3.0`: Long-form editor focus mode, sticky tools, integrated Media guidance, and clarified HTML/Markdown behavior. See `radpress/docs/releases/v1.3.0.md`.
 
 ## Package Trust Metadata
 

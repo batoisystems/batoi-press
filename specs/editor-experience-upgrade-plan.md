@@ -11,7 +11,7 @@
 - [x] Apply the same editor experience to Pages and Posts.
 - [x] Add regression coverage for editor enhancement hooks, image guidance, and Settings copy.
 - [x] Verify sticky, focus, escape, image-help, desktop, and mobile behavior in the synchronized testsite.
-- [ ] Run the complete automated suite, commit, release, and update public Press artifacts.
+- [x] Run the complete automated suite, commit, release, and update public Press artifacts.
 
 ## Objective
 
