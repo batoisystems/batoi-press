@@ -3,10 +3,14 @@ declare(strict_types=1);
 
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
+use Batoi\Press\Admin\ExportController;
+use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\HtmlContent;
 use Batoi\Press\Core\Paths;
 use Batoi\Press\Core\StaticExporter;
+use Batoi\Press\Security\Csrf;
+use Batoi\Press\Security\Session;
 
 require dirname(__DIR__) . '/autoload.php';
 require dirname(__DIR__) . '/helpers/esc.php';
@@ -46,6 +50,16 @@ try {
     $status = $exporter->status();
     assertTrue((int)($status['media_files'] ?? 0) === 9, 'static export status should count typed assets and legacy media files');
     assertTrue((int)($status['asset_files'] ?? 0) === 6, 'static export status should count recursive typed assets');
+
+    chmod($root . '/radpress/data/export', 0555);
+    chmod($root . '/radpress/data/tmp', 0555);
+    $session = new Session('static_export_test', $root . '/radpress/data/sessions');
+    $controller = new ExportController($exporter, new Csrf($session), new AuditLog($paths, $files), ['username' => 'owner', 'role' => 'owner']);
+    $exportPage = $controller->index()->content();
+    assertTrue(str_contains($exportPage, '<span>Generate Export</span>'), 'static export action should render as a button');
+    assertTrue(!preg_match('/<button[^>]*disabled[^>]*>.*?<span>Generate Export<\/span>/s', $exportPage), 'static export action should remain clickable when readiness checks report a problem');
+    chmod($root . '/radpress/data/export', 0775);
+    chmod($root . '/radpress/data/tmp', 0775);
 
     $result = $exporter->export();
     assertTrue((bool)($result['ok'] ?? false), 'static export should succeed');

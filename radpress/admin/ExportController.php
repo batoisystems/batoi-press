@@ -38,9 +38,9 @@ final class ExportController
         $body .= '</dl>';
 
         $action = '<p>The export renders the active theme for pages, posts, blog, archive, and 404 output and includes branding, application assets, theme assets, typed assets, installed library files, legacy media, sitemap.xml, and feed.xml. Draft content, admin screens, users, sessions, backups, and audit logs are not included.</p>';
-        $action .= '<form method="post" action="/admin/export-static/run" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Generate Export', 'download', $ready ? '' : 'disabled aria-disabled="true"') . '</form>';
+        $action .= '<form method="post" action="/admin/export-static/run" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Generate Export', 'download') . '</form>';
         if (!$ready) {
-            $action .= '<p class="bp-field-help">Resolve ZIP support or directory permissions before generating an export.</p>';
+            $action .= '<p class="bp-field-help">The export request will report any missing ZIP support or directory permission that prevents package generation.</p>';
         }
         $body .= AdminLayout::section('Generate package', $action, 'Create a new timestamped ZIP in the export storage directory.');
 
