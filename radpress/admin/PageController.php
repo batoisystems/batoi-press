@@ -126,16 +126,7 @@ final class PageController
 
     private function bodyEditor(string $value, string $help): string
     {
-        $editor = $this->config->editor();
-        $mode = (string)($editor['body_editor'] ?? 'rich_html');
-        $toolbar = $this->e((string)($editor['html_toolbar'] ?? 'undo redo bold italic underline strike heading quote code ul ol task link image table hr preview source'));
-        $height = $this->e((string)($editor['html_height'] ?? '24rem'));
-        $attributes = 'class="bp-editor-textarea" name="body" rows="18"';
-        if ($mode === 'rich_html') {
-            $attributes .= ' data-uif="editor" data-uif-mode="html" data-uif-preview="manual" data-uif-editor-layout="source" data-uif-editor-height="' . $height . '" data-uif-editor-status="true" data-uif-required="true" data-uif-toolbar="' . $toolbar . '"';
-        }
-
-        return '<label class="bp-field-wide">Body HTML <textarea ' . $attributes . '>' . $this->e($value) . '</textarea><span class="bp-field-help">' . $this->e($help) . '</span></label>';
+        return ContentEditor::render($this->config, $value, $help, 'bp-page-body');
     }
 
     private function select(string $status): string

@@ -172,7 +172,7 @@ final class SettingsController
     {
         $rich = $value === 'rich_html' ? ' selected' : '';
         $source = $value === 'source_html' ? ' selected' : '';
-        return '<label>Body Editor <select name="editor_body_editor"><option value="rich_html"' . $rich . '>Batoi UIF Rich HTML</option><option value="source_html"' . $source . '>HTML Source</option></select><span class="bp-field-help">Markdown will need a storage/rendering migration before it is enabled here.</span></label>';
+        return '<label>Body Editor <select name="editor_body_editor"><option value="rich_html"' . $rich . '>Batoi UIF Rich HTML</option><option value="source_html"' . $source . '>HTML Source</option></select><span class="bp-field-help">' . $this->e(ContentEditor::storageDescription()) . '</span></label>';
     }
 
     private function section(string $title, string $description, string $body): string
