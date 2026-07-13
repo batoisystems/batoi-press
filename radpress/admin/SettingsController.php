@@ -136,7 +136,7 @@ final class SettingsController
         $branding = $manager->branding($site);
         $logo = (string)($branding['logo_url'] ?? '');
         $logoPreview = '<div class="bp-branding-current"><strong>Current public identity</strong>'
-            . ($logo !== '' ? '<img src="' . $this->e(\bp_url($logo)) . '" alt="' . $this->e((string)$branding['logo_alt']) . '">' : '<span>' . $this->e((string)$branding['site_name']) . '</span>')
+            . ($logo !== '' ? '<img src="' . $this->e($logo) . '" alt="' . $this->e((string)$branding['logo_alt']) . '">' : '<span>' . $this->e((string)$branding['site_name']) . '</span>')
             . '<small>Effective mode: ' . $this->e(str_replace('_', ' + ', (string)$branding['display'])) . '</small></div>';
 
         $display = (string)($site['brand_display'] ?? 'text');
@@ -155,7 +155,7 @@ final class SettingsController
         $favicon = (string)($site['favicon'] ?? '');
         $fallbackUrl = $this->defaultFaviconDataUri() ?: $this->assetUrl('/assets/img/batoi-press/press-color-tile-32.png');
         $effectiveFavicon = (string)($branding['favicon_url'] ?? '');
-        $previewUrl = $effectiveFavicon !== '' ? (str_starts_with($effectiveFavicon, '/assets/images/site/') ? \bp_url($effectiveFavicon) : $this->assetUrl($effectiveFavicon)) : $fallbackUrl;
+        $previewUrl = $effectiveFavicon !== '' ? (str_starts_with($effectiveFavicon, '/assets/images/site/') ? $effectiveFavicon : $this->assetUrl($effectiveFavicon)) : $fallbackUrl;
         $previewLabel = $favicon !== '' && $manager->resolveUrl($favicon) !== null ? 'Current favicon' : 'Current favicon (default)';
         $notice = $favicon !== '' && $manager->resolveUrl($favicon) === null ? '<small>Configured favicon file was not found. Showing the default Batoi Press icon.</small>' : '';
         $fallback = $fallbackUrl !== $previewUrl ? ' onerror="this.onerror=null;this.src=\'' . $this->e($fallbackUrl) . '\';"' : '';
