@@ -779,7 +779,7 @@ final class ThemeTemplateController
 
         $template = $this->template($key);
         $extension = pathinfo((string)$template['file'], PATHINFO_EXTENSION) ?: 'txt';
-        $target = $this->config->paths()->dataPath('versions/theme/' . $theme . '/' . $key . '/' . date('Ymd-His') . '.' . $extension);
+        $target = $this->config->paths()->dataPath('versions/theme/' . $theme . '/' . $key . '/' . date('Ymd-His') . '-' . bin2hex(random_bytes(3)) . '.' . $extension);
         $this->files->write($target, $this->files->read($path));
     }
 
@@ -819,7 +819,9 @@ final class ThemeTemplateController
         $items .= '<div class="bp-snapshot-list">';
         foreach ($snapshots as $snapshot) {
             $name = basename($snapshot);
-            $items .= '<form method="post" action="/admin/theme-templates/restore" class="bp-inline-form">' . $this->csrf->field() . '<input type="hidden" name="theme" value="' . $this->e($theme) . '"><input type="hidden" name="template" value="' . $this->e($key) . '"><input type="hidden" name="snapshot" value="' . $this->e($name) . '"><span>' . $this->e($name) . '</span>' . AdminLayout::submitButton('Restore', 'refresh', 'class="bp-button bp-button-secondary"') . '</form>';
+            $items .= '<div class="bp-inline-form"><span>' . $this->e($name) . '</span>'
+                . AdminLayout::submitButton('Restore', 'refresh', 'class="bp-button bp-button-secondary" name="snapshot" value="' . $this->e($name) . '" formaction="' . $this->e(\bp_url('/admin/theme-templates/restore')) . '" formmethod="post"')
+                . '</div>';
         }
         $items .= '</div>';
         return $items;

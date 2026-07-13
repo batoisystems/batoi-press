@@ -54,6 +54,32 @@ assertTrue(!$binaryNameMethod->invoke($controller, 'php8.5.2.fcgi'), 'FastCGI la
 $adminHtml = AdminLayout::render('Theme Template Test', '<main>Body</main>');
 assertTrue(str_contains($adminHtml, '/assets/js/app.js'), 'Admin pages should load the app script that resets editable source fields.');
 
+$snapshotDir = $config->paths()->dataPath('versions/theme/default/page');
+if (!is_dir($snapshotDir)) {
+    mkdir($snapshotDir, 0775, true);
+}
+$snapshotFixture = $snapshotDir . '/20000101-000000-test.php';
+file_put_contents($snapshotFixture, "<?php echo 'Snapshot'; ?>", LOCK_EX);
+try {
+    $referenceMethod = new ReflectionMethod($controller, 'referencePanel');
+    $referenceHtml = $referenceMethod->invoke($controller, 'default', 'page', $config->paths()->themePath('default/layouts/page.php'));
+    assertTrue(!str_contains($referenceHtml, '<form'), 'Snapshot controls must not nest a restore form inside the template save form.');
+    assertTrue(str_contains($referenceHtml, '/admin/theme-templates/restore'), 'Snapshot controls should submit the existing editor form to the restore endpoint.');
+    assertTrue(str_contains($referenceHtml, 'name="snapshot" value="20000101-000000-test.php"'), 'Each restore button should identify its snapshot.');
+
+    $beforeSnapshots = glob($snapshotDir . '/*') ?: [];
+    $snapshotMethod = new ReflectionMethod($controller, 'snapshot');
+    $snapshotMethod->invoke($controller, 'default', 'page', $config->paths()->themePath('default/layouts/page.php'));
+    $snapshotMethod->invoke($controller, 'default', 'page', $config->paths()->themePath('default/layouts/page.php'));
+    $newSnapshots = array_values(array_diff(glob($snapshotDir . '/*') ?: [], $beforeSnapshots));
+    assertTrue(count($newSnapshots) === 2, 'Rapid consecutive saves should retain distinct snapshots.');
+    foreach ($newSnapshots as $newSnapshot) {
+        unlink($newSnapshot);
+    }
+} finally {
+    unlink($snapshotFixture);
+}
+
 echo "Theme template syntax checks passed\n";
 
 function assertTrue(bool $condition, string $message): void
