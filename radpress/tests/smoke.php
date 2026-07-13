@@ -189,7 +189,8 @@ function assertMediaHeaders(Batoi\Press\Core\Response $response, string $content
     if (($headers['X-Content-Type-Options'] ?? '') !== 'nosniff') {
         throw new RuntimeException('Media responses should disable content sniffing.');
     }
-    if (!str_contains((string)($headers['Cache-Control'] ?? ''), 'immutable')) {
-        throw new RuntimeException('Uniquely named media should use immutable caching.');
+    $cacheControl = (string)($headers['Cache-Control'] ?? '');
+    if (!str_contains($cacheControl, 'must-revalidate') || str_contains($cacheControl, 'immutable')) {
+        throw new RuntimeException('Replaceable media should be revalidated at its stable public URL.');
     }
 }

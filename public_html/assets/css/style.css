@@ -2268,7 +2268,7 @@ p {
 
 .bp-media-actions {
     align-items: center;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
 }
 
 .bp-media-actions .bp-inline-form {
@@ -2279,6 +2279,39 @@ p {
     background: var(--bp-panel);
     border: 1px solid var(--bp-line);
     color: var(--bp-danger);
+}
+
+.bp-definition-list {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+}
+
+.bp-definition-list > div {
+    border-left: 2px solid var(--bp-line);
+    min-width: 0;
+    padding-left: 10px;
+}
+
+.bp-definition-list dt {
+    color: var(--bp-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 3px;
+}
+
+.bp-definition-list dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.bp-definition-list code {
+    white-space: normal;
+}
+
+.bp-admin-editor-single {
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .bp-library-upload-form {
@@ -2486,6 +2519,7 @@ code {
     .bp-admin-editor,
     .bp-admin-grid,
     .bp-audit-tools,
+    .bp-definition-list,
     .bp-filter-form,
     .bp-menu-row,
     .bp-workflow-grid,

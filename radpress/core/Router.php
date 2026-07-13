@@ -160,6 +160,18 @@ final class Router
             return (new MediaController($this->config, $csrf, $audit, $user))->upload();
         }
 
+        if ($request->path === '/admin/media/edit' && $request->method === 'GET') {
+            return (new MediaController($this->config, $csrf, $audit, $user))->edit($request);
+        }
+
+        if ($request->path === '/admin/media/update-text' && $request->method === 'POST') {
+            return (new MediaController($this->config, $csrf, $audit, $user))->updateText($request);
+        }
+
+        if ($request->path === '/admin/media/replace' && $request->method === 'POST') {
+            return (new MediaController($this->config, $csrf, $audit, $user))->replace($request);
+        }
+
         if ($request->path === '/admin/media/delete' && $request->method === 'POST') {
             return (new MediaController($this->config, $csrf, $audit, $user))->delete($request);
         }
@@ -352,7 +364,7 @@ final class Router
             return $this->notFound();
         }
 
-        return $this->assetResponse($file);
+        return $this->assetResponse($file, false);
     }
 
     private function asset(string $relative): Response
@@ -362,7 +374,7 @@ final class Router
             return $this->notFound();
         }
 
-        return $this->assetResponse($file);
+        return $this->assetResponse($file, false);
     }
 
     private function themeAsset(string $target): Response
@@ -373,10 +385,10 @@ final class Router
         }
         $manager = new ThemeManager($this->config->paths());
         $file = $manager->resolveAsset($parts[0], $parts[1]);
-        return $file !== null ? $this->assetResponse($file) : $this->notFound();
+        return $file !== null ? $this->assetResponse($file, true) : $this->notFound();
     }
 
-    private function assetResponse(string $file): Response
+    private function assetResponse(string $file, bool $immutable): Response
     {
         $body = file_get_contents($file);
         if ($body === false) {
@@ -386,7 +398,7 @@ final class Router
         return new Response($body, 200, [
             'Content-Type' => AssetManager::mimeType($file),
             'Content-Length' => (string)strlen($body),
-            'Cache-Control' => 'public, max-age=31536000, immutable',
+            'Cache-Control' => $immutable ? 'public, max-age=31536000, immutable' : 'public, max-age=0, must-revalidate',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }

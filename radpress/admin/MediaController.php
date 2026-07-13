@@ -58,7 +58,7 @@ final class MediaController
                 $snippet = $this->snippet($name, $url);
                 $id = 'bp-media-' . substr(hash('sha256', (string)$asset['storage'] . ':' . $relative), 0, 12);
                 $legacy = (string)$asset['storage'] === 'media' ? ' - Legacy path' : '';
-                $body .= '<tr><td><strong>' . $this->e($name) . '</strong><small>' . $this->e($relative) . '</small><small>' . $this->e((string)$asset['kind'] . $legacy) . '</small></td><td>' . $this->e(strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE')) . '</td><td>' . $this->e($this->size((int)$asset['size'])) . '</td><td>' . $this->e($this->modified((int)$asset['modified'])) . '</td><td><div class="bp-media-code-stack">' . $this->copyField($id . '-url', 'Public URL', $url) . $this->copyField($id . '-embed', 'Embed snippet', $snippet) . '</div></td><td><div class="bp-table-actions bp-media-actions">' . AdminLayout::buttonLink('View', $url, 'site', true) . $this->deleteForm((string)$asset['storage'], $relative) . '</div></td></tr>';
+                $body .= '<tr><td><strong>' . $this->e($name) . '</strong><small>' . $this->e($relative) . '</small><small>' . $this->e((string)$asset['kind'] . $legacy) . '</small></td><td>' . $this->e(strtoupper(pathinfo($name, PATHINFO_EXTENSION) ?: 'FILE')) . '</td><td>' . $this->e($this->size((int)$asset['size'])) . '</td><td>' . $this->e($this->modified((int)$asset['modified'])) . '</td><td><div class="bp-media-code-stack">' . $this->copyField($id . '-url', 'Public URL', $url) . $this->copyField($id . '-embed', 'Embed snippet', $snippet) . '</div></td><td><div class="bp-table-actions bp-media-actions">' . AdminLayout::buttonLink('Edit', $this->assetEditorUrl((string)$asset['storage'], $relative), 'edit', true) . AdminLayout::buttonLink('View', $url, 'site', true) . $this->deleteForm((string)$asset['storage'], $relative) . '</div></td></tr>';
             }
             $body .= '</tbody></table></div></section>';
         }
@@ -102,6 +102,98 @@ final class MediaController
 
         $this->audit->record((string)($this->user['username'] ?? 'admin'), 'asset.uploaded', $relative, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
         return Response::redirect('/admin/media');
+    }
+
+    public function edit(Request $request): Response
+    {
+        $storage = $request->input('storage');
+        $relative = $request->input('file');
+        $manager = new AssetManager($this->config->paths());
+        $asset = $manager->find($storage, $relative);
+        if ($asset === null) {
+            return $this->message('Asset was not found or cannot be managed here.', true, 404);
+        }
+
+        $name = (string)$asset['name'];
+        $url = (string)$asset['url'];
+        $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        $body = AdminLayout::pageHeader(
+            'Edit Asset',
+            'Update this file while preserving its public URL.',
+            AdminLayout::buttonLink('Back to Media', '/admin/media', 'back', true) . AdminLayout::buttonLink('View Asset', $url, 'site', true)
+        );
+        $body .= '<div class="bp-admin-editor bp-admin-editor-single"><div class="bp-editor-main">';
+        $body .= '<section class="bp-editor-panel"><header><h2>' . $this->e($name) . '</h2><p>Changes are published at the existing path after the previous file is retained privately.</p></header>';
+        $body .= '<dl class="bp-definition-list"><div><dt>Public URL</dt><dd><code>' . $this->e($url) . '</code></dd></div><div><dt>Type</dt><dd>' . $this->e(strtoupper($extension ?: 'FILE')) . '</dd></div><div><dt>Size</dt><dd>' . $this->e($this->size((int)$asset['size'])) . '</dd></div><div><dt>Modified</dt><dd>' . $this->e($this->modified((int)$asset['modified'])) . '</dd></div></dl></section>';
+
+        if (AssetManager::isTextEditable($relative)) {
+            try {
+                $source = $manager->readEditableText($storage, $relative);
+                $body .= '<form method="post" action="/admin/media/update-text" class="bp-form"><section class="bp-editor-panel"><header><h2>Edit source</h2><p>CSS, JavaScript, Markdown, and text assets can be edited directly up to 2 MB.</p></header>' . $this->assetIdentityFields($storage, $relative);
+                $body .= '<label class="bp-field-wide bp-code-editor-label" for="bp-asset-source"><span>Source</span><small>' . $this->e(strtoupper($extension)) . ' source editor</small><textarea id="bp-asset-source" class="bp-editor-textarea bp-template-code-editor" name="source" rows="24" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" wrap="off">' . $this->e($source) . '</textarea></label>';
+                $body .= '<div class="bp-form-actions">' . AdminLayout::submitButton('Save Source', 'save') . '</div></section></form>';
+            } catch (RuntimeException $exception) {
+                $body .= '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p>';
+            }
+        }
+
+        $body .= '<form method="post" action="/admin/media/replace" enctype="multipart/form-data" class="bp-form" data-confirm="Replace ' . $this->e($name) . ' at its existing public URL?">';
+        $body .= '<section class="bp-editor-panel"><header><h2>Replace file</h2><p>Upload another .' . $this->e($extension) . ' file. The public URL remains unchanged.</p></header>' . $this->assetIdentityFields($storage, $relative);
+        $body .= '<label>Replacement file <input type="file" name="replacement" accept=".' . $this->e($extension) . '" required><span class="bp-field-help">The replacement must use the .' . $this->e($extension) . ' extension and comply with the installation upload limit.</span></label>';
+        $body .= '<div class="bp-form-actions">' . AdminLayout::submitButton('Replace File', 'refresh') . '</div></section></form>';
+        $body .= '</div></div>';
+
+        return Response::html($this->layout('Edit Asset', $body));
+    }
+
+    public function updateText(Request $request): Response
+    {
+        if (!$this->csrf->validate($request->input('csrf_token'))) {
+            return $this->message('Security token expired.', true, 400);
+        }
+        $storage = $request->input('storage');
+        $relative = $request->input('file');
+        $source = $request->post['source'] ?? '';
+        if (!is_string($source)) {
+            return $this->message('Asset source is invalid.', true, 400);
+        }
+        try {
+            (new AssetManager($this->config->paths()))->updateText($storage, $relative, $source);
+        } catch (RuntimeException $exception) {
+            return $this->message($exception->getMessage(), true, 400);
+        }
+        $this->audit->record((string)($this->user['username'] ?? 'admin'), 'asset.edited', $storage . ':' . $relative, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        return Response::redirect($this->assetEditorUrl($storage, $relative));
+    }
+
+    public function replace(Request $request): Response
+    {
+        if (!$this->csrf->validate($request->input('csrf_token'))) {
+            return $this->message('Security token expired.', true, 400);
+        }
+        $storage = $request->input('storage');
+        $relative = $request->input('file');
+        $manager = new AssetManager($this->config->paths());
+        $asset = $manager->find($storage, $relative);
+        if ($asset === null) {
+            return $this->message('Asset was not found or cannot be managed here.', true, 404);
+        }
+
+        $uploadConfig = $this->config->security()['uploads'] ?? [];
+        $extension = strtolower(pathinfo($relative, PATHINFO_EXTENSION));
+        $guard = new UploadGuard([$extension], AssetManager::effectiveMaxBytes((int)($uploadConfig['max_bytes'] ?? 0)));
+        $file = $_FILES['replacement'] ?? [];
+        $error = is_array($file) ? $guard->validate($file) : 'Upload failed.';
+        if ($error !== null) {
+            return $this->message($error, true, 400);
+        }
+        try {
+            $manager->replace($storage, $relative, (string)$file['tmp_name']);
+        } catch (RuntimeException $exception) {
+            return $this->message($exception->getMessage(), true, 400);
+        }
+        $this->audit->record((string)($this->user['username'] ?? 'admin'), 'asset.replaced', $storage . ':' . $relative, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        return Response::redirect($this->assetEditorUrl($storage, $relative));
     }
 
     public function delete(Request $request): Response
@@ -233,6 +325,18 @@ final class MediaController
             . '<input type="hidden" name="file" value="' . $this->e($relative) . '">'
             . AdminLayout::submitButton('Delete', 'delete', 'class="bp-button bp-button-secondary bp-button-danger"')
             . '</form>';
+    }
+
+    private function assetEditorUrl(string $storage, string $relative): string
+    {
+        return '/admin/media/edit?storage=' . rawurlencode($storage) . '&file=' . rawurlencode($relative);
+    }
+
+    private function assetIdentityFields(string $storage, string $relative): string
+    {
+        return $this->csrf->field()
+            . '<input type="hidden" name="storage" value="' . $this->e($storage) . '">'
+            . '<input type="hidden" name="file" value="' . $this->e($relative) . '">';
     }
 
     private function copyField(string $id, string $label, string $value): string

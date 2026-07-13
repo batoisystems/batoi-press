@@ -10,6 +10,8 @@ use RuntimeException;
 final class AssetManager
 {
     public const DEFAULT_MAX_BYTES = 26214400;
+    public const MAX_EDITABLE_TEXT_BYTES = 2097152;
+    public const EDITABLE_TEXT_EXTENSIONS = ['css', 'js', 'mjs', 'txt', 'md'];
     public const DEFAULT_UPLOAD_EXTENSIONS = [
         'jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'txt', 'md',
         'css', 'js', 'mjs', 'mp3', 'wav', 'ogg', 'm4a', 'mp4', 'webm', 'mov',
@@ -112,6 +114,66 @@ final class AssetManager
         return $realFile;
     }
 
+    public function find(string $storage, string $relative): ?array
+    {
+        $file = $this->resolveStoredFile($storage, $relative);
+        return $file !== null ? $this->record($storage, $relative, $file) : null;
+    }
+
+    public function readEditableText(string $storage, string $relative): string
+    {
+        if (!self::isTextEditable($relative)) {
+            throw new RuntimeException('This asset type does not support source editing.');
+        }
+        $file = $this->resolveStoredFile($storage, $relative);
+        if ($file === null || filesize($file) > self::MAX_EDITABLE_TEXT_BYTES) {
+            throw new RuntimeException('Editable asset was not found or exceeds the source editor limit.');
+        }
+        $contents = file_get_contents($file);
+        if (!is_string($contents) || str_contains($contents, "\0") || preg_match('//u', $contents) !== 1) {
+            throw new RuntimeException('Editable assets must contain valid UTF-8 text.');
+        }
+        return $contents;
+    }
+
+    public function updateText(string $storage, string $relative, string $contents): void
+    {
+        if (!self::isTextEditable($relative)) {
+            throw new RuntimeException('This asset type does not support source editing.');
+        }
+        if (strlen($contents) > self::MAX_EDITABLE_TEXT_BYTES || str_contains($contents, "\0") || preg_match('//u', $contents) !== 1) {
+            throw new RuntimeException('Source must be valid UTF-8 text within the 2 MB editor limit.');
+        }
+        $target = $this->resolveStoredFile($storage, $relative);
+        if ($target === null) {
+            throw new RuntimeException('Asset was not found.');
+        }
+        $stage = $this->stagingPath($target);
+        if (file_put_contents($stage, $contents, LOCK_EX) === false) {
+            throw new RuntimeException('Unable to stage the edited asset.');
+        }
+        $this->publishReplacement($storage, $relative, $target, $stage);
+    }
+
+    public function replace(string $storage, string $relative, string $source, bool $uploaded = true): void
+    {
+        $target = $this->resolveStoredFile($storage, $relative);
+        if ($target === null || !is_file($source)) {
+            throw new RuntimeException('Asset or replacement file was not found.');
+        }
+        $stage = $this->stagingPath($target);
+        $saved = $uploaded ? move_uploaded_file($source, $stage) : copy($source, $stage);
+        if (!$saved) {
+            throw new RuntimeException('Unable to stage the replacement asset.');
+        }
+        $this->publishReplacement($storage, $relative, $target, $stage);
+    }
+
+    public static function isTextEditable(string $relative): bool
+    {
+        return in_array(strtolower(pathinfo($relative, PATHINFO_EXTENSION)), self::EDITABLE_TEXT_EXTENSIONS, true);
+    }
+
     public function delete(string $storage, string $relative): bool
     {
         if ($storage === 'media') {
@@ -130,6 +192,69 @@ final class AssetManager
         }
 
         return is_file($file) && unlink($file);
+    }
+
+    private function resolveStoredFile(string $storage, string $relative): ?string
+    {
+        if ($storage === 'media') {
+            $name = basename($relative);
+            if ($name === '' || $name !== $relative || str_contains($name, '..')) {
+                return null;
+            }
+            $file = $this->paths->contentPath('media/' . $name);
+            return is_file($file) ? $file : null;
+        }
+        if ($storage !== 'assets') {
+            return null;
+        }
+        try {
+            $validated = self::validateRelativePath($relative);
+        } catch (RuntimeException) {
+            return null;
+        }
+        if (str_starts_with($validated, 'libraries/')) {
+            return null;
+        }
+        return $this->resolveAsset($validated);
+    }
+
+    private function stagingPath(string $target): string
+    {
+        return dirname($target) . '/.bp-replace-' . bin2hex(random_bytes(6));
+    }
+
+    private function publishReplacement(string $storage, string $relative, string $target, string $stage): void
+    {
+        $previous = dirname($target) . '/.bp-previous-' . bin2hex(random_bytes(6));
+        try {
+            $this->snapshot($storage, $relative, $target);
+            if (!rename($target, $previous)) {
+                throw new RuntimeException('Unable to prepare the existing asset for replacement.');
+            }
+            if (!rename($stage, $target)) {
+                rename($previous, $target);
+                throw new RuntimeException('Unable to publish the replacement asset.');
+            }
+            chmod($target, 0664);
+            unlink($previous);
+        } finally {
+            if (is_file($stage)) {
+                unlink($stage);
+            }
+        }
+    }
+
+    private function snapshot(string $storage, string $relative, string $target): void
+    {
+        $directory = $this->paths->dataPath('versions/assets/' . substr(hash('sha256', $storage . ':' . $relative), 0, 20));
+        if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+            throw new RuntimeException('Unable to prepare asset version storage.');
+        }
+        $snapshot = $directory . '/' . date('Ymd-His') . '-' . bin2hex(random_bytes(3)) . '-' . basename($relative);
+        if (!copy($target, $snapshot)) {
+            throw new RuntimeException('Unable to retain the previous asset version.');
+        }
+        chmod($snapshot, 0660);
     }
 
     public static function typeForName(string $name): string
