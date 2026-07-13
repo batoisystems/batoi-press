@@ -158,8 +158,7 @@ final class SettingsController
         $previewUrl = $effectiveFavicon !== '' ? (str_starts_with($effectiveFavicon, '/assets/images/site/') ? $effectiveFavicon : $this->assetUrl($effectiveFavicon)) : $fallbackUrl;
         $previewLabel = $favicon !== '' && $manager->resolveUrl($favicon) !== null ? 'Current favicon' : 'Current favicon (default)';
         $notice = $favicon !== '' && $manager->resolveUrl($favicon) === null ? '<small>Configured favicon file was not found. Showing the default Batoi Press icon.</small>' : '';
-        $fallback = $fallbackUrl !== $previewUrl ? ' onerror="this.onerror=null;this.src=\'' . $this->e($fallbackUrl) . '\';"' : '';
-        $preview = '<div class="bp-favicon-current"><span>' . $this->e($previewLabel) . '</span><img src="' . $this->e($previewUrl) . '" alt=""' . $fallback . '>' . $notice . '</div>';
+        $preview = '<div class="bp-favicon-current"><span>' . $this->e($previewLabel) . '</span><img src="' . $this->e($previewUrl) . '" alt="' . ($favicon !== '' ? 'Configured favicon preview' : 'Default Batoi Press favicon') . '">' . $notice . '</div>';
         $faviconFields = '<label class="bp-field-wide">Upload favicon <input type="file" name="favicon" accept=".ico,.png,.jpg,.jpeg,.webp,.svg,image/x-icon,image/png,image/jpeg,image/webp,image/svg+xml"><span class="bp-field-help">SVG, ICO, PNG, JPG, or WebP up to 1 MB. The admin favicon remains the Batoi Press logo.</span></label>';
         if ($favicon !== '') {
             $faviconFields .= '<label class="bp-field-wide"><input type="checkbox" name="remove_favicon" value="1"> Restore default favicon</label>';

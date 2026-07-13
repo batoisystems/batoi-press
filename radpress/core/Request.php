@@ -42,13 +42,10 @@ final class Request
 
     private static function stripBasePath(string $path): string
     {
-        $script = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
-        $base = dirname($script);
-        if ($base === '/' || $base === '.' || $base === '\\') {
+        $base = BasePath::detect($_SERVER);
+        if ($base === '') {
             return $path;
         }
-
-        $base = rtrim($base, '/');
         if ($path === $base) {
             return '/';
         }

@@ -14,14 +14,7 @@ function bp_base_path(): string
     if (($GLOBALS['bp_static_export_mode'] ?? false) === true) {
         return '';
     }
-    $script = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
-    $dir = dirname($script);
-
-    if ($dir === '/' || $dir === '.' || $dir === '\\') {
-        return '';
-    }
-
-    return rtrim($dir, '/');
+    return \Batoi\Press\Core\BasePath::detect($_SERVER);
 }
 
 function bp_localize_markup_urls(string $html): string

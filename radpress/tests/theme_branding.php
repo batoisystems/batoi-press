@@ -8,6 +8,7 @@ use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\Paths;
 use Batoi\Press\Core\ThemeManager;
 use Batoi\Press\Core\Request;
+use Batoi\Press\Core\BasePath;
 use Batoi\Press\Admin\AdminLayout;
 use Batoi\Press\Admin\ThemeTemplateController;
 use Batoi\Press\Admin\SettingsController;
@@ -118,7 +119,10 @@ try {
     $csrf = new Csrf($session);
     $settingsController = new SettingsController($config, $files, $csrf, new AuditLog($config->paths(), $files), ['username' => 'owner', 'role' => 'owner']);
     $brandingField = new ReflectionMethod(SettingsController::class, 'brandingField');
+    $originalServer = $_SERVER;
     $_SERVER['SCRIPT_NAME'] = '/cppl/public_html/index.php';
+    $_SERVER['SCRIPT_FILENAME'] = 'D:\\XAMPP8.2\\htdocs\\cppl\\public_html\\index.php';
+    $_SERVER['DOCUMENT_ROOT'] = 'D:\\XAMPP8.2\\htdocs';
     $brandingHtml = (string)$brandingField->invoke($settingsController, [
         'name' => 'Theme Test',
         'brand_display' => 'logo',
@@ -129,6 +133,12 @@ try {
     $localizedBrandingHtml = AdminLayout::render('Branding Test', $brandingHtml);
     assertTheme(str_contains($localizedBrandingHtml, 'src="/cppl/public_html/assets/images/site/logo.png"'), 'branding previews should localize uploaded asset URLs once');
     assertTheme(!str_contains($localizedBrandingHtml, '/cppl/public_html/cppl/public_html/'), 'branding previews must not duplicate the installation base path');
+    assertTheme(!str_contains($localizedBrandingHtml, 'onerror='), 'configured favicon previews must not silently substitute the product icon');
+    assertTheme(BasePath::detect($_SERVER) === '/cppl/public_html', 'Windows physical paths should identify the installation base path');
+    $_SERVER['REQUEST_URI'] = '/cppl/public_html/assets/images/site/logo.png';
+    $_SERVER['SCRIPT_NAME'] = '/cppl/public_html/assets/images/site/logo.png';
+    assertTheme(Request::fromGlobals()->path === '/assets/images/site/logo.png', 'rewritten XAMPP asset requests should retain the application asset route');
+    $_SERVER = $originalServer;
     $controller = new ThemeTemplateController($config, $files, $csrf, new AuditLog($config->paths(), $files), ['username' => 'owner', 'role' => 'owner']);
     foreach (['home' => 'layout-page', 'page' => 'layout-page', 'post' => 'layout-post', 'blog' => 'layout-blog', 'archive' => 'layout-archive', '404' => 'layout-404'] as $previewTarget => $marker) {
         $preview = $controller->preview('demo', (string)$previewTarget)->content();
