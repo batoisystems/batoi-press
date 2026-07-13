@@ -43,6 +43,14 @@ assertTrue(str_contains($editorHtml, 'aria-readonly="false"'), 'Template source 
 assertTrue(!str_contains($editorHtml, ' disabled'), 'Template source editor must not render disabled.');
 assertTrue(!str_contains($editorHtml, ' readonly'), 'Template source editor must not render readonly.');
 
+$binaryNameMethod = new ReflectionMethod($controller, 'isCliCandidateName');
+$binaryNameMethod->setAccessible(true);
+assertTrue($binaryNameMethod->invoke($controller, 'php'), 'The standard PHP CLI binary name should be accepted.');
+assertTrue($binaryNameMethod->invoke($controller, 'php8.5'), 'Versioned PHP CLI binary names should be accepted.');
+assertTrue($binaryNameMethod->invoke($controller, 'php.exe'), 'The Windows PHP CLI binary name should be accepted.');
+assertTrue(!$binaryNameMethod->invoke($controller, 'php-cgi'), 'PHP CGI must not be executed as a CLI syntax checker.');
+assertTrue(!$binaryNameMethod->invoke($controller, 'php8.5.2.fcgi'), 'FastCGI launchers must not be executed as CLI syntax checkers.');
+
 $adminHtml = AdminLayout::render('Theme Template Test', '<main>Body</main>');
 assertTrue(str_contains($adminHtml, '/assets/js/app.js'), 'Admin pages should load the app script that resets editable source fields.');
 

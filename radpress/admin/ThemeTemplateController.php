@@ -706,9 +706,14 @@ final class ThemeTemplateController
 
     private function phpCliBinary(): ?string
     {
+        if (!function_exists('exec')) {
+            return null;
+        }
+
         $candidates = [
-            PHP_BINARY,
             PHP_BINDIR . '/php',
+            dirname(PHP_BINARY) . '/php',
+            PHP_BINARY,
             '/usr/bin/php',
             '/usr/local/bin/php',
         ];
@@ -719,13 +724,17 @@ final class ThemeTemplateController
                 continue;
             }
 
-            $name = strtolower(basename($candidate));
-            if (($name === 'php' || str_starts_with($name, 'php')) && $this->isCliPhpBinary($candidate)) {
+            if ($this->isCliCandidateName(basename($candidate)) && $this->isCliPhpBinary($candidate)) {
                 return $candidate;
             }
         }
 
         return null;
+    }
+
+    private function isCliCandidateName(string $name): bool
+    {
+        return preg_match('/^php(?:[0-9]+(?:\.[0-9]+)*)?(?:\.exe)?$/i', $name) === 1;
     }
 
     private function isCliPhpBinary(string $candidate): bool
