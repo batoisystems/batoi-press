@@ -16,6 +16,11 @@ try {
     assertEditor(str_contains($sanitizedSemanticHtml, '<section class="bp-hero">'), 'semantic section wrappers and classes should survive sanitization');
     assertEditor(str_contains($sanitizedSemanticHtml, '<article>'), 'semantic article wrappers should survive sanitization');
     assertEditor(str_contains($sanitizedSemanticHtml, '<header>') && str_contains($sanitizedSemanticHtml, '<footer>'), 'semantic header and footer wrappers should survive sanitization');
+    $embeddedHtml = (new HtmlContent())->sanitize('<div style="background:url(/hero.jpg);color:#fff"><iframe src="https://www.youtube.com/embed/demo" allowfullscreen></iframe></div>');
+    assertEditor(str_contains($embeddedHtml, 'style="background:url(/hero.jpg);color:#fff"'), 'inline presentation styles should survive sanitization');
+    assertEditor(str_contains($embeddedHtml, '<iframe src="https://www.youtube.com/embed/demo"'), 'HTTPS iframe embeds should survive sanitization');
+    $unsafeHtml = (new HtmlContent())->sanitize('<iframe src="javascript:alert(1)"></iframe><div onclick="alert(1)">Safe</div>');
+    assertEditor(!str_contains($unsafeHtml, 'javascript:') && !str_contains($unsafeHtml, 'onclick='), 'unsafe iframe URLs and event handlers should be removed');
 
     mkdir($root . '/radpress/config', 0775, true);
     mkdir($root . '/public_html', 0775, true);

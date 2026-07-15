@@ -69,8 +69,18 @@ final class AuthController
         $html .= '<label>Password <input type="password" name="password" autocomplete="current-password" required></label>';
         $html .= AdminLayout::submitButton('Log In', 'check');
         $html .= '</form>';
+        $html .= '<p><a href="/admin/forgot-password">Forgot password?</a></p>';
 
         return Response::html($this->layout('Admin Login', $html));
+    }
+
+    public function forgotPassword(): Response
+    {
+        $html = '<h1>Reset your password</h1>';
+        $html .= '<p>Batoi Press does not require an email address, so it does not send password-reset links.</p>';
+        $html .= '<ol><li>Ask another owner or administrator to open <strong>Users</strong> and reset your password.</li><li>If this is the only owner account, run <code>php radpress/bin/reset-admin-password.php USERNAME</code> from the installation directory. The command prompts for a new password without storing or emailing a reset token.</li></ol>';
+        $html .= '<p><a href="/admin/login">Back to login</a></p>';
+        return Response::html($this->layout('Reset Password', $html));
     }
 
     public function logout(Request $request): Response

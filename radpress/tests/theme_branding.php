@@ -152,6 +152,10 @@ try {
     createThemePackage($packageOne, '1.0.0', false);
     assertTheme($installer->invoke($controller, $packageOne, 'package.zip') === 'package', 'valid theme package should install');
     assertTheme(is_file($root . '/radpress/theme/package/layouts/base.php'), 'installed package should publish required layouts');
+    $duplicate = $controller->duplicate(new Request('POST', '/admin/themes/duplicate', [], ['csrf_token' => $csrf->token(), 'theme' => 'package', 'name' => 'Package Copy'], []));
+    assertTheme($duplicate->status() === 302, 'installed themes should be duplicable');
+    $copyManifest = json_decode((string)file_get_contents($root . '/radpress/theme/package-copy/theme.json'), true);
+    assertTheme(($copyManifest['name'] ?? '') === 'Package Copy' && ($copyManifest['slug'] ?? '') === 'package-copy', 'duplicated theme name and slug should be editable');
 
     $packageTwo = $root . '/package-1.1.0.zip';
     createThemePackage($packageTwo, '1.1.0', false);
@@ -198,6 +202,8 @@ function createThemePackage(string $path, string $version, bool $unsafe): void
         $zip->addFromString('package/layouts/' . $layout . '.php', '<?php echo "' . $layout . '-' . $version . '";');
     }
     $zip->addFromString('package/assets/css/theme.css', 'body{color:#111}');
+    $zip->addFromString('__MACOSX/package/._theme.json', 'metadata');
+    $zip->addFromString('package/.DS_Store', 'metadata');
     if ($unsafe) {
         $zip->addFromString('package/boot.php', '<?php echo "unsafe";');
     }

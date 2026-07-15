@@ -74,7 +74,7 @@ final class Router
             return $this->admin($request);
         }
 
-        $slug = $request->path === '/' ? 'home' : trim($request->path, '/');
+        $slug = $request->path === '/' ? Slug::normalize((string)($this->config->site()['homepage'] ?? 'home')) : trim($request->path, '/');
         $page = $this->pages->findBySlug($slug);
 
         return $page ? $this->theme->render($this->theme->pageLayout((string)($page['template'] ?? 'page')), ['page' => $page, 'title' => (string)$page['title']]) : $this->notFound();
@@ -88,6 +88,7 @@ final class Router
         );
         $csrf = new Csrf($session);
         AdminLayout::setCsrf($csrf);
+        AdminLayout::setUser([]);
         $files = new FileStore();
         $audit = new AuditLog($this->config->paths(), $files);
         $auth = new Auth($this->config->paths(), $session, $files);
@@ -96,6 +97,10 @@ final class Router
 
         if ($request->path === '/admin/login') {
             return $authController->login($request);
+        }
+
+        if ($request->path === '/admin/forgot-password') {
+            return $authController->forgotPassword();
         }
 
         if ($request->path === '/admin/logout') {
@@ -214,6 +219,10 @@ final class Router
 
         if ($request->path === '/admin/themes/upload' && $request->method === 'POST') {
             return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->upload();
+        }
+
+        if ($request->path === '/admin/themes/duplicate' && $request->method === 'POST') {
+            return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->duplicate($request);
         }
 
         if (str_starts_with($request->path, '/admin/themes/preview/')) {

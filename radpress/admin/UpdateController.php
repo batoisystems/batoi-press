@@ -11,6 +11,7 @@ use Batoi\Press\Update\BackupManager;
 use Batoi\Press\Update\RollbackManager;
 use Batoi\Press\Update\UpdateRunner;
 use Batoi\Press\Update\VersionChecker;
+use Batoi\Press\Security\UploadGuard;
 
 final class UpdateController
 {
@@ -95,11 +96,15 @@ final class UpdateController
         }
 
         $file = $files['package'] ?? [];
-        if (!is_array($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-            return $this->message('Stage Update', 'Package upload failed.', true, 400);
+        $error = is_array($file) ? (new UploadGuard(['zip'], 50 * 1024 * 1024))->validate($file) : 'Package upload failed.';
+        if ($error !== null) {
+            return $this->message('Stage Update', $error, true, 400);
         }
 
         $target = $this->config->paths()->dataPath('tmp/update-package-' . date('Ymd-His') . '.zip');
+        if (!is_dir(dirname($target)) && !mkdir(dirname($target), 0775, true) && !is_dir(dirname($target))) {
+            return $this->message('Stage Update', 'Unable to prepare the update staging directory.', true, 500);
+        }
         if (!move_uploaded_file((string)$file['tmp_name'], $target)) {
             return $this->message('Stage Update', 'Unable to save uploaded package.', true, 500);
         }

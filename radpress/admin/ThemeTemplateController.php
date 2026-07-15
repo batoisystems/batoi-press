@@ -82,6 +82,7 @@ final class ThemeTemplateController
             $cards .= '<div class="bp-uif-toolbar">';
             $cards .= AdminLayout::buttonLink('Edit', '/admin/theme-templates?theme=' . rawurlencode($slug), 'code', true);
             $cards .= AdminLayout::buttonLink('Preview', '/admin/themes/preview/' . rawurlencode($slug) . '?layout=home', 'site', true);
+            $cards .= '<form method="post" action="/admin/themes/duplicate" class="bp-inline-form">' . $this->csrf->field() . '<input type="hidden" name="theme" value="' . $this->e($slug) . '"><input type="text" name="name" aria-label="Duplicated theme name" placeholder="Copy name" required>' . AdminLayout::submitButton('Duplicate', 'copy') . '</form>';
             if (!$isActive && (bool)$theme['valid']) {
                 $cards .= '<form method="post" action="/admin/themes/activate" class="bp-inline-form">' . $this->csrf->field() . '<input type="hidden" name="theme" value="' . $this->e($slug) . '">' . AdminLayout::submitButton('Activate', 'check') . '</form>';
             }
@@ -151,6 +152,30 @@ final class ThemeTemplateController
         }
 
         $this->audit->record((string)($this->user['username'] ?? 'admin'), 'theme.uploaded', $slug, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        return Response::redirect('/admin/themes');
+    }
+
+    public function duplicate(Request $request): Response
+    {
+        if ($blocked = $this->authorize()) {
+            return $blocked;
+        }
+        if (!$this->csrf->validate($request->input('csrf_token'))) {
+            return Response::html($this->layout('Themes', '<p class="bp-error">Security token expired.</p>'), 400);
+        }
+        $sourceSlug = $this->sanitizeSlug($request->input('theme'));
+        $name = trim($request->input('name'));
+        $slug = $this->sanitizeSlug($name);
+        if ($sourceSlug === '' || !$this->themeExists($sourceSlug) || $slug === '' || is_dir($this->config->paths()->themePath($slug))) {
+            return Response::html($this->layout('Themes', '<p class="bp-error">Choose a unique name for the duplicated theme.</p>'), 400);
+        }
+        $target = $this->config->paths()->themePath($slug);
+        $this->copyDirectory($this->config->paths()->themePath($sourceSlug), $target);
+        $manifest = $this->files->readJson($target . '/theme.json');
+        $manifest['name'] = $name;
+        $manifest['slug'] = $slug;
+        $this->files->writeJson($target . '/theme.json', $manifest);
+        $this->audit->record((string)($this->user['username'] ?? 'admin'), 'theme.duplicated', $sourceSlug . ':' . $slug, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
         return Response::redirect('/admin/themes');
     }
 
@@ -450,6 +475,9 @@ final class ThemeTemplateController
             $totalBytes = 0;
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $name = (string)$zip->getNameIndex($i);
+                if ($this->isMacMetadata($name)) {
+                    continue;
+                }
                 $normalized = $this->validateZipEntry($name);
                 if (isset($seen[$normalized])) {
                     throw new RuntimeException('Theme ZIP contains a duplicate path: ' . $normalized);
@@ -522,6 +550,12 @@ final class ThemeTemplateController
         }
 
         return $slug;
+    }
+
+    private function isMacMetadata(string $name): bool
+    {
+        $normalized = str_replace('\\', '/', $name);
+        return str_starts_with($normalized, '__MACOSX/') || basename($normalized) === '.DS_Store' || str_starts_with(basename($normalized), '._');
     }
 
     private function validateZipEntry(string $name): string

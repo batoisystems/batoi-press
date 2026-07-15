@@ -119,7 +119,7 @@ final class PostController
         $body .= '<input type="hidden" name="original_slug" value="' . $this->e($slug) . '">';
 
         $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($post['title'] ?? '')) . $this->input('Slug', 'slug', $slug) . $this->bodyEditor((string)($post['body'] ?? ''), 'Use clean HTML for formatted article content. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.') . '</div>';
-        $publishing = $this->select((string)($post['status'] ?? 'draft')) . $this->input('Category', 'category', (string)($post['category'] ?? 'General')) . $this->input('Tags', 'tags', implode(', ', (array)($post['tags'] ?? [])), false) . '<p class="bp-field-help">Separate tags with commas.</p>' . $this->metaList($post);
+        $publishing = $this->select((string)($post['status'] ?? 'draft')) . $this->publishDateInput((string)($post['published_at'] ?? '')) . $this->input('Category', 'category', (string)($post['category'] ?? 'General')) . $this->input('Tags', 'tags', implode(', ', (array)($post['tags'] ?? [])), false) . '<p class="bp-field-help">Separate tags with commas.</p>' . $this->metaList($post);
         $seo = $this->input('SEO Title', 'seo_title', (string)($post['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($post['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short article summary for search snippets and social previews.</span></label>';
 
         $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible article content.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Publishing', $publishing, 'Set status, category, and tags.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->postChecklist(), 'Review before publishing or changing a live post.') . '</aside>';
@@ -143,6 +143,13 @@ final class PostController
         $draft = $status === 'draft' ? ' selected' : '';
         $published = $status === 'published' ? ' selected' : '';
         return '<label>Status <select name="status"><option value="draft"' . $draft . '>Draft</option><option value="published"' . $published . '>Published</option></select></label>';
+    }
+
+    private function publishDateInput(string $value): string
+    {
+        $timestamp = $value !== '' ? strtotime($value) : false;
+        $formatted = $timestamp !== false ? date('Y-m-d\TH:i', $timestamp) : '';
+        return '<label>Publish date <input type="datetime-local" name="published_at" value="' . $this->e($formatted) . '"><span class="bp-field-help">Used when status is Published. Leave blank to publish now.</span></label>';
     }
 
     private function toolbar(array $posts, array $filters): string

@@ -8,6 +8,7 @@ use Batoi\Press\Core\Config;
 use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
+use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Security\Csrf;
 
 final class MenuController
@@ -29,6 +30,7 @@ final class MenuController
             'Menus',
             'Manage the primary site navigation with structured labels and URLs.'
         );
+        $site = $this->config->site();
         $body .= '<form method="post" action="/admin/menus/save" class="bp-form bp-admin-editor">';
         $body .= $this->csrf->field();
 
@@ -43,7 +45,7 @@ final class MenuController
         $preview = $items === [] ? '<p class="bp-muted">No menu items configured.</p>' : '<nav class="bp-menu-preview" aria-label="Menu preview">' . implode('', array_map(fn (array $item): string => '<a href="' . $this->e((string)($item['url'] ?? '#')) . '">' . $this->e((string)($item['label'] ?? 'Untitled')) . '</a>', $items)) . '</nav>';
         $legacy = '<details class="bp-details"><summary>Legacy line format</summary><label>Menu Items <textarea name="items" rows="8">' . $this->e($this->legacyLines($items)) . '</textarea><span class="bp-field-help">Backward-compatible format: one <code>Label|/url</code> item per line. Structured rows take priority when filled.</span></label></details>';
 
-        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Main menu', $rows, 'Edit visible navigation items in order.') . $this->editorPanel('Current preview', $preview, 'Preview of the currently saved menu.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Navigation guide', $this->navigationGuide(), 'Use concise labels and stable destination URLs.') . $this->editorPanel('Compatibility', $legacy, 'Keep support for imported line-based menus.') . '</aside>';
+        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Main menu', $rows, 'Edit visible navigation items in order.') . $this->editorPanel('Current preview', $preview, 'Preview of the currently saved menu.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Homepage', $this->homepageSelect((string)($site['homepage'] ?? 'home')), 'Choose the published page shown at the site root.') . $this->editorPanel('Navigation guide', $this->navigationGuide(), 'Use concise labels and stable destination URLs.') . $this->editorPanel('Compatibility', $legacy, 'Keep support for imported line-based menus.') . '</aside>';
         $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin', 'back', true) . AdminLayout::submitButton('Save Menu', 'save') . '</div></form>';
         return Response::html($this->layout('Menus', $body));
     }
@@ -60,9 +62,28 @@ final class MenuController
         }
 
         $this->files->writeJson($this->config->paths()->contentPath('menus/main.json'), ['items' => $items]);
+        $homepage = trim($request->input('homepage'));
+        $pages = new PageRepository($this->config->paths(), $this->files, new \Batoi\Press\Core\HtmlContent());
+        $page = $homepage !== '' ? $pages->findBySlug($homepage) : null;
+        if ($page !== null && ($page['status'] ?? '') === 'published') {
+            $site = $this->config->site();
+            $site['homepage'] = $homepage;
+            $this->files->writeJson($this->config->paths()->configPath('site.json'), $site);
+        }
         $this->audit->record((string)($this->user['username'] ?? 'admin'), 'menu.updated', 'main', (string)($_SERVER['REMOTE_ADDR'] ?? ''));
 
         return Response::redirect('/admin/menus');
+    }
+
+    private function homepageSelect(string $selected): string
+    {
+        $pages = new PageRepository($this->config->paths(), $this->files, new \Batoi\Press\Core\HtmlContent());
+        $html = '<label>Homepage <select name="homepage">';
+        foreach ($pages->allPublished() as $page) {
+            $slug = (string)($page['slug'] ?? '');
+            $html .= '<option value="' . $this->e($slug) . '"' . ($slug === $selected ? ' selected' : '') . '>' . $this->e((string)($page['title'] ?? $slug)) . '</option>';
+        }
+        return $html . '</select></label>';
     }
 
     private function menu(): array

@@ -195,7 +195,7 @@ final class AdminLayout
 
     private static function isAuthRoute(): bool
     {
-        return self::currentPath() === '/admin/login';
+        return in_array(self::currentPath(), ['/admin/login', '/admin/forgot-password'], true);
     }
 
     private static function siteName(): string

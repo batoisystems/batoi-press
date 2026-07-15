@@ -72,6 +72,7 @@ final class PostRepository
             throw new RuntimeException('A post with this slug already exists.');
         }
         $status = in_array(($input['status'] ?? 'draft'), ['draft', 'published'], true) ? (string)($input['status'] ?? 'draft') : 'draft';
+        $publishedAt = $this->publishedAt((string)($input['published_at'] ?? ''), $status, (string)($existing['published_at'] ?? ''), $now);
         $meta = [
             'id' => (string)($existing['id'] ?? 'post_' . bin2hex(random_bytes(6))),
             'type' => 'post',
@@ -84,7 +85,7 @@ final class PostRepository
             'tags' => array_values(array_filter(array_map('trim', explode(',', (string)($input['tags'] ?? ''))))),
             'created_at' => (string)($existing['created_at'] ?? $now),
             'updated_at' => $now,
-            'published_at' => $status === 'published' ? (string)($existing['published_at'] ?? $now) : '',
+            'published_at' => $publishedAt,
             'seo_title' => trim((string)($input['seo_title'] ?? $input['title'] ?? '')),
             'seo_description' => trim((string)($input['seo_description'] ?? '')),
         ];
@@ -95,6 +96,22 @@ final class PostRepository
         $this->files->write($dir . '/body.html', $this->html->sanitize((string)($input['body'] ?? '')));
 
         return $meta;
+    }
+
+    private function publishedAt(string $value, string $status, string $existing, string $now): string
+    {
+        if ($status !== 'published') {
+            return '';
+        }
+        $value = trim($value);
+        if ($value === '') {
+            return $existing !== '' ? $existing : $now;
+        }
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            throw new RuntimeException('Enter a valid publish date and time.');
+        }
+        return date(DATE_ATOM, $timestamp);
     }
 
     private function targetDir(string $originalSlug, string $slug): string
