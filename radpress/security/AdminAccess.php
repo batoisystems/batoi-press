@@ -37,6 +37,8 @@ final class AdminAccess
                 '/admin/media/delete',
                 '/admin/menus',
                 '/admin/menus/save',
+                '/admin/widgets',
+                '/admin/widgets/save',
                 '/admin/aif',
                 '/admin/aif/assist',
             ]);

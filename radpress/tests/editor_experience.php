@@ -57,9 +57,11 @@ try {
     assertEditor(str_contains($app, 'bp-editor-focus-mode'), 'admin JavaScript should implement focus mode');
     assertEditor(str_contains($app, 'Open image media library'), 'admin JavaScript should add a Media toolbar action');
     assertEditor(str_contains($app, "event.key !== 'Escape'"), 'Escape should close focus mode');
+    assertEditor(str_contains($app, '[data-bp-reorder-list]') && str_contains($app, '[data-bp-move]'), 'admin JavaScript should support saved menu and widget ordering');
     assertEditor(str_contains($css, 'position: sticky'), 'admin styles should support a sticky editor toolbar');
     assertEditor(str_contains($css, '.bp-editor-focus-open'), 'admin styles should lock background scrolling in focus mode');
     assertEditor(str_contains($css, '.bp-editor-assistance'), 'admin styles should present image guidance consistently');
+    assertEditor(str_contains($css, '.bp-admin-action-card button span'), 'theme card button text should retain readable button contrast');
 
     echo "Editor experience checks passed\n";
 } finally {

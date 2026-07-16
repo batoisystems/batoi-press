@@ -34,13 +34,13 @@ final class MenuController
         $body .= '<form method="post" action="/admin/menus/save" class="bp-form bp-admin-editor">';
         $body .= $this->csrf->field();
 
-        $rows = '<div class="bp-menu-rows">';
+        $rows = '<div class="bp-menu-rows" data-bp-reorder-list>';
         $count = max(5, count($items) + 2);
         for ($index = 0; $index < $count; $index++) {
             $item = $items[$index] ?? [];
-            $rows .= '<div class="bp-menu-row"><label>Label <input type="text" name="item_label[]" value="' . $this->e((string)($item['label'] ?? '')) . '"></label><label>URL <input type="text" name="item_url[]" value="' . $this->e((string)($item['url'] ?? '')) . '" placeholder="/about"></label></div>';
+            $rows .= '<div class="bp-menu-row bp-reorder-row"><div class="bp-reorder-actions"><button type="button" data-bp-move="up" aria-label="Move menu item up">↑</button><button type="button" data-bp-move="down" aria-label="Move menu item down">↓</button></div><label>Label <input type="text" name="item_label[]" value="' . $this->e((string)($item['label'] ?? '')) . '"></label><label>URL <input type="text" name="item_url[]" value="' . $this->e((string)($item['url'] ?? '')) . '" placeholder="/about"></label></div>';
         }
-        $rows .= '</div><p class="bp-field-help">Leave unused rows blank. URLs can be relative paths such as <code>/about</code> or full external URLs.</p>';
+        $rows .= '</div><p class="bp-field-help">Use the arrow buttons to change menu order. Leave unused rows blank. URLs can be relative paths such as <code>/about</code> or full external URLs.</p>';
 
         $preview = $items === [] ? '<p class="bp-muted">No menu items configured.</p>' : '<nav class="bp-menu-preview" aria-label="Menu preview">' . implode('', array_map(fn (array $item): string => '<a href="' . $this->e((string)($item['url'] ?? '#')) . '">' . $this->e((string)($item['label'] ?? 'Untitled')) . '</a>', $items)) . '</nav>';
         $legacy = '<details class="bp-details"><summary>Legacy line format</summary><label>Menu Items <textarea name="items" rows="8">' . $this->e($this->legacyLines($items)) . '</textarea><span class="bp-field-help">Backward-compatible format: one <code>Label|/url</code> item per line. Structured rows take priority when filled.</span></label></details>';

@@ -146,9 +146,10 @@ final class StaticExporter
 
     private function writeSite(string $workDir): void
     {
+        $homepage = Slug::normalize((string)($this->site['homepage'] ?? 'home'));
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
-            $target = $slug === 'home' ? 'index.html' : $slug . '/index.html';
+            $target = $slug === $homepage ? 'index.html' : $slug . '/index.html';
             $theme = new Theme($this->paths, $this->site);
             $layout = $theme->pageLayout((string)($page['template'] ?? 'page'));
             $this->writeHtml($workDir, $target, $this->renderTheme($layout, ['page' => $page, 'title' => (string)($page['title'] ?? '')], '/' . ($slug === 'home' ? '' : $slug . '/')));
@@ -157,7 +158,7 @@ final class StaticExporter
         $posts = $this->posts->allPublished();
         foreach ($posts as $post) {
             $slug = (string)($post['slug'] ?? '');
-            $this->writeHtml($workDir, 'blog/' . $slug . '/index.html', $this->renderTheme('post', ['post' => $post, 'title' => (string)($post['title'] ?? '')], '/blog/' . $slug . '/'));
+            $this->writeHtml($workDir, 'blog/' . $slug . '/index.html', $this->renderTheme('post', ['post' => $post, 'title' => (string)($post['title'] ?? ''), 'widgets' => $this->sidebarWidgets(), 'recentPosts' => $posts], '/blog/' . $slug . '/'));
         }
         $this->writeHtml($workDir, 'blog/index.html', $this->renderTheme('blog', ['posts' => $posts, 'title' => 'Blog'], '/blog/'));
         $this->writeHtml($workDir, 'archive/index.html', $this->renderTheme('archive', ['posts' => $posts, 'title' => 'Archive'], '/archive/'));
@@ -168,6 +169,16 @@ final class StaticExporter
         $this->writeMedia($workDir);
         $this->writeAssets($workDir);
         $this->writeThemeAssets($workDir);
+    }
+
+    private function sidebarWidgets(): array
+    {
+        $path = $this->paths->contentPath('widgets/sidebar.json');
+        if (!is_file($path)) {
+            return [];
+        }
+        $widgets = (new FileStore())->readJson($path)['widgets'] ?? [];
+        return is_array($widgets) ? array_values($widgets) : [];
     }
 
     private function renderTheme(string $layout, array $data, string $requestUri, int $status = 200): string

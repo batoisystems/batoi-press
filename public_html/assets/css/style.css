@@ -738,6 +738,55 @@ p {
     font-size: 0.84rem;
 }
 
+.bp-admin-action-card .bp-button span,
+.bp-admin-action-card button span {
+    color: inherit;
+}
+
+.bp-admin-action-card .bp-uif-toolbar {
+    align-items: stretch;
+    margin-top: 6px;
+}
+
+.bp-admin-action-card .bp-inline-form {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+    margin: 0;
+}
+
+.bp-admin-action-card .bp-inline-form input[type="text"] {
+    min-width: 110px;
+}
+
+.bp-reorder-row {
+    position: relative;
+}
+
+.bp-reorder-actions {
+    align-items: center;
+    display: flex;
+    gap: 4px;
+}
+
+.bp-form .bp-reorder-actions button {
+    min-height: 32px;
+    padding: 5px 9px;
+}
+
+.bp-widget-rows {
+    display: grid;
+    gap: 12px;
+}
+
+.bp-widget-rows .bp-reorder-row {
+    background: var(--bp-panel-soft);
+    border: 1px solid var(--bp-line);
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+}
+
 .bp-command-hero {
     align-items: end;
     background: var(--bp-panel);

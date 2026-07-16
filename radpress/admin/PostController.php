@@ -119,10 +119,11 @@ final class PostController
         $body .= '<input type="hidden" name="original_slug" value="' . $this->e($slug) . '">';
 
         $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($post['title'] ?? '')) . $this->input('Slug', 'slug', $slug) . $this->bodyEditor((string)($post['body'] ?? ''), 'Use clean HTML for formatted article content. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.') . '</div>';
-        $publishing = $this->select((string)($post['status'] ?? 'draft')) . $this->publishDateInput((string)($post['published_at'] ?? '')) . $this->input('Category', 'category', (string)($post['category'] ?? 'General')) . $this->input('Tags', 'tags', implode(', ', (array)($post['tags'] ?? [])), false) . '<p class="bp-field-help">Separate tags with commas.</p>' . $this->metaList($post);
+        $publishing = $this->select((string)($post['status'] ?? 'draft')) . $this->publishDateInput((string)($post['published_at'] ?? '')) . $this->categoryInput((string)($post['category'] ?? 'General')) . $this->layoutSelect((string)($post['layout'] ?? 'full')) . $this->input('Tags', 'tags', implode(', ', (array)($post['tags'] ?? [])), false) . '<p class="bp-field-help">Separate tags with commas.</p>' . $this->metaList($post);
+        $media = $this->input('Featured image URL', 'featured_image', (string)($post['featured_image'] ?? ''), false) . '<p class="bp-field-help">Use a public image URL from <a href="/admin/media?type=images" target="_blank" rel="noopener">Media</a>. It appears on the blog card and individual post.</p>';
         $seo = $this->input('SEO Title', 'seo_title', (string)($post['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($post['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short article summary for search snippets and social previews.</span></label>';
 
-        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible article content.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Publishing', $publishing, 'Set status, category, and tags.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->postChecklist(), 'Review before publishing or changing a live post.') . '</aside>';
+        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible article content.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Publishing', $publishing, 'Set status, category, layout, and tags.') . $this->editorPanel('Featured image', $media, 'Choose the primary image used by public post views.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->postChecklist(), 'Review before publishing or changing a live post.') . '</aside>';
         $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/posts', 'back', true) . AdminLayout::submitButton('Save Post', 'save') . '</div></form>';
         return $body;
     }
@@ -150,6 +151,32 @@ final class PostController
         $timestamp = $value !== '' ? strtotime($value) : false;
         $formatted = $timestamp !== false ? date('Y-m-d\TH:i', $timestamp) : '';
         return '<label>Publish date <input type="datetime-local" name="published_at" value="' . $this->e($formatted) . '"><span class="bp-field-help">Used when status is Published. Leave blank to publish now.</span></label>';
+    }
+
+    private function categoryInput(string $selected): string
+    {
+        $categories = [];
+        foreach ($this->posts->all() as $post) {
+            $category = trim((string)($post['category'] ?? ''));
+            if ($category !== '') {
+                $categories[$category] = true;
+            }
+        }
+        ksort($categories, SORT_NATURAL | SORT_FLAG_CASE);
+        $options = '';
+        foreach (array_keys($categories) as $category) {
+            $options .= '<option value="' . $this->e($category) . '"></option>';
+        }
+        return '<label>Category <input type="text" name="category" value="' . $this->e($selected) . '" list="bp-post-categories" required><datalist id="bp-post-categories">' . $options . '</datalist><span class="bp-field-help">Choose an existing category or enter a new name to create it with this post.</span></label>';
+    }
+
+    private function layoutSelect(string $selected): string
+    {
+        $html = '<label>Post layout <select name="layout">';
+        foreach (['full' => 'Full width', 'sidebar-right' => 'Right sidebar', 'sidebar-left' => 'Left sidebar'] as $value => $label) {
+            $html .= '<option value="' . $value . '"' . ($selected === $value ? ' selected' : '') . '>' . $label . '</option>';
+        }
+        return $html . '</select><span class="bp-field-help">Sidebar layouts show configured widgets and recent posts.</span></label>';
     }
 
     private function toolbar(array $posts, array $filters): string

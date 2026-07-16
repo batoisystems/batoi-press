@@ -18,7 +18,7 @@ use Batoi\Press\Security\Password;
 use Batoi\Press\Security\Session;
 
 $root = dirname(__DIR__, 2);
-$paths = ['/', '/about', '/blog', '/blog/first-blog-post', '/sitemap.xml', '/feed.xml', '/admin', '/admin/login', '/admin/forgot-password', '/admin/pages', '/admin/posts', '/admin/media', '/admin/menus', '/admin/settings', '/admin/themes', '/admin/theme-templates', '/admin/users', '/admin/audit', '/admin/cache', '/admin/export-static', '/admin/aif', '/admin/updates'];
+$paths = ['/', '/about', '/blog', '/blog/first-blog-post', '/sitemap.xml', '/feed.xml', '/admin', '/admin/login', '/admin/forgot-password', '/admin/pages', '/admin/posts', '/admin/media', '/admin/menus', '/admin/widgets', '/admin/settings', '/admin/themes', '/admin/theme-templates', '/admin/users', '/admin/audit', '/admin/cache', '/admin/export-static', '/admin/aif', '/admin/updates'];
 $mediaFile = $root . '/radpress/content/media/smoke-test.txt';
 $mediaCssFile = $root . '/radpress/content/media/smoke-test.css';
 $mediaJsFile = $root . '/radpress/content/media/smoke-test.js';

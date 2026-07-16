@@ -18,6 +18,7 @@ use Batoi\Press\Admin\SettingsController;
 use Batoi\Press\Admin\ThemeTemplateController;
 use Batoi\Press\Admin\UpdateController;
 use Batoi\Press\Admin\UserController;
+use Batoi\Press\Admin\WidgetController;
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
 use Batoi\Press\Core\AuditLog;
@@ -67,7 +68,7 @@ final class Router
 
         if (str_starts_with($request->path, '/blog/')) {
             $post = $this->posts->findBySlug(substr($request->path, 6));
-            return $post ? $this->theme->render('post', ['post' => $post, 'title' => (string)$post['title']]) : $this->notFound();
+            return $post ? $this->theme->render('post', ['post' => $post, 'title' => (string)$post['title'], 'widgets' => $this->sidebarWidgets(), 'recentPosts' => $this->posts->allPublished()]) : $this->notFound();
         }
 
         if (str_starts_with($request->path, '/admin')) {
@@ -199,6 +200,14 @@ final class Router
 
         if ($request->path === '/admin/menus/save' && $request->method === 'POST') {
             return (new MenuController($this->config, $files, $csrf, $audit, $user))->save($request);
+        }
+
+        if ($request->path === '/admin/widgets') {
+            return (new WidgetController($this->config, $files, $csrf, $audit, $user))->edit();
+        }
+
+        if ($request->path === '/admin/widgets/save' && $request->method === 'POST') {
+            return (new WidgetController($this->config, $files, $csrf, $audit, $user))->save($request);
         }
 
         if ($request->path === '/admin/settings') {
@@ -354,6 +363,16 @@ final class Router
         );
         $body .= '<section class="bp-empty-state"><h2>Permission required</h2><p>Access to <code>' . htmlspecialchars($path, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</code> is limited by the current account role.</p></section>';
         return Response::html(AdminLayout::render('Access Restricted', $body), 403);
+    }
+
+    private function sidebarWidgets(): array
+    {
+        $path = $this->config->paths()->contentPath('widgets/sidebar.json');
+        if (!is_file($path)) {
+            return [];
+        }
+        $widgets = (new FileStore())->readJson($path)['widgets'] ?? [];
+        return is_array($widgets) ? array_values($widgets) : [];
     }
 
     private function notFound(): Response

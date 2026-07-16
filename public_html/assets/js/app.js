@@ -113,6 +113,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    document.querySelectorAll('[data-bp-reorder-list]').forEach((list) => {
+        list.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-bp-move]');
+            const row = button?.closest('.bp-reorder-row');
+            if (!button || !row) {
+                return;
+            }
+            const direction = button.getAttribute('data-bp-move');
+            const sibling = direction === 'up' ? row.previousElementSibling : row.nextElementSibling;
+            if (!sibling) {
+                return;
+            }
+            if (direction === 'up') {
+                list.insertBefore(row, sibling);
+            } else {
+                list.insertBefore(sibling, row);
+            }
+            row.querySelector('input, textarea')?.focus();
+        });
+    });
+
     enhanceContentEditors();
     window.requestAnimationFrame(enhanceContentEditors);
     document.addEventListener('keydown', (event) => {

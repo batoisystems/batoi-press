@@ -82,6 +82,8 @@ final class PostRepository
             'template' => 'post',
             'author' => (string)($existing['author'] ?? $actor),
             'category' => trim((string)($input['category'] ?? 'General')),
+            'featured_image' => $this->safeAssetUrl((string)($input['featured_image'] ?? '')),
+            'layout' => in_array((string)($input['layout'] ?? 'full'), ['full', 'sidebar-right', 'sidebar-left'], true) ? (string)$input['layout'] : 'full',
             'tags' => array_values(array_filter(array_map('trim', explode(',', (string)($input['tags'] ?? ''))))),
             'created_at' => (string)($existing['created_at'] ?? $now),
             'updated_at' => $now,
@@ -96,6 +98,18 @@ final class PostRepository
         $this->files->write($dir . '/body.html', $this->html->sanitize((string)($input['body'] ?? '')));
 
         return $meta;
+    }
+
+    private function safeAssetUrl(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+        if (str_starts_with($value, '/') && !str_starts_with($value, '//')) {
+            return $value;
+        }
+        return filter_var($value, FILTER_VALIDATE_URL) !== false && preg_match('#^https?://#i', $value) === 1 ? $value : '';
     }
 
     private function publishedAt(string $value, string $status, string $existing, string $now): string

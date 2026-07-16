@@ -30,6 +30,8 @@ final class ThemeTemplateController
         'archive' => ['label' => 'Archive Layout', 'file' => 'layouts/archive.php', 'type' => 'php', 'description' => 'Rendering structure for archive listings.'],
         'not-found' => ['label' => '404 Layout', 'file' => 'layouts/404.php', 'type' => 'php', 'description' => 'Rendering structure for missing pages.'],
         'manifest' => ['label' => 'Theme Manifest', 'file' => 'theme.json', 'type' => 'json', 'description' => 'Theme metadata, version, author, and declared support.'],
+        'theme-css' => ['label' => 'Theme CSS', 'file' => 'assets/css/theme.css', 'type' => 'css', 'description' => 'Theme-owned public styles and responsive presentation rules.'],
+        'theme-js' => ['label' => 'Theme JavaScript', 'file' => 'assets/js/theme.js', 'type' => 'js', 'description' => 'Theme-owned public interactions and progressive enhancement.'],
     ];
 
     private const REQUIRED_THEME_FILES = [
@@ -662,7 +664,12 @@ final class ThemeTemplateController
 
     private function codeEditor(string $source, string $type): string
     {
-        $language = $type === 'json' ? 'JSON' : 'PHP / HTML';
+        $language = match ($type) {
+            'json' => 'JSON',
+            'css' => 'CSS',
+            'js' => 'JavaScript',
+            default => 'PHP / HTML',
+        };
         return '<label class="bp-field-wide bp-code-editor-label" for="theme-template-source"><span>Source</span><small>' . $this->e($language) . ' source editor</small><textarea id="theme-template-source" class="bp-editor-textarea bp-template-code-editor" name="source" rows="28" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" wrap="off" aria-readonly="false">' . $this->e($source) . '</textarea></label>';
     }
 
@@ -704,6 +711,9 @@ final class ThemeTemplateController
         if ($type === 'json') {
             json_decode($source, true);
             return json_last_error() === JSON_ERROR_NONE ? null : 'JSON is invalid: ' . json_last_error_msg();
+        }
+        if (in_array($type, ['css', 'js'], true)) {
+            return null;
         }
 
         $tmpDir = $this->config->paths()->dataPath('tmp');

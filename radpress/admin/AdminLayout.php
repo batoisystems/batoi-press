@@ -139,6 +139,7 @@ final class AdminLayout
                 ['label' => 'Posts', 'href' => '/admin/posts', 'icon' => 'edit'],
                 ['label' => 'Media', 'href' => '/admin/media', 'icon' => 'image'],
                 ['label' => 'Menus', 'href' => '/admin/menus', 'icon' => 'menu'],
+                ['label' => 'Widgets', 'href' => '/admin/widgets', 'icon' => 'dashboard'],
             ],
             'Site' => [
                 ['label' => 'Settings', 'href' => '/admin/settings', 'icon' => 'settings'],

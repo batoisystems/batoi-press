@@ -42,6 +42,8 @@ assertTrue(str_contains($editorHtml, 'id="theme-template-source"'), 'Template so
 assertTrue(str_contains($editorHtml, 'aria-readonly="false"'), 'Template source editor should render as editable.');
 assertTrue(!str_contains($editorHtml, ' disabled'), 'Template source editor must not render disabled.');
 assertTrue(!str_contains($editorHtml, ' readonly'), 'Template source editor must not render readonly.');
+$templateIndex = $controller->index('default')->content();
+assertTrue(str_contains($templateIndex, 'Theme CSS') && str_contains($templateIndex, 'Theme JavaScript'), 'Theme assets should be directly editable from the template index.');
 
 $binaryNameMethod = new ReflectionMethod($controller, 'isCliCandidateName');
 $binaryNameMethod->setAccessible(true);

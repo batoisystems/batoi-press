@@ -2,7 +2,7 @@
   "schema": 1,
   "slug": "default",
   "name": "Batoi Versatile",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "author": "Batoi",
   "supports": ["pages", "posts", "menus", "seo", "brand_logo", "landing_pages", "ecommerce_pages", "responsive_navigation", "accessibility"],
   "page_templates": {
