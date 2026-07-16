@@ -152,7 +152,7 @@ final class StaticExporter
             $target = $slug === $homepage ? 'index.html' : $slug . '/index.html';
             $theme = new Theme($this->paths, $this->site);
             $layout = $theme->pageLayout((string)($page['template'] ?? 'page'));
-            $this->writeHtml($workDir, $target, $this->renderTheme($layout, ['page' => $page, 'title' => (string)($page['title'] ?? '')], '/' . ($slug === 'home' ? '' : $slug . '/')));
+            $this->writeHtml($workDir, $target, $this->renderTheme($layout, ['page' => $page, 'title' => (string)($page['title'] ?? '')], '/' . ($slug === $homepage ? '' : $slug . '/')));
         }
 
         $posts = $this->posts->allPublished();
@@ -206,10 +206,11 @@ final class StaticExporter
     private function sitemap(): string
     {
         $baseUrl = rtrim((string)($this->site['base_url'] ?? ''), '/');
+        $homepage = Slug::normalize((string)($this->site['homepage'] ?? 'home'));
         $urls = [];
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
-            $urls[] = $baseUrl . ($slug === 'home' ? '/' : '/' . $slug . '/');
+            $urls[] = $baseUrl . ($slug === $homepage ? '/' : '/' . $slug . '/');
         }
         foreach ($this->posts->allPublished() as $post) {
             $urls[] = $baseUrl . '/blog/' . (string)($post['slug'] ?? '') . '/';
@@ -288,9 +289,10 @@ final class StaticExporter
     private function expectedEntries(): array
     {
         $entries = ['blog/index.html', 'archive/index.html', '404.html', 'sitemap.xml', 'feed.xml'];
+        $homepage = Slug::normalize((string)($this->site['homepage'] ?? 'home'));
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
-            $entries[] = $slug === 'home' ? 'index.html' : $slug . '/index.html';
+            $entries[] = $slug === $homepage ? 'index.html' : $slug . '/index.html';
         }
         foreach ($this->posts->allPublished() as $post) {
             $entries[] = 'blog/' . (string)($post['slug'] ?? '') . '/index.html';

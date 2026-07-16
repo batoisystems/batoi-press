@@ -281,7 +281,8 @@ final class ThemeTemplateController
         $cards = '<div class="bp-admin-action-grid">';
         foreach (self::EDITABLE_FILES as $key => $template) {
             $path = $this->templatePath($theme, $key);
-            $status = is_file($path) && is_writable($path) ? 'Editable' : (is_file($path) ? 'Read only' : 'Missing');
+            $optionalAsset = in_array((string)$template['type'], ['css', 'js'], true);
+            $status = is_file($path) && is_writable($path) ? 'Editable' : (is_file($path) ? 'Read only' : ($optionalAsset ? 'Create on save' : 'Missing'));
             $cards .= '<a class="bp-admin-action-card" href="/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key) . '"><em>' . AdminLayout::icon('code') . '</em><strong>' . $this->e((string)$template['label']) . '</strong><span>' . $this->e((string)$template['description']) . '</span><small>' . $this->e($status) . '</small></a>';
         }
         $cards .= '</div>';
@@ -306,9 +307,10 @@ final class ThemeTemplateController
         }
 
         $path = $this->templatePath($theme, $key);
-        if (!is_file($path)) {
+        if (!is_file($path) && !in_array((string)$template['type'], ['css', 'js'], true)) {
             return Response::html($this->layout('Theme Templates', '<p class="bp-error">Template file is missing.</p><p>' . AdminLayout::buttonLink('Back to templates', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . '</p>'), 404);
         }
+        $source = is_file($path) ? $this->files->read($path) : ((string)$template['type'] === 'css' ? "/* Add theme styles here. */\n" : "// Add theme interactions here.\n");
 
         $body = AdminLayout::pageHeader(
             (string)$template['label'],
@@ -319,7 +321,7 @@ final class ThemeTemplateController
         $body .= $this->csrf->field();
         $body .= '<input type="hidden" name="theme" value="' . $this->e($theme) . '">';
         $body .= '<input type="hidden" name="template" value="' . $this->e($key) . '">';
-        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Template code', $this->codeEditor($this->files->read($path), (string)$template['type']), 'Edit source carefully. PHP templates are checked before saving.') . '</div>';
+        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Template code', $this->codeEditor($source, (string)$template['type']), 'Edit source carefully. PHP templates are checked before saving.') . '</div>';
         $body .= '<aside class="bp-editor-side">' . $this->editorPanel('Reference', $this->referencePanel($theme, $key, $path), 'Available context and file ownership.') . $this->editorPanel('Editing standard', $this->editingStandard(), 'Required checks before saving and previewing templates.') . '</aside>';
         $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . AdminLayout::submitButton('Save Template', 'save') . '</div></form>';
 

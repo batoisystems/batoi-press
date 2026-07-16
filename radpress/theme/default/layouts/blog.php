@@ -9,7 +9,7 @@ declare(strict_types=1);
         <div class="bp-post-grid">
             <?php foreach ($posts as $item): ?>
                 <article class="bp-post-card">
-                    <?php if (!empty($item['featured_image'])): $featuredImage = (string)$item['featured_image']; ?><a class="bp-post-card-media" href="/blog/<?php echo bp_attr((string)$item['slug']); ?>"><img src="<?php echo bp_attr(preg_match('#^https?://#i', $featuredImage) === 1 ? $featuredImage : bp_url($featuredImage)); ?>" alt=""></a><?php endif; ?>
+                    <?php if (!empty($item['featured_image'])): $featuredImage = (string)$item['featured_image']; ?><a class="bp-post-card-media" href="/blog/<?php echo bp_attr((string)$item['slug']); ?>"><img src="<?php echo bp_attr(preg_match('#^https?://#i', $featuredImage) === 1 ? $featuredImage : bp_url($featuredImage)); ?>" alt="<?php echo bp_attr((string)($item['featured_image_alt'] ?? '')); ?>"></a><?php endif; ?>
                     <p class="bp-meta"><?php echo bp_esc(bp_date((string)($item['published_at'] ?? ''))); ?></p>
                     <h2><a href="/blog/<?php echo bp_attr((string)$item['slug']); ?>"><?php echo bp_esc((string)$item['title']); ?></a></h2>
                     <p><?php echo bp_esc((string)($item['seo_description'] ?? '')); ?></p>

@@ -19,11 +19,13 @@ try {
         'status' => 'published',
         'category' => 'Product News',
         'featured_image' => '/assets/images/featured.webp',
+        'featured_image_alt' => 'Team presenting the new product',
         'layout' => 'sidebar-right',
         'body' => '<p>Body</p>',
     ], 'owner');
     assertPost(($saved['category'] ?? '') === 'Product News', 'new category names should persist with the post');
     assertPost(($saved['featured_image'] ?? '') === '/assets/images/featured.webp', 'featured image URL should persist');
+    assertPost(($saved['featured_image_alt'] ?? '') === 'Team presenting the new product', 'featured image alt text should persist');
     assertPost(($saved['layout'] ?? '') === 'sidebar-right', 'selected post layout should persist');
     $unsafe = $posts->save([
         'title' => 'Unsafe Image',

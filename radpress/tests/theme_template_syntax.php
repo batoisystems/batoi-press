@@ -45,6 +45,18 @@ assertTrue(!str_contains($editorHtml, ' readonly'), 'Template source editor must
 $templateIndex = $controller->index('default')->content();
 assertTrue(str_contains($templateIndex, 'Theme CSS') && str_contains($templateIndex, 'Theme JavaScript'), 'Theme assets should be directly editable from the template index.');
 
+$themeJs = $config->paths()->themePath('default/assets/js/theme.js');
+$themeJsBackup = $themeJs . '.syntax-test-backup';
+rename($themeJs, $themeJsBackup);
+try {
+    $missingAssetIndex = $controller->index('default')->content();
+    assertTrue(str_contains($missingAssetIndex, 'Create on save'), 'Missing optional theme assets should offer creation instead of a dead link.');
+    $missingAssetEditor = $controller->edit('default/theme-js')->content();
+    assertTrue(str_contains($missingAssetEditor, '// Add theme interactions here.'), 'Missing theme JavaScript should open with safe starter source.');
+} finally {
+    rename($themeJsBackup, $themeJs);
+}
+
 $binaryNameMethod = new ReflectionMethod($controller, 'isCliCandidateName');
 $binaryNameMethod->setAccessible(true);
 assertTrue($binaryNameMethod->invoke($controller, 'php'), 'The standard PHP CLI binary name should be accepted.');

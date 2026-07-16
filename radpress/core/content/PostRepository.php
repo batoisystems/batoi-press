@@ -83,6 +83,7 @@ final class PostRepository
             'author' => (string)($existing['author'] ?? $actor),
             'category' => trim((string)($input['category'] ?? 'General')),
             'featured_image' => $this->safeAssetUrl((string)($input['featured_image'] ?? '')),
+            'featured_image_alt' => trim((string)($input['featured_image_alt'] ?? '')),
             'layout' => in_array((string)($input['layout'] ?? 'full'), ['full', 'sidebar-right', 'sidebar-left'], true) ? (string)$input['layout'] : 'full',
             'tags' => array_values(array_filter(array_map('trim', explode(',', (string)($input['tags'] ?? ''))))),
             'created_at' => (string)($existing['created_at'] ?? $now),

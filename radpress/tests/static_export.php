@@ -40,6 +40,7 @@ try {
             'name' => 'Static Test',
             'tagline' => 'Rendered through the active theme.',
             'base_url' => 'https://example.test',
+            'homepage' => 'about',
             'theme' => 'default',
             'brand_display' => 'logo',
             'brand_logo' => '/assets/images/site/logo.png',
@@ -72,7 +73,7 @@ try {
     assertTrue($zip->open($zipPath) === true, 'static export ZIP should open');
     foreach ([
         'index.html',
-        'about/index.html',
+        'home/index.html',
         'blog/index.html',
         'blog/first-post/index.html',
         'archive/index.html',
@@ -106,6 +107,12 @@ try {
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './assets/images/site/logo.png'), 'Static HTML should render the configured brand logo.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './theme-assets/default/css/theme.css'), 'Static HTML should load declared theme styles.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './theme-assets/default/js/theme.js'), 'Static HTML should load declared theme scripts.');
+    assertTrue(!str_contains((string)$zip->getFromName('index.html'), '../assets/'), 'Configured homepage assets should resolve from the export root.');
+    assertTrue(str_contains((string)$zip->getFromName('sitemap.xml'), '<loc>https://example.test/</loc>'), 'Configured homepage should use the root sitemap URL.');
+    assertTrue(!str_contains((string)$zip->getFromName('sitemap.xml'), '<loc>https://example.test/about/</loc>'), 'Configured homepage slug should not be duplicated in the sitemap.');
+    assertTrue(str_contains((string)$zip->getFromName('blog/first-post/index.html'), 'alt="Featured release artwork"'), 'Static posts should preserve featured image alt text.');
+    assertTrue(str_contains((string)$zip->getFromName('blog/first-post/index.html'), '<h2>Call to action</h2>'), 'Static sidebar posts should include configured widgets.');
+    assertTrue(str_contains((string)$zip->getFromName('blog/first-post/index.html'), '<h2>Recent posts</h2>'), 'Static sidebar posts should include recent posts.');
     assertTrue(str_contains((string)$zip->getFromName('blog/first-post/index.html'), '../../assets/images/site/logo.png'), 'Nested static posts should resolve root assets with a depth-aware relative path.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), 'Rendered through the active theme.'), 'Static HTML should use the active theme footer.');
     assertTrue($zip->locateName('admin/index.html') === false, 'static export ZIP should not include admin output');
@@ -123,6 +130,7 @@ function createFixture(string $root): void
         'radpress/content/pages/home',
         'radpress/content/pages/about',
         'radpress/content/posts/first-post',
+        'radpress/content/widgets',
         'radpress/content/media',
         'radpress/content/assets/styles/custom',
         'radpress/content/assets/images/site',
@@ -145,13 +153,21 @@ function createFixture(string $root): void
         'title' => 'About',
         'slug' => 'about',
         'status' => 'published',
+        'template' => 'landing',
     ], '<h1>About</h1>');
     writeContent($root . '/radpress/content/posts/first-post', [
         'title' => 'First Post',
         'slug' => 'first-post',
         'status' => 'published',
         'published_at' => date(DATE_ATOM),
+        'featured_image' => '/assets/images/site/logo.png',
+        'featured_image_alt' => 'Featured release artwork',
+        'layout' => 'sidebar-right',
     ], '<h1>First Post</h1>');
+    file_put_contents($root . '/radpress/content/widgets/sidebar.json', json_encode(['widgets' => [[
+        'title' => 'Call to action',
+        'body' => '<p>Contact our team.</p>',
+    ]]], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX);
     file_put_contents($root . '/radpress/content/media/sample-media.txt', "sample media\n", LOCK_EX);
     file_put_contents($root . '/radpress/content/media/site.css', "body{color:#111}\n", LOCK_EX);
     file_put_contents($root . '/radpress/content/media/site.js', "console.log('asset');\n", LOCK_EX);
