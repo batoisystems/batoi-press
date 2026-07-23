@@ -149,16 +149,25 @@ final class StaticExporter
         $homepage = Slug::normalize((string)($this->site['homepage'] ?? 'home'));
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
-            $target = $slug === $homepage ? 'index.html' : $slug . '/index.html';
+            $pagePath = trim($this->pages->publicPath($page), '/');
+            $target = $slug === $homepage ? 'index.html' : $pagePath . '/index.html';
             $theme = new Theme($this->paths, $this->site);
             $layout = $theme->pageLayout((string)($page['template'] ?? 'page'));
-            $this->writeHtml($workDir, $target, $this->renderTheme($layout, ['page' => $page, 'title' => (string)($page['title'] ?? '')], '/' . ($slug === $homepage ? '' : $slug . '/')));
+            $this->writeHtml($workDir, $target, $this->renderTheme($layout, ['page' => $page, 'title' => (string)($page['title'] ?? '')], '/' . ($slug === $homepage ? '' : $pagePath . '/')));
         }
 
         $posts = $this->posts->allPublished();
         foreach ($posts as $post) {
             $slug = (string)($post['slug'] ?? '');
-            $this->writeHtml($workDir, 'blog/' . $slug . '/index.html', $this->renderTheme('post', ['post' => $post, 'title' => (string)($post['title'] ?? ''), 'widgets' => $this->sidebarWidgets(), 'recentPosts' => $posts], '/blog/' . $slug . '/'));
+            $adjacent = $this->posts->adjacentPublished($slug);
+            $this->writeHtml($workDir, 'blog/' . $slug . '/index.html', $this->renderTheme('post', [
+                'post' => $post,
+                'title' => (string)($post['title'] ?? ''),
+                'widgets' => $this->sidebarWidgets(),
+                'recentPosts' => $posts,
+                'previousPost' => $adjacent['previous'],
+                'nextPost' => $adjacent['next'],
+            ], '/blog/' . $slug . '/'));
         }
         $this->writeHtml($workDir, 'blog/index.html', $this->renderTheme('blog', ['posts' => $posts, 'title' => 'Blog'], '/blog/'));
         $this->writeHtml($workDir, 'archive/index.html', $this->renderTheme('archive', ['posts' => $posts, 'title' => 'Archive'], '/archive/'));
@@ -174,11 +183,15 @@ final class StaticExporter
     private function sidebarWidgets(): array
     {
         $path = $this->paths->contentPath('widgets/sidebar.json');
-        if (!is_file($path)) {
-            return [];
+        $widgets = is_file($path) ? ((new FileStore())->readJson($path)['widgets'] ?? []) : [];
+        $widgets = is_array($widgets) ? array_values($widgets) : [];
+        foreach ($widgets as $widget) {
+            if (($widget['type'] ?? '') === 'recent_posts') {
+                return $widgets;
+            }
         }
-        $widgets = (new FileStore())->readJson($path)['widgets'] ?? [];
-        return is_array($widgets) ? array_values($widgets) : [];
+        array_unshift($widgets, ['type' => 'recent_posts', 'title' => 'Recent posts']);
+        return $widgets;
     }
 
     private function renderTheme(string $layout, array $data, string $requestUri, int $status = 200): string
@@ -210,7 +223,7 @@ final class StaticExporter
         $urls = [];
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
-            $urls[] = $baseUrl . ($slug === $homepage ? '/' : '/' . $slug . '/');
+            $urls[] = $baseUrl . ($slug === $homepage ? '/' : $this->pages->publicPath($page) . '/');
         }
         foreach ($this->posts->allPublished() as $post) {
             $urls[] = $baseUrl . '/blog/' . (string)($post['slug'] ?? '') . '/';
@@ -292,7 +305,7 @@ final class StaticExporter
         $homepage = Slug::normalize((string)($this->site['homepage'] ?? 'home'));
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
-            $entries[] = $slug === $homepage ? 'index.html' : $slug . '/index.html';
+            $entries[] = $slug === $homepage ? 'index.html' : trim($this->pages->publicPath($page), '/') . '/index.html';
         }
         foreach ($this->posts->allPublished() as $post) {
             $entries[] = 'blog/' . (string)($post['slug'] ?? '') . '/index.html';

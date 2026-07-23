@@ -74,8 +74,10 @@ try {
     foreach ([
         'index.html',
         'home/index.html',
+        'about/team/index.html',
         'blog/index.html',
         'blog/first-post/index.html',
+        'blog/second-post/index.html',
         'archive/index.html',
         '404.html',
         'sitemap.xml',
@@ -110,9 +112,13 @@ try {
     assertTrue(!str_contains((string)$zip->getFromName('index.html'), '../assets/'), 'Configured homepage assets should resolve from the export root.');
     assertTrue(str_contains((string)$zip->getFromName('sitemap.xml'), '<loc>https://example.test/</loc>'), 'Configured homepage should use the root sitemap URL.');
     assertTrue(!str_contains((string)$zip->getFromName('sitemap.xml'), '<loc>https://example.test/about/</loc>'), 'Configured homepage slug should not be duplicated in the sitemap.');
+    assertTrue(str_contains((string)$zip->getFromName('sitemap.xml'), '<loc>https://example.test/about/team/</loc>'), 'Child page hierarchy should be preserved in the sitemap.');
     assertTrue(str_contains((string)$zip->getFromName('blog/first-post/index.html'), 'alt="Featured release artwork"'), 'Static posts should preserve featured image alt text.');
+    assertTrue(str_contains((string)$zip->getFromName('blog/first-post/index.html'), 'Release summary'), 'Static posts should render post subtitles.');
     assertTrue(str_contains((string)$zip->getFromName('blog/first-post/index.html'), '<h2>Call to action</h2>'), 'Static sidebar posts should include configured widgets.');
     assertTrue(str_contains((string)$zip->getFromName('blog/first-post/index.html'), '<h2>Recent posts</h2>'), 'Static sidebar posts should include recent posts.');
+    assertTrue(strpos((string)$zip->getFromName('blog/first-post/index.html'), '<h2>Recent posts</h2>') < strpos((string)$zip->getFromName('blog/first-post/index.html'), '<h2>Call to action</h2>'), 'Legacy widget data should place Recent posts first by default.');
+    assertTrue(str_contains((string)$zip->getFromName('blog/first-post/index.html'), 'Previous Article'), 'Static post pages should include adjacent article buttons.');
     assertTrue(str_contains((string)$zip->getFromName('blog/first-post/index.html'), '../../assets/images/site/logo.png'), 'Nested static posts should resolve root assets with a depth-aware relative path.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), 'Rendered through the active theme.'), 'Static HTML should use the active theme footer.');
     assertTrue($zip->locateName('admin/index.html') === false, 'static export ZIP should not include admin output');
@@ -129,7 +135,9 @@ function createFixture(string $root): void
         'public_html',
         'radpress/content/pages/home',
         'radpress/content/pages/about',
+        'radpress/content/pages/team',
         'radpress/content/posts/first-post',
+        'radpress/content/posts/second-post',
         'radpress/content/widgets',
         'radpress/content/media',
         'radpress/content/assets/styles/custom',
@@ -155,15 +163,30 @@ function createFixture(string $root): void
         'status' => 'published',
         'template' => 'landing',
     ], '<h1>About</h1>');
+    writeContent($root . '/radpress/content/pages/team', [
+        'title' => 'Team',
+        'slug' => 'team',
+        'parent_slug' => 'about',
+        'status' => 'published',
+        'template' => 'page',
+    ], '<h1>Team</h1>');
     writeContent($root . '/radpress/content/posts/first-post', [
         'title' => 'First Post',
+        'subtitle' => 'Release summary',
         'slug' => 'first-post',
         'status' => 'published',
-        'published_at' => date(DATE_ATOM),
+        'published_at' => '2026-07-02T10:00:00+00:00',
         'featured_image' => '/assets/images/site/logo.png',
         'featured_image_alt' => 'Featured release artwork',
         'layout' => 'sidebar-right',
     ], '<h1>First Post</h1>');
+    writeContent($root . '/radpress/content/posts/second-post', [
+        'title' => 'Second Post',
+        'slug' => 'second-post',
+        'status' => 'published',
+        'published_at' => '2026-07-01T10:00:00+00:00',
+        'layout' => 'full',
+    ], '<h1>Second Post</h1>');
     file_put_contents($root . '/radpress/content/widgets/sidebar.json', json_encode(['widgets' => [[
         'title' => 'Call to action',
         'body' => '<p>Contact our team.</p>',

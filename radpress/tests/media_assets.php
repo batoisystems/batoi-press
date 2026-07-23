@@ -68,6 +68,7 @@ try {
     assertTrue(str_contains($cssHtml, 'data-confirm="Delete asset-manager-test.css?'), 'Media manager should confirm destructive actions.');
     assertTrue(str_contains($cssHtml, 'data-copy-target="bp-media-'), 'Media manager should provide copy controls.');
     assertTrue(str_contains($cssHtml, 'accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.md,.css,.js,.mjs,.mp3,.wav,.ogg,.m4a,.mp4,.webm,.mov"'), 'Upload input should advertise configured file types.');
+    assertTrue(str_contains($cssHtml, 'name="media[]"') && str_contains($cssHtml, ' multiple'), 'Media manager should accept multiple files in one upload.');
     assertTrue(str_contains($cssHtml, 'Install Library'), 'Owners should see the versioned library installation workflow.');
     assertTrue(!str_contains($cssHtml, 'asset-manager-test.js'), 'Style filter should exclude JavaScript assets.');
 
@@ -112,6 +113,16 @@ try {
         ['username' => 'editor', 'role' => 'editor']
     );
     assertTrue(!str_contains($editorController->index()->content(), 'Install Library'), 'Editors should not see executable library governance controls.');
+
+    $normalizeUploads = new ReflectionMethod($controller, 'normalizeUploads');
+    $normalizedUploads = $normalizeUploads->invoke($controller, [
+        'name' => ['one.png', 'two.pdf'],
+        'type' => ['image/png', 'application/pdf'],
+        'tmp_name' => ['/tmp/one', '/tmp/two'],
+        'error' => [UPLOAD_ERR_OK, UPLOAD_ERR_OK],
+        'size' => [100, 200],
+    ]);
+    assertTrue(count($normalizedUploads) === 2 && ($normalizedUploads[1]['name'] ?? '') === 'two.pdf', 'Multiple PHP upload fields should normalize into individual files.');
 
     echo "Media asset management checks passed\n";
 } finally {

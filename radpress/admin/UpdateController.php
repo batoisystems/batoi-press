@@ -164,7 +164,7 @@ final class UpdateController
 
     private function isStageName(string $stage): bool
     {
-        return preg_match('/^update-stage-\d{8}-\d{6}$/', $stage) === 1;
+        return preg_match('/^update-stage-\d{8}-\d{6}(?:-[a-f0-9]{6})?$/', $stage) === 1;
     }
 
     private function backupList(): string

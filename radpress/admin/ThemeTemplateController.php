@@ -28,6 +28,7 @@ final class ThemeTemplateController
         'post' => ['label' => 'Post Layout', 'file' => 'layouts/post.php', 'type' => 'php', 'description' => 'Rendering structure for blog posts.'],
         'blog' => ['label' => 'Blog Layout', 'file' => 'layouts/blog.php', 'type' => 'php', 'description' => 'Rendering structure for the blog index.'],
         'archive' => ['label' => 'Archive Layout', 'file' => 'layouts/archive.php', 'type' => 'php', 'description' => 'Rendering structure for archive listings.'],
+        'contact' => ['label' => 'Contact Layout', 'file' => 'layouts/contact.php', 'type' => 'php', 'description' => 'Contact-page rendering and server-side form handling for themes that declare this layout.'],
         'not-found' => ['label' => '404 Layout', 'file' => 'layouts/404.php', 'type' => 'php', 'description' => 'Rendering structure for missing pages.'],
         'manifest' => ['label' => 'Theme Manifest', 'file' => 'theme.json', 'type' => 'json', 'description' => 'Theme metadata, version, author, and declared support.'],
         'theme-css' => ['label' => 'Theme CSS', 'file' => 'assets/css/theme.css', 'type' => 'css', 'description' => 'Theme-owned public styles and responsive presentation rules.'],
@@ -73,7 +74,7 @@ final class ThemeTemplateController
         foreach ($this->themesList() as $theme) {
             $slug = (string)$theme['slug'];
             $isActive = $slug === $active;
-            $cards .= '<section class="bp-admin-action-card">';
+            $cards .= '<section class="bp-admin-action-card' . ($isActive ? ' is-active-theme' : '') . '"' . ($isActive ? ' aria-label="Active theme"' : '') . '>';
             $cards .= '<em>' . AdminLayout::icon($isActive ? 'check' : 'code') . '</em>';
             $cards .= '<strong>' . $this->e((string)$theme['name']) . '</strong>';
             $cards .= '<span>Version ' . $this->e((string)$theme['version']) . ' by ' . $this->e((string)$theme['author']) . '</span>';

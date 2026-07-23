@@ -6,6 +6,7 @@ namespace Batoi\Press\Admin;
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\Config;
+use Batoi\Press\Core\HtmlContent;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
 use Batoi\Press\Core\Slug;
@@ -54,11 +55,11 @@ final class PageController
             return Response::html($this->layout('Pages', $body));
         }
 
-        $body .= '<div class="bp-table-wrap"><table class="bp-table bp-content-table"><thead><tr><th>Title</th><th>Status</th><th>Slug</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
+        $body .= '<div class="bp-table-wrap"><table class="bp-table bp-content-table"><thead><tr><th>Title</th><th>Status</th><th>Route</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
         foreach ($filteredPages as $page) {
             $slug = (string)($page['slug'] ?? '');
             $title = (string)($page['title'] ?? 'Untitled');
-            $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>Page</small></td><td>' . $this->statusBadge((string)($page['status'] ?? 'draft')) . '</td><td><code>' . $this->e($slug) . '</code></td><td>' . $this->formatDate((string)($page['updated_at'] ?? '')) . '</td><td><div class="bp-table-actions"><a href="' . $this->e($this->pageUrl($slug)) . '">View</a><a href="/admin/pages/edit/' . rawurlencode($slug) . '">Edit</a></div></td></tr>';
+            $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>' . (!empty($page['parent_slug']) ? 'Child page' : 'Page') . '</small></td><td>' . $this->statusBadge((string)($page['status'] ?? 'draft')) . '</td><td><code>' . $this->e($this->pageUrl($page)) . '</code></td><td>' . $this->formatDate((string)($page['updated_at'] ?? '')) . '</td><td><div class="bp-table-actions"><a href="' . $this->e($this->pageUrl($page)) . '">View</a><a href="/admin/pages/edit/' . rawurlencode($slug) . '">Edit</a><a href="/admin/pages/new?parent=' . rawurlencode($slug) . '">Add child</a></div></td></tr>';
         }
         $body .= '</tbody></table></div>';
         return Response::html($this->layout('Pages', $body));
@@ -83,7 +84,25 @@ final class PageController
         }
 
         try {
-            $meta = $this->pages->save($request->post, (string)($this->user['username'] ?? 'admin'));
+            $input = $request->post;
+            if (($input['body_edit_mode'] ?? '') === 'text_only') {
+                $sourceSlug = $originalSlug !== '' ? $originalSlug : $slug;
+                $sourcePage = $this->pages->findBySlug($sourceSlug);
+                if ($sourcePage === null) {
+                    throw new RuntimeException('The source page for protected-layout editing is no longer available.');
+                }
+                $sourceBody = (string)($sourcePage['body'] ?? '');
+                $sourceHash = (string)($input['body_source_hash'] ?? '');
+                if ($sourceHash === '' || !hash_equals(hash('sha256', $sourceBody), $sourceHash)) {
+                    throw new RuntimeException('The page body changed after this editor was opened. Reload it before saving text changes.');
+                }
+                $replacements = $input['body_text'] ?? [];
+                if (!is_array($replacements)) {
+                    throw new RuntimeException('The protected-layout text fields were not submitted correctly.');
+                }
+                $input['body'] = (new HtmlContent())->replaceEditableText($sourceBody, $replacements);
+            }
+            $meta = $this->pages->save($input, (string)($this->user['username'] ?? 'admin'));
         } catch (RuntimeException $exception) {
             return Response::html($this->layout('Pages', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>' . AdminLayout::buttonLink('Back to pages', '/admin/pages', 'back', true) . '</p>'), 409);
         }
@@ -96,9 +115,13 @@ final class PageController
     {
         $isEdit = $page !== null;
         $slug = (string)($page['slug'] ?? '');
+        $requestedParent = Slug::normalize((string)($page['parent_slug'] ?? $_GET['parent'] ?? ''));
+        if ($requestedParent !== '' && $this->pages->findBySlug($requestedParent) === null) {
+            $requestedParent = '';
+        }
         $actions = AdminLayout::buttonLink('Back to pages', '/admin/pages', 'back', true);
         if ($isEdit) {
-            $actions = AdminLayout::buttonLink('View page', $this->pageUrl($slug), 'site', true) . $actions;
+            $actions = AdminLayout::buttonLink('View page', $this->pageUrl($page), 'site', true) . AdminLayout::buttonLink('Add child page', '/admin/pages/new?parent=' . rawurlencode($slug), 'plus', true) . $actions;
         }
 
         $body = AdminLayout::pageHeader(
@@ -110,8 +133,19 @@ final class PageController
         $body .= $this->csrf->field();
         $body .= '<input type="hidden" name="original_slug" value="' . $this->e($slug) . '">';
 
-        $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($page['title'] ?? '')) . $this->input('Slug', 'slug', $slug) . $this->bodyEditor((string)($page['body'] ?? ''), 'Use clean HTML. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.') . '</div>';
-        $publishing = $this->select((string)($page['status'] ?? 'draft')) . $this->templateSelect((string)($page['template'] ?? 'page')) . $this->metaList($page);
+        $bodyValue = (string)($page['body'] ?? '');
+        $htmlContent = new HtmlContent();
+        $textSegments = $isEdit ? $htmlContent->editableTextSegments($bodyValue) : [];
+        $requestedEditor = strtolower(trim((string)($_GET['editor'] ?? '')));
+        $textOnly = $isEdit
+            && $textSegments !== []
+            && ($requestedEditor === 'text' || ($requestedEditor === '' && $htmlContent->hasComplexStructure($bodyValue)));
+        $editor = $textOnly
+            ? ContentEditor::renderTextOnly($bodyValue, $textSegments, 'bp-page-body')
+            : $this->bodyEditor($bodyValue, 'Use clean HTML. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.');
+        $modeSwitch = $isEdit && $textSegments !== [] ? $this->editorModeSwitch($slug, $textOnly) : '';
+        $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($page['title'] ?? ''), true, 'data-bp-slug-source') . $this->input('Slug', 'slug', $slug, true, 'data-bp-slug-target') . $modeSwitch . $editor . '</div>';
+        $publishing = $this->select((string)($page['status'] ?? 'draft')) . $this->parentSelect($requestedParent, $slug) . $this->templateSelect((string)($page['template'] ?? 'page')) . $this->metaList($page);
         $seo = $this->input('SEO Title', 'seo_title', (string)($page['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($page['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short page summary for search snippets and social previews.</span></label>';
 
         $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible page content.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Publishing', $publishing, 'Control draft or live availability.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->pageChecklist(), 'Review before publishing or changing a live page.') . '</aside>';
@@ -119,15 +153,24 @@ final class PageController
         return $body;
     }
 
-    private function input(string $label, string $name, string $value, bool $required = true): string
+    private function input(string $label, string $name, string $value, bool $required = true, string $attributes = ''): string
     {
         $requiredAttribute = $required ? ' required' : '';
-        return '<label>' . $this->e($label) . ' <input type="text" name="' . $this->e($name) . '" value="' . $this->e($value) . '"' . $requiredAttribute . '></label>';
+        return '<label>' . $this->e($label) . ' <input type="text" name="' . $this->e($name) . '" value="' . $this->e($value) . '"' . $requiredAttribute . ($attributes !== '' ? ' ' . $attributes : '') . '></label>';
     }
 
     private function bodyEditor(string $value, string $help): string
     {
         return ContentEditor::render($this->config, $value, $help, 'bp-page-body');
+    }
+
+    private function editorModeSwitch(string $slug, bool $textOnly): string
+    {
+        $base = '/admin/pages/edit/' . rawurlencode($slug);
+        return '<div class="bp-field-wide bp-editor-mode-switch"><div><strong>Editing mode</strong><p>Use Text only for safe copy updates on custom layouts. Use HTML editor only when the page structure must change.</p></div><nav aria-label="Page body editing mode">'
+            . '<a href="' . $base . '?editor=text"' . ($textOnly ? ' class="is-active" aria-current="page"' : '') . '>Text only</a>'
+            . '<a href="' . $base . '?editor=html"' . (!$textOnly ? ' class="is-active" aria-current="page"' : '') . '>HTML editor</a>'
+            . '</nav></div>';
     }
 
     private function select(string $status): string
@@ -148,6 +191,20 @@ final class PageController
             $options .= '<option value="' . $this->e((string)$key) . '"' . ($selected === $key ? ' selected' : '') . '>' . $this->e((string)($template['label'] ?? $key)) . '</option>';
         }
         return '<label>Page template <select name="template">' . $options . '</select><span class="bp-field-help">Controls the public layout. Content remains portable between templates.</span></label>';
+    }
+
+    private function parentSelect(string $selected, string $currentSlug): string
+    {
+        $options = '<option value="">Top level</option>';
+        foreach ($this->pages->all() as $page) {
+            $slug = (string)($page['slug'] ?? '');
+            if ($slug === '' || $slug === $currentSlug) {
+                continue;
+            }
+            $label = (string)($page['title'] ?? $slug) . ' (' . $this->pages->publicPath($page) . ')';
+            $options .= '<option value="' . $this->e($slug) . '"' . ($slug === $selected ? ' selected' : '') . '>' . $this->e($label) . '</option>';
+        }
+        return '<label>Parent page <select name="parent_slug">' . $options . '</select><span class="bp-field-help">Child pages use a nested public route under their parent.</span></label>';
     }
 
     private function toolbar(array $pages, array $filters): string
@@ -228,9 +285,12 @@ final class PageController
         return $timestamp ? $this->e(date('M j, Y H:i', $timestamp)) : $this->e($value);
     }
 
-    private function pageUrl(string $slug): string
+    private function pageUrl(array $page): string
     {
-        return $slug === 'home' ? '/' : '/' . rawurlencode($slug);
+        $slug = (string)($page['slug'] ?? '');
+        return $slug !== '' && $slug === Slug::normalize((string)($this->config->site()['homepage'] ?? 'home'))
+            ? '/'
+            : $this->pages->publicPath($page);
     }
 
     private function editorPanel(string $title, string $body, string $description): string

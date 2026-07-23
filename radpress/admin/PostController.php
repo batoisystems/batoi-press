@@ -118,7 +118,7 @@ final class PostController
         $body .= $this->csrf->field();
         $body .= '<input type="hidden" name="original_slug" value="' . $this->e($slug) . '">';
 
-        $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($post['title'] ?? '')) . $this->input('Slug', 'slug', $slug) . $this->bodyEditor((string)($post['body'] ?? ''), 'Use clean HTML for formatted article content. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.') . '</div>';
+        $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($post['title'] ?? ''), true, 'data-bp-slug-source') . $this->input('Slug', 'slug', $slug, true, 'data-bp-slug-target') . '<label class="bp-field-wide">Subtitle <textarea name="subtitle" rows="3" maxlength="300">' . $this->e((string)($post['subtitle'] ?? '')) . '</textarea><span class="bp-field-help">Optional short description shown below the article title.</span></label>' . $this->bodyEditor((string)($post['body'] ?? ''), 'Use clean HTML for formatted article content. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.') . '</div>';
         $publishing = $this->select((string)($post['status'] ?? 'draft')) . $this->publishDateInput((string)($post['published_at'] ?? '')) . $this->categoryInput((string)($post['category'] ?? 'General')) . $this->layoutSelect((string)($post['layout'] ?? 'full')) . $this->input('Tags', 'tags', implode(', ', (array)($post['tags'] ?? [])), false) . '<p class="bp-field-help">Separate tags with commas.</p>' . $this->metaList($post);
         $media = $this->input('Featured image URL', 'featured_image', (string)($post['featured_image'] ?? ''), false) . $this->input('Featured image alt text', 'featured_image_alt', (string)($post['featured_image_alt'] ?? ''), false) . '<p class="bp-field-help">Use a public image URL from <a href="/admin/media?type=images" target="_blank" rel="noopener">Media</a>. Describe meaningful images for screen-reader users; leave alt text blank only for decorative images.</p>';
         $seo = $this->input('SEO Title', 'seo_title', (string)($post['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($post['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short article summary for search snippets and social previews.</span></label>';
@@ -128,10 +128,10 @@ final class PostController
         return $body;
     }
 
-    private function input(string $label, string $name, string $value, bool $required = true): string
+    private function input(string $label, string $name, string $value, bool $required = true, string $attributes = ''): string
     {
         $requiredAttribute = $required ? ' required' : '';
-        return '<label>' . $this->e($label) . ' <input type="text" name="' . $this->e($name) . '" value="' . $this->e($value) . '"' . $requiredAttribute . '></label>';
+        return '<label>' . $this->e($label) . ' <input type="text" name="' . $this->e($name) . '" value="' . $this->e($value) . '"' . $requiredAttribute . ($attributes !== '' ? ' ' . $attributes : '') . '></label>';
     }
 
     private function bodyEditor(string $value, string $help): string

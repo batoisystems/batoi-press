@@ -60,7 +60,8 @@ final class PostRepository
 
     public function save(array $input, string $actor): array
     {
-        $slug = Slug::normalize((string)($input['slug'] ?? $input['title'] ?? ''));
+        $requestedSlug = trim((string)($input['slug'] ?? ''));
+        $slug = Slug::normalize($requestedSlug !== '' ? $requestedSlug : (string)($input['title'] ?? ''));
         if ($slug === '') {
             $slug = 'post-' . date('Ymd-His');
         }
@@ -73,10 +74,12 @@ final class PostRepository
         }
         $status = in_array(($input['status'] ?? 'draft'), ['draft', 'published'], true) ? (string)($input['status'] ?? 'draft') : 'draft';
         $publishedAt = $this->publishedAt((string)($input['published_at'] ?? ''), $status, (string)($existing['published_at'] ?? ''), $now);
+        $layout = (string)($input['layout'] ?? $existing['layout'] ?? 'full');
         $meta = [
             'id' => (string)($existing['id'] ?? 'post_' . bin2hex(random_bytes(6))),
             'type' => 'post',
             'title' => trim((string)($input['title'] ?? 'Untitled Post')),
+            'subtitle' => trim((string)($input['subtitle'] ?? '')),
             'slug' => $slug,
             'status' => $status,
             'template' => 'post',
@@ -84,7 +87,7 @@ final class PostRepository
             'category' => trim((string)($input['category'] ?? 'General')),
             'featured_image' => $this->safeAssetUrl((string)($input['featured_image'] ?? '')),
             'featured_image_alt' => trim((string)($input['featured_image_alt'] ?? '')),
-            'layout' => in_array((string)($input['layout'] ?? 'full'), ['full', 'sidebar-right', 'sidebar-left'], true) ? (string)$input['layout'] : 'full',
+            'layout' => in_array($layout, ['full', 'sidebar-right', 'sidebar-left'], true) ? $layout : 'full',
             'tags' => array_values(array_filter(array_map('trim', explode(',', (string)($input['tags'] ?? ''))))),
             'created_at' => (string)($existing['created_at'] ?? $now),
             'updated_at' => $now,
@@ -99,6 +102,23 @@ final class PostRepository
         $this->files->write($dir . '/body.html', $this->html->sanitize((string)($input['body'] ?? '')));
 
         return $meta;
+    }
+
+    public function adjacentPublished(string $slug): array
+    {
+        $posts = $this->allPublished();
+        foreach ($posts as $index => $post) {
+            if ((string)($post['slug'] ?? '') !== $slug) {
+                continue;
+            }
+
+            return [
+                'previous' => $posts[$index + 1] ?? null,
+                'next' => $index > 0 ? $posts[$index - 1] : null,
+            ];
+        }
+
+        return ['previous' => null, 'next' => null];
     }
 
     private function safeAssetUrl(string $value): string

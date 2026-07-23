@@ -37,8 +37,8 @@ final class MediaController
         $extensions = AssetManager::effectiveUploadExtensions((array)($this->config->security()['uploads']['allowed_extensions'] ?? []));
         $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Upload asset</h2><p>Files are classified into typed storage automatically.</p></div></header><form method="post" action="/admin/media/upload" enctype="multipart/form-data" class="bp-form bp-compact-form">';
         $body .= $this->csrf->field();
-        $body .= '<label>File <input type="file" name="media" accept="' . $this->e($this->acceptValue($extensions)) . '" required><span class="bp-field-help">Maximum upload size: ' . $this->e((string)$uploadLimit) . ' MB.</span></label>';
-        $body .= AdminLayout::submitButton('Upload File', 'upload') . '</form></section>';
+        $body .= '<label>Files <input type="file" name="media[]" accept="' . $this->e($this->acceptValue($extensions)) . '" multiple required><span class="bp-field-help">Choose up to 20 files. Maximum size per file: ' . $this->e((string)$uploadLimit) . ' MB.</span></label>';
+        $body .= AdminLayout::submitButton('Upload Files', 'upload') . '</form></section>';
         $body .= AdminLayout::section('Storage policy', $this->uploadPolicy($extensions), 'New uploads use typed paths; existing flat media URLs remain compatible.');
 
         $assets = (new AssetManager($this->config->paths()))->all();
@@ -81,26 +81,42 @@ final class MediaController
             AssetManager::effectiveUploadExtensions((array)($uploadConfig['allowed_extensions'] ?? [])),
             AssetManager::effectiveMaxBytes((int)($uploadConfig['max_bytes'] ?? 0))
         );
-        $file = $_FILES['media'] ?? [];
-        $error = is_array($file) ? $guard->validate($file) : 'Upload failed.';
-        if ($error !== null) {
-            return Response::html($this->layout('Media', '<p class="bp-error">' . $this->e($error) . '</p><p><a href="/admin/media">Back to media</a></p>'), 400);
+        $files = $this->normalizeUploads($_FILES['media'] ?? []);
+        if ($files === [] || count($files) > 20) {
+            return Response::html($this->layout('Media', '<p class="bp-error">Choose between 1 and 20 files.</p><p><a href="/admin/media">Back to media</a></p>'), 400);
         }
-
-        $name = $guard->safeName((string)$file['name']);
         $manager = new AssetManager($this->config->paths());
-        $relative = $manager->relativeUploadPath($name);
-        try {
-            $target = $manager->prepareTarget($relative);
-        } catch (RuntimeException $exception) {
-            return $this->message($exception->getMessage(), true, 500);
+        $prepared = [];
+        foreach ($files as $file) {
+            $error = $guard->validate($file);
+            if ($error !== null) {
+                return Response::html($this->layout('Media', '<p class="bp-error">' . $this->e((string)($file['name'] ?? 'File')) . ': ' . $this->e($error) . '</p><p><a href="/admin/media">Back to media</a></p>'), 400);
+            }
+            $name = $guard->safeName((string)$file['name']);
+            $relative = $manager->relativeUploadPath($name);
+            try {
+                $prepared[] = ['file' => $file, 'relative' => $relative, 'target' => $manager->prepareTarget($relative)];
+            } catch (RuntimeException $exception) {
+                return $this->message($exception->getMessage(), true, 500);
+            }
         }
 
-        if (!move_uploaded_file((string)$file['tmp_name'], $target)) {
-            return Response::html($this->layout('Media', '<p class="bp-error">Unable to save upload.</p>'), 500);
+        $saved = [];
+        foreach ($prepared as $upload) {
+            if (!move_uploaded_file((string)$upload['file']['tmp_name'], (string)$upload['target'])) {
+                foreach ($saved as $target) {
+                    if (is_file($target)) {
+                        unlink($target);
+                    }
+                }
+                return Response::html($this->layout('Media', '<p class="bp-error">Unable to save all selected files. No files from this upload were retained.</p>'), 500);
+            }
+            $saved[] = (string)$upload['target'];
         }
 
-        $this->audit->record((string)($this->user['username'] ?? 'admin'), 'asset.uploaded', $relative, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        foreach ($prepared as $upload) {
+            $this->audit->record((string)($this->user['username'] ?? 'admin'), 'asset.uploaded', (string)$upload['relative'], (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        }
         return Response::redirect('/admin/media');
     }
 
@@ -449,5 +465,27 @@ final class MediaController
         $body = AdminLayout::pageHeader('Media', 'Asset and library management result.');
         $body .= '<p class="' . $class . '">' . $this->e($message) . '</p><p>' . AdminLayout::buttonLink('Back to Media', '/admin/media', 'back', true) . '</p>';
         return Response::html($this->layout('Media', $body), $status);
+    }
+
+    private function normalizeUploads(mixed $upload): array
+    {
+        if (!is_array($upload) || !isset($upload['name'])) {
+            return [];
+        }
+        if (!is_array($upload['name'])) {
+            return [$upload];
+        }
+
+        $files = [];
+        foreach ($upload['name'] as $index => $name) {
+            $files[] = [
+                'name' => (string)$name,
+                'type' => (string)($upload['type'][$index] ?? ''),
+                'tmp_name' => (string)($upload['tmp_name'][$index] ?? ''),
+                'error' => (int)($upload['error'][$index] ?? UPLOAD_ERR_NO_FILE),
+                'size' => (int)($upload['size'][$index] ?? 0),
+            ];
+        }
+        return $files;
     }
 }

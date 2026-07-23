@@ -30,15 +30,18 @@ try {
     $controller = new WidgetController($config, $files, $csrf, new AuditLog($config->paths(), $files), ['username' => 'editor', 'role' => 'editor']);
     $response = $controller->save(new Request('POST', '/admin/widgets/save', [], [
         'csrf_token' => $csrf->token(),
-        'widget_title' => ['Second', 'First', 'Unused'],
-        'widget_body' => ['<p>Second body</p>', '<p onclick="alert(1)">First body</p>', ''],
+        'widget_type' => ['html', 'recent_posts', 'html', 'html'],
+        'widget_title' => ['Second', 'Recent posts', 'First', 'Unused'],
+        'widget_body' => ['<p>Second body</p>', '', '<p onclick="alert(1)">First body</p>', ''],
     ], ['REMOTE_ADDR' => '127.0.0.1']));
 
     assertWidgets($response->status() === 302, 'widget save should redirect after success');
     $saved = $files->readJson($config->paths()->contentPath('widgets/sidebar.json'))['widgets'] ?? [];
-    assertWidgets(array_column($saved, 'title') === ['Second', 'First'], 'widget save should preserve submitted order and omit unused rows');
-    assertWidgets(!str_contains((string)($saved[1]['body'] ?? ''), 'onclick='), 'widget HTML should be sanitized before persistence');
+    assertWidgets(array_column($saved, 'title') === ['Second', 'Recent posts', 'First'], 'widget save should preserve custom and built-in widget order while omitting unused rows');
+    assertWidgets(($saved[1]['type'] ?? '') === 'recent_posts', 'recent posts should persist as a sortable built-in widget');
+    assertWidgets(!str_contains((string)($saved[2]['body'] ?? ''), 'onclick='), 'widget HTML should be sanitized before persistence');
     assertWidgets(str_contains($controller->edit()->content(), 'Second body'), 'saved widgets should load back into the editor');
+    assertWidgets(str_contains($controller->edit()->content(), 'Built-in widget'), 'recent posts should load as a visible sortable row');
 
     echo "Widget checks passed\n";
 } finally {

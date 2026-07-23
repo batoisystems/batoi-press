@@ -82,6 +82,12 @@ For Batoi Press public pages:
 - Edit `radpress/theme/default/partials/footer.php` for the public footer.
 - Use `/admin/theme-templates` when header/footer changes should be managed
   through the admin console.
+- Use `bp_is_current_url($url)` to add an `is-active` class and
+  `aria-current="page"` to the current menu link. It also treats a parent route
+  as active on nested child routes and accounts for subdirectory installations.
+- Use the Contact Layout editor for theme-owned contact form handling. Keep
+  validation, CSRF protection, rate limiting, and output escaping in place; do
+  not place credentials in theme source.
 - Edit `page.php`, `post.php`, `blog.php`, `archive.php`, or `404.php` only
   for page-type content structure.
 - Do not duplicate global header or footer markup inside content files,

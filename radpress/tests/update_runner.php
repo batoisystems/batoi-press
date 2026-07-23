@@ -29,6 +29,17 @@ try {
     assertTrue(!is_file($paths->dataPath('cache/page.html')), 'cache should be cleared after apply');
     assertTrue(!is_file($paths->dataPath('maintenance.json')), 'maintenance mode should be disabled after apply');
 
+    $wrappedPackage = createPackage($root, 'wrapped', [
+        'README.md' => 'wrapped update',
+    ], [
+        ['path' => 'README.md', 'sha256' => hash('sha256', 'wrapped update')],
+    ], true);
+    $wrappedStage = $runner->stage($wrappedPackage);
+    assertTrue($wrappedStage['ok'] ?? false, 'desktop ZIPs with one top-level folder should stage');
+    $wrappedApply = $runner->apply((string)$wrappedStage['stage_dir']);
+    assertTrue($wrappedApply['ok'] ?? false, 'wrapped desktop ZIPs should apply files relative to their package root');
+    assertSame('wrapped update', file_get_contents($root . '/README.md'), 'wrapped package contents should install');
+
     $validUpdate = json_encode(['current_version' => '0.1.0'], JSON_PRETTY_PRINT);
     file_put_contents($paths->configPath('update.json'), $validUpdate);
 
@@ -109,7 +120,7 @@ function createFixture(string $root): void
     file_put_contents($root . '/radpress/config/update.json', json_encode(['current_version' => '0.1.0'], JSON_PRETTY_PRINT));
 }
 
-function createPackage(string $root, string $name, array $files, array $manifestFiles): string
+function createPackage(string $root, string $name, array $files, array $manifestFiles, bool $wrapped = false): string
 {
     $dir = $root . '/package-' . $name;
     mkdir($dir, 0775, true);
@@ -128,13 +139,16 @@ function createPackage(string $root, string $name, array $files, array $manifest
     $zipPath = $root . '/' . $name . '.zip';
     $zip = new ZipArchive();
     $zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE);
-    addZipDir($zip, $dir, $dir);
+    addZipDir($zip, $dir, $dir, $wrapped ? 'batoi-press/' : '');
+    if ($wrapped) {
+        $zip->addFromString('__MACOSX/batoi-press/._release.json', 'metadata');
+    }
     $zip->close();
 
     return $zipPath;
 }
 
-function addZipDir(ZipArchive $zip, string $root, string $dir): void
+function addZipDir(ZipArchive $zip, string $root, string $dir, string $prefix = ''): void
 {
     foreach (scandir($dir) ?: [] as $item) {
         if ($item === '.' || $item === '..') {
@@ -142,10 +156,10 @@ function addZipDir(ZipArchive $zip, string $root, string $dir): void
         }
         $path = $dir . '/' . $item;
         if (is_dir($path)) {
-            addZipDir($zip, $root, $path);
+            addZipDir($zip, $root, $path, $prefix);
             continue;
         }
-        $zip->addFile($path, ltrim(substr($path, strlen($root)), '/'));
+        $zip->addFile($path, $prefix . ltrim(substr($path, strlen($root)), '/'));
     }
 }
 

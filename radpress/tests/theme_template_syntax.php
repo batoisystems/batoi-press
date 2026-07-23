@@ -44,6 +44,9 @@ assertTrue(!str_contains($editorHtml, ' disabled'), 'Template source editor must
 assertTrue(!str_contains($editorHtml, ' readonly'), 'Template source editor must not render readonly.');
 $templateIndex = $controller->index('default')->content();
 assertTrue(str_contains($templateIndex, 'Theme CSS') && str_contains($templateIndex, 'Theme JavaScript'), 'Theme assets should be directly editable from the template index.');
+assertTrue(str_contains($templateIndex, 'Contact Layout'), 'Theme owners should be able to edit contact-page server-side layout code.');
+$themesIndex = $controller->themes()->content();
+assertTrue(str_contains($themesIndex, 'is-active-theme') && str_contains($themesIndex, 'aria-label="Active theme"'), 'The active theme should have a prominent semantic and visual state.');
 
 $themeJs = $config->paths()->themePath('default/assets/js/theme.js');
 $themeJsBackup = $themeJs . '.syntax-test-backup';

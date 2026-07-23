@@ -18,6 +18,43 @@ if ($menuItems === []) {
         ['label' => 'Blog', 'url' => '/blog'],
     ];
 }
+
+$menuUrls = [];
+foreach ($menuItems as $item) {
+    $menuUrls[(string)$item['url']] = true;
+}
+$menuChildren = ['' => []];
+foreach ($menuItems as $item) {
+    $parent = trim((string)($item['parent'] ?? ''));
+    if ($parent === (string)$item['url'] || !isset($menuUrls[$parent])) {
+        $parent = '';
+    }
+    $menuChildren[$parent][] = $item;
+}
+$renderMenu = function (string $parent = '', int $depth = 0, array $trail = []) use (&$renderMenu, $menuChildren): void {
+    if ($depth > 8 || empty($menuChildren[$parent])) {
+        return;
+    }
+    $listClass = $depth === 0 ? 'bp-menu-list' : 'bp-submenu';
+    echo '<ul class="' . bp_attr($listClass) . '">';
+    foreach ($menuChildren[$parent] as $item) {
+        $url = (string)($item['url'] ?? '');
+        if ($url === '' || isset($trail[$url])) {
+            continue;
+        }
+        $children = !empty($menuChildren[$url]);
+        $current = bp_is_current_url($url);
+        echo '<li class="bp-menu-item' . ($children ? ' has-children' : '') . '">';
+        echo '<a class="' . ($current ? 'is-active' : '') . '"' . ($current ? ' aria-current="page"' : '') . ' href="' . bp_attr(bp_url($url)) . '">' . bp_esc((string)($item['label'] ?? 'Untitled')) . '</a>';
+        if ($children) {
+            $nextTrail = $trail;
+            $nextTrail[$url] = true;
+            $renderMenu($url, $depth + 1, $nextTrail);
+        }
+        echo '</li>';
+    }
+    echo '</ul>';
+};
 ?>
 <header class="bp-header">
     <nav class="bp-nav" aria-label="Main navigation">
@@ -38,11 +75,6 @@ if ($menuItems === []) {
             <span class="bp-nav-toggle-icon" aria-hidden="true"></span>
             <span>Menu</span>
         </button>
-        <div class="bp-links" id="bp-primary-links">
-            <?php foreach ($menuItems as $item): ?>
-            <?php $current = parse_url((string)$item['url'], PHP_URL_PATH) === parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH); ?>
-            <a<?php echo $current ? ' aria-current="page"' : ''; ?> href="<?php echo bp_attr(bp_url((string)$item['url'])); ?>"><?php echo bp_esc((string)$item['label']); ?></a>
-            <?php endforeach; ?>
-        </div>
+        <div class="bp-links" id="bp-primary-links"><?php $renderMenu(); ?></div>
     </nav>
 </header>

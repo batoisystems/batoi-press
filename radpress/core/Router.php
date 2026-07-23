@@ -68,17 +68,31 @@ final class Router
 
         if (str_starts_with($request->path, '/blog/')) {
             $post = $this->posts->findBySlug(substr($request->path, 6));
-            return $post ? $this->theme->render('post', ['post' => $post, 'title' => (string)$post['title'], 'widgets' => $this->sidebarWidgets(), 'recentPosts' => $this->posts->allPublished()]) : $this->notFound();
+            if ($post === null || ($post['status'] ?? '') !== 'published') {
+                return $this->notFound();
+            }
+            $adjacent = $this->posts->adjacentPublished((string)($post['slug'] ?? ''));
+            return $this->theme->render('post', [
+                'post' => $post,
+                'title' => (string)$post['title'],
+                'widgets' => $this->sidebarWidgets(),
+                'recentPosts' => $this->posts->allPublished(),
+                'previousPost' => $adjacent['previous'],
+                'nextPost' => $adjacent['next'],
+            ]);
         }
 
         if (str_starts_with($request->path, '/admin')) {
             return $this->admin($request);
         }
 
-        $slug = $request->path === '/' ? Slug::normalize((string)($this->config->site()['homepage'] ?? 'home')) : trim($request->path, '/');
-        $page = $this->pages->findBySlug($slug);
+        $page = $request->path === '/'
+            ? $this->pages->findBySlug(Slug::normalize((string)($this->config->site()['homepage'] ?? 'home')))
+            : $this->pages->findByPath($request->path);
 
-        return $page ? $this->theme->render($this->theme->pageLayout((string)($page['template'] ?? 'page')), ['page' => $page, 'title' => (string)$page['title']]) : $this->notFound();
+        return $page !== null && ($page['status'] ?? '') === 'published'
+            ? $this->theme->render($this->theme->pageLayout((string)($page['template'] ?? 'page')), ['page' => $page, 'title' => (string)$page['title']])
+            : $this->notFound();
     }
 
     private function admin(Request $request): Response
@@ -368,11 +382,15 @@ final class Router
     private function sidebarWidgets(): array
     {
         $path = $this->config->paths()->contentPath('widgets/sidebar.json');
-        if (!is_file($path)) {
-            return [];
+        $widgets = is_file($path) ? ((new FileStore())->readJson($path)['widgets'] ?? []) : [];
+        $widgets = is_array($widgets) ? array_values($widgets) : [];
+        foreach ($widgets as $widget) {
+            if (($widget['type'] ?? '') === 'recent_posts') {
+                return $widgets;
+            }
         }
-        $widgets = (new FileStore())->readJson($path)['widgets'] ?? [];
-        return is_array($widgets) ? array_values($widgets) : [];
+        array_unshift($widgets, ['type' => 'recent_posts', 'title' => 'Recent posts']);
+        return $widgets;
     }
 
     private function notFound(): Response

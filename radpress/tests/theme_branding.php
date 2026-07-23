@@ -133,6 +133,11 @@ try {
     $localizedBrandingHtml = AdminLayout::render('Branding Test', $brandingHtml);
     assertTheme(str_contains($localizedBrandingHtml, 'src="/cppl/public_html/assets/images/site/logo.png"'), 'branding previews should localize uploaded asset URLs once');
     assertTheme(!str_contains($localizedBrandingHtml, '/cppl/public_html/cppl/public_html/'), 'branding previews must not duplicate the installation base path');
+    $localizedImage = bp_localize_markup_urls('<img src="/cppl/public_html/assets/images/site/logo.png" alt="">');
+    assertTheme(!str_contains($localizedImage, '/cppl/public_html/cppl/public_html/'), 'already-localized content image URLs should remain idempotent.');
+    assertTheme(bp_url('/cppl/public_html/assets/images/site/logo.png') === '/cppl/public_html/assets/images/site/logo.png', 'URL generation should not prepend the installation base twice.');
+    assertTheme(bp_url('https://cdn.example.test/image.png') === 'https://cdn.example.test/image.png', 'absolute external URLs should remain unchanged.');
+    assertTheme(bp_is_current_url('/about', '/cppl/public_html/about/team'), 'menu helpers should mark parent navigation active for nested routes.');
     assertTheme(!str_contains($localizedBrandingHtml, 'onerror='), 'configured favicon previews must not silently substitute the product icon');
     assertTheme(BasePath::detect($_SERVER) === '/cppl/public_html', 'Windows physical paths should identify the installation base path');
     $_SERVER['REQUEST_URI'] = '/cppl/public_html/assets/images/site/logo.png';

@@ -29,7 +29,7 @@ final class UpdateRunner
             return ['ok' => false, 'error' => 'Package contains unsafe ZIP paths.'];
         }
 
-        $stageDir = $this->paths->dataPath('tmp/update-stage-' . date('Ymd-His'));
+        $stageDir = $this->paths->dataPath('tmp/update-stage-' . date('Ymd-His') . '-' . bin2hex(random_bytes(3)));
         if (!is_dir($stageDir)) {
             mkdir($stageDir, 0775, true);
         }
@@ -39,12 +39,12 @@ final class UpdateRunner
         $zip->extractTo($stageDir);
         $zip->close();
 
-        $manifest = $this->findManifest($stageDir);
-        if ($manifest === null) {
+        $package = $this->findPackage($stageDir);
+        if ($package === null) {
             return ['ok' => false, 'error' => 'Staged package does not include a release manifest.', 'stage_dir' => $stageDir];
         }
 
-        return ['ok' => true, 'stage_dir' => $stageDir, 'manifest' => $manifest];
+        return ['ok' => true, 'stage_dir' => $stageDir, 'manifest' => $package['manifest']];
     }
 
     public function apply(string $stageDir): array
@@ -57,10 +57,12 @@ final class UpdateRunner
             return ['ok' => false, 'error' => 'The selected staged package is outside update storage. Stage the package again from the Updates screen.'];
         }
 
-        $manifest = $this->findManifest($stageDir);
-        if ($manifest === null) {
+        $package = $this->findPackage($stageDir);
+        if ($package === null) {
             return ['ok' => false, 'error' => 'Staged package does not include a valid release manifest.'];
         }
+        $manifest = $package['manifest'];
+        $packageRoot = $package['root'];
 
         $files = $manifest['files'] ?? null;
         if (!is_array($files) || $files === []) {
@@ -85,7 +87,7 @@ final class UpdateRunner
             $sourceRelative = (string)($file['source'] ?? $file['path'] ?? '');
             $targetRelative = (string)($file['target'] ?? $file['path'] ?? '');
             $checksum = (string)($file['sha256'] ?? '');
-            $source = $this->joinRelative($stageDir, $sourceRelative);
+            $source = $this->joinRelative($packageRoot, $sourceRelative);
             $target = $this->joinRelative($this->paths->root(), $targetRelative);
 
             if ($source === null || $target === null || !$this->isAllowedTarget($targetRelative)) {
@@ -139,15 +141,36 @@ final class UpdateRunner
     public function stagedPackages(): array
     {
         $dirs = glob($this->paths->dataPath('tmp/update-stage-*'), GLOB_ONLYDIR) ?: [];
-        $dirs = array_values(array_filter($dirs, fn (string $dir): bool => preg_match('/^update-stage-\d{8}-\d{6}$/', basename($dir)) === 1));
+        $dirs = array_values(array_filter($dirs, fn (string $dir): bool => preg_match('/^update-stage-\d{8}-\d{6}(?:-[a-f0-9]{6})?$/', basename($dir)) === 1));
         rsort($dirs);
         return $dirs;
     }
 
-    private function findManifest(string $stageDir): ?array
+    private function findPackage(string $stageDir): ?array
+    {
+        $manifest = $this->manifestAt($stageDir);
+        if ($manifest !== null) {
+            return ['root' => $stageDir, 'manifest' => $manifest];
+        }
+
+        $entries = array_values(array_filter(scandir($stageDir) ?: [], static function (string $entry) use ($stageDir): bool {
+            if ($entry === '.' || $entry === '..' || $entry === '.DS_Store' || $entry === '__MACOSX') {
+                return false;
+            }
+            return is_dir($stageDir . '/' . $entry);
+        }));
+        if (count($entries) !== 1) {
+            return null;
+        }
+        $root = $stageDir . '/' . $entries[0];
+        $manifest = $this->manifestAt($root);
+        return $manifest !== null ? ['root' => $root, 'manifest' => $manifest] : null;
+    }
+
+    private function manifestAt(string $root): ?array
     {
         foreach (['release.json', 'batoi-press-release.json', 'manifest.json'] as $name) {
-            $path = $stageDir . '/' . $name;
+            $path = $root . '/' . $name;
             if (is_file($path)) {
                 $decoded = json_decode((string)file_get_contents($path), true);
                 return is_array($decoded) ? $decoded : null;
