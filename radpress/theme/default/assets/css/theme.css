@@ -97,6 +97,11 @@ body.bp-theme-versatile { background: var(--bt-white); color: var(--bt-text); fo
 .bp-quote p { color: var(--bt-ink); font-size: 1.25rem; }
 
 .bp-post-grid { display: grid; gap: 22px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.bp-latest-posts { margin: 68px auto 0; max-width: var(--bt-container); padding: 0 24px; }
+.bp-template-page .bp-latest-posts { padding: 0; }
+.bp-latest-posts-header { align-items: end; display: flex; gap: 24px; justify-content: space-between; margin-bottom: 26px; }
+.bp-latest-posts-header h2 { font-size: 2.2rem; margin: 0; }
+.bp-latest-posts-header p { margin-bottom: 8px; }
 .bp-post-card { border: 1px solid var(--bt-line); border-radius: var(--bt-radius); display: flex; flex-direction: column; min-height: 260px; padding: 26px; }
 .bp-post-card-media { aspect-ratio: 16 / 9; background: var(--bt-soft); display: block; margin: -26px -26px 22px; overflow: hidden; }
 .bp-post-card-media img { height: 100%; object-fit: cover; width: 100%; }
@@ -211,10 +216,11 @@ body.bp-theme-versatile { background: var(--bt-white); color: var(--bt-text); fo
 }
 
 @media (max-width: 760px) {
-    .bp-theme-versatile .bp-nav { flex-wrap: wrap; min-height: 64px; padding: 9px 18px; }
-    .bp-theme-versatile .bp-brand-logo { height: 38px; }
-    .bp-nav-toggle { display: inline-flex; }
-    .bp-theme-versatile .bp-links { align-items: stretch; border-top: 1px solid var(--bt-line); display: none; flex: 1 0 100%; padding: 8px 0; }
+    .bp-theme-versatile .bp-nav { column-gap: 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; min-height: 64px; padding: 9px 18px; row-gap: 0; }
+    .bp-theme-versatile .bp-brand { min-width: 0; }
+    .bp-theme-versatile .bp-brand-logo { height: 38px; max-width: min(240px, 58vw); }
+    .bp-nav-toggle { display: inline-flex; justify-self: end; }
+    .bp-theme-versatile .bp-links { align-items: stretch; border-top: 1px solid var(--bt-line); display: none; grid-column: 1 / -1; min-width: 0; padding: 8px 0; width: 100%; }
     .bp-theme-versatile .bp-links.is-open { display: grid; }
     .bp-theme-versatile .bp-links a { padding: 11px 8px; }
     .bp-menu-list { align-items: stretch; display: grid; }
@@ -228,6 +234,10 @@ body.bp-theme-versatile { background: var(--bt-white); color: var(--bt-text); fo
     .bp-section { padding: 52px 18px; }
     .bp-section-header h2, .bp-prose h1, .bp-post-header h1 { font-size: 2.15rem; }
     .bp-grid-2, .bp-grid-3, .bp-post-grid, .bp-product-detail, .bp-commerce-shell, .bp-contact-grid, .bp-post-shell.bp-post-layout-sidebar-right, .bp-post-shell.bp-post-layout-sidebar-left { grid-template-columns: 1fr; }
+    .bp-latest-posts { margin-top: 48px; padding: 0 18px; }
+    .bp-template-page .bp-latest-posts { padding: 0; }
+    .bp-latest-posts-header { align-items: start; flex-direction: column; gap: 8px; }
+    .bp-latest-posts-header h2 { font-size: 1.9rem; }
     .bp-post-navigation { grid-template-columns: 1fr; }
     .bp-post-navigation .bp-post-navigation-next { grid-column: 1; justify-items: start; text-align: left; }
     .bp-post-shell.bp-post-layout-sidebar-left .bp-post, .bp-post-shell.bp-post-layout-sidebar-left .bp-post-sidebar { grid-column: 1; grid-row: auto; }

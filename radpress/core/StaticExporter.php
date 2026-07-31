@@ -147,16 +147,22 @@ final class StaticExporter
     private function writeSite(string $workDir): void
     {
         $homepage = Slug::normalize((string)($this->site['homepage'] ?? 'home'));
+        $publishedPosts = $this->posts->allPublished();
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
             $pagePath = trim($this->pages->publicPath($page), '/');
             $target = $slug === $homepage ? 'index.html' : $pagePath . '/index.html';
             $theme = new Theme($this->paths, $this->site);
             $layout = $theme->pageLayout((string)($page['template'] ?? 'page'));
-            $this->writeHtml($workDir, $target, $this->renderTheme($layout, ['page' => $page, 'title' => (string)($page['title'] ?? '')], '/' . ($slug === $homepage ? '' : $pagePath . '/')));
+            $latestPostsLimit = max(1, min(12, (int)($page['latest_posts_limit'] ?? 3)));
+            $this->writeHtml($workDir, $target, $this->renderTheme($layout, [
+                'page' => $page,
+                'title' => (string)($page['title'] ?? ''),
+                'latestPosts' => !empty($page['show_latest_posts']) ? array_slice($publishedPosts, 0, $latestPostsLimit) : [],
+            ], '/' . ($slug === $homepage ? '' : $pagePath . '/')));
         }
 
-        $posts = $this->posts->allPublished();
+        $posts = $publishedPosts;
         foreach ($posts as $post) {
             $slug = (string)($post['slug'] ?? '');
             $adjacent = $this->posts->adjacentPublished($slug);

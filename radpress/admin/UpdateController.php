@@ -53,7 +53,7 @@ final class UpdateController
 
         $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Create backup</h2><p>Create a minimal update backup before staging or applying a package.</p></div></header><form method="post" action="/admin/updates/backup" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Create Backup', 'download') . '</form></section>';
         $body .= '<section class="bp-admin-section"><header><div><h2>Stage package</h2><p>Upload a release ZIP and verify its archive safety before applying it.</p></div></header><form method="post" action="/admin/updates/stage" enctype="multipart/form-data" class="bp-form bp-compact-form">' . $this->csrf->field();
-        $body .= '<label>Package ZIP <input type="file" name="package" accept=".zip" required></label>';
+        $body .= '<label>Package ZIP <input type="file" name="package" accept=".zip,application/zip" required><span class="bp-field-help">Upload the downloaded <code>batoi-press-{version}.zip</code> file itself, not a release webpage or an extracted folder.</span></label>';
         $body .= '<label>SHA-256 Checksum <input type="text" name="sha256"><span class="bp-field-help">Optional, but recommended when applying a package downloaded outside the built-in release flow.</span></label>';
         $body .= AdminLayout::submitButton('Verify and Stage', 'upload') . '</form></section></div>';
         $body .= $this->stageList();

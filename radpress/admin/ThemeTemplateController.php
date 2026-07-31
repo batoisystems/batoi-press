@@ -282,8 +282,8 @@ final class ThemeTemplateController
         $cards = '<div class="bp-admin-action-grid">';
         foreach (self::EDITABLE_FILES as $key => $template) {
             $path = $this->templatePath($theme, $key);
-            $optionalAsset = in_array((string)$template['type'], ['css', 'js'], true);
-            $status = is_file($path) && is_writable($path) ? 'Editable' : (is_file($path) ? 'Read only' : ($optionalAsset ? 'Create on save' : 'Missing'));
+            $creatable = $this->isCreatable($key);
+            $status = is_file($path) && is_writable($path) ? 'Editable' : (is_file($path) ? 'Read only' : ($creatable ? 'Create on save' : 'Missing'));
             $cards .= '<a class="bp-admin-action-card" href="/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key) . '"><em>' . AdminLayout::icon('code') . '</em><strong>' . $this->e((string)$template['label']) . '</strong><span>' . $this->e((string)$template['description']) . '</span><small>' . $this->e($status) . '</small></a>';
         }
         $cards .= '</div>';
@@ -308,10 +308,10 @@ final class ThemeTemplateController
         }
 
         $path = $this->templatePath($theme, $key);
-        if (!is_file($path) && !in_array((string)$template['type'], ['css', 'js'], true)) {
+        if (!is_file($path) && !$this->isCreatable($key)) {
             return Response::html($this->layout('Theme Templates', '<p class="bp-error">Template file is missing.</p><p>' . AdminLayout::buttonLink('Back to templates', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . '</p>'), 404);
         }
-        $source = is_file($path) ? $this->files->read($path) : ((string)$template['type'] === 'css' ? "/* Add theme styles here. */\n" : "// Add theme interactions here.\n");
+        $source = is_file($path) ? $this->files->read($path) : $this->starterSource($key);
 
         $body = AdminLayout::pageHeader(
             (string)$template['label'],
@@ -903,6 +903,20 @@ final class ThemeTemplateController
     {
         $template = $this->template($key);
         return $this->config->paths()->themePath($theme . '/' . (string)$template['file']);
+    }
+
+    private function isCreatable(string $key): bool
+    {
+        return in_array($key, ['contact', 'theme-css', 'theme-js'], true);
+    }
+
+    private function starterSource(string $key): string
+    {
+        return match ($key) {
+            'contact' => "<?php\ndeclare(strict_types=1);\n?>\n<article class=\"bp-page bp-contact-page\">\n    <?php echo \$page['body'] ?? ''; ?>\n</article>\n",
+            'theme-css' => "/* Add theme styles here. */\n",
+            default => "// Add theme interactions here.\n",
+        };
     }
 
     private function parseTarget(string $target): array

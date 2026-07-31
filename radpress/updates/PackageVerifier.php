@@ -12,19 +12,46 @@ final class PackageVerifier
 
     public function verifyZip(string $file): bool
     {
-        if (!class_exists(\ZipArchive::class) || !is_file($file)) {
-            return false;
+        return $this->zipError($file) === null;
+    }
+
+    public function zipError(string $file): ?string
+    {
+        if (!class_exists(\ZipArchive::class)) {
+            return 'The PHP ZipArchive extension is unavailable on this server.';
+        }
+        if (!is_file($file)) {
+            return 'The uploaded update package is no longer available.';
+        }
+        if ((int)filesize($file) < 4) {
+            return 'The uploaded ZIP is empty or incomplete. Download the official release package again.';
+        }
+
+        $handle = fopen($file, 'rb');
+        $signature = $handle !== false ? fread($handle, 4) : false;
+        if (is_resource($handle)) {
+            fclose($handle);
+        }
+        $validSignatures = ["PK\x03\x04", "PK\x05\x06", "PK\x07\x08"];
+        if (!is_string($signature) || !in_array($signature, $validSignatures, true)) {
+            $sample = (string)file_get_contents($file, false, null, 0, 512);
+            if (preg_match('/^\s*(?:<!doctype\s+html|<html|<head|<body)/i', $sample) === 1) {
+                return 'The uploaded file contains an HTML page instead of ZIP data. Download the official release ZIP again without opening or renaming it.';
+            }
+            return 'The uploaded file does not contain ZIP data. Download the official release package again.';
         }
 
         $zip = new \ZipArchive();
         $opened = $zip->open($file);
         if ($opened !== true) {
-            return false;
+            return 'The ZIP archive could not be opened (error code ' . (int)$opened . '). The download may be incomplete; download it again.';
         }
         $status = $zip->status;
         $zip->close();
 
-        return $status === \ZipArchive::ER_OK;
+        return $status === \ZipArchive::ER_OK
+            ? null
+            : 'The ZIP archive failed its integrity check (error code ' . (int)$status . '). Download it again.';
     }
 
     public function verifyZipEntries(string $file): bool

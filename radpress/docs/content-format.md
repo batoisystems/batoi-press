@@ -7,7 +7,9 @@ radpress/content/pages/about/meta.json
 radpress/content/pages/about/body.html
 ```
 
-Metadata stores title, slug, status, template, author, dates, and SEO fields. The body file stores canonical HTML content.
+Metadata stores title, slug, status, template, author, dates, SEO fields, and optional page-presentation settings. The body file stores canonical HTML content.
+
+Pages can enable a **Latest posts section** and choose a limit from 1 to 12. The renderer supplies the newest published posts to the active page layout; the bundled Standard and Landing layouts render them below the page body. Enable this setting on the page selected as the homepage to maintain a dynamic homepage feed without changing the homepage route contract.
 
 ## Editor Workflow
 

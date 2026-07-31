@@ -65,6 +65,8 @@ Bundled files resolve from `/theme-assets/{theme}/{path}`. Use `bp_theme_asset('
 
 `$theme` includes normalized manifest metadata, declared assets, validation status, and errors. The renderer injects declared asset tags; layouts should not duplicate those entry points.
 
+Page layouts also receive `$latestPosts`. It is an empty array unless the page enables its Latest posts section; otherwise it contains up to the page's configured limit of newest published posts. Custom themes can render this collection directly. The bundled Standard and Landing layouts use `partials/latest-posts.php`.
+
 The Admin Themes preview supports home, standard, landing, ecommerce, post, blog, archive, and 404 layouts without activating the candidate theme. Static export uses the same page-template resolver and copies active-theme assets to matching public paths.
 
 ## Header and Footer Ownership
@@ -87,7 +89,9 @@ For Batoi Press public pages:
   as active on nested child routes and accounts for subdirectory installations.
 - Use the Contact Layout editor for theme-owned contact form handling. Keep
   validation, CSRF protection, rate limiting, and output escaping in place; do
-  not place credentials in theme source.
+  not place credentials in theme source. If a custom theme declares a Contact
+  page template but has no `layouts/contact.php`, the constrained editor can
+  create a safe starter layout on first save.
 - Edit `page.php`, `post.php`, `blog.php`, `archive.php`, or `404.php` only
   for page-type content structure.
 - Do not duplicate global header or footer markup inside content files,

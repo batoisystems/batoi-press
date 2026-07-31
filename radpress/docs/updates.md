@@ -12,7 +12,7 @@ https://www.batoi.com/pub/press/latest.json
 
 Basic update checks and downloads should remain public under `https://www.batoi.com/pub/press/`. The human-facing microsite remains `https://www.batoi.com/press`. Optional Batoi Platform workspace services can add monitoring, fleet status, security checks, and assisted upgrades.
 
-The admin update screen can fetch the configured manifest and compare the latest version with the installed version.
+The admin update screen can fetch the configured manifest and compare the latest version with the installed version. It prefers PHP cURL and falls back to the PHP HTTPS stream wrapper so common shared-hosting transport differences do not cause a false update-check failure. TLS verification remains enabled for both transports.
 
 The admin update screen separates routine checks from risky operations. Version status, manifest URL, package staging, staged packages, backup creation, and rollback backups are displayed in separate sections. Rollback restore actions are visually marked as danger-zone operations.
 
@@ -20,7 +20,9 @@ Implemented safety steps:
 
 - Create a ZIP backup of config, content, theme, and app customizations.
 - Verify a package checksum when a SHA-256 value is provided.
+- Check the uploaded file signature and report HTML release pages, non-ZIP data, incomplete archives, and missing ZipArchive support separately.
 - Reject ZIP packages with unsafe entry paths before extraction.
+- Accept a release manifest at the archive root or inside one unambiguous top-level desktop ZIP folder.
 - Extract a package into a staging directory.
 - Require a release manifest inside the staged package.
 - Apply only manifest-listed files to allowed runtime paths.

@@ -50,8 +50,10 @@ try {
     assertTemplate(str_ends_with($manager->assetUrl('demo', 'css/theme.css', false), '?v=1.0.0'), 'theme asset URLs should include the manifest version for cache invalidation');
 
     $pages = new PageRepository($paths, new FileStore(), new HtmlContent());
-    $saved = $pages->save(['title' => 'Store', 'slug' => 'store', 'status' => 'published', 'template' => 'shop', 'body' => '<h1>Store</h1>'], 'owner');
+    $saved = $pages->save(['title' => 'Store', 'slug' => 'store', 'status' => 'published', 'template' => 'shop', 'show_latest_posts' => '1', 'latest_posts_limit' => '30', 'body' => '<h1>Store</h1>'], 'owner');
     assertTemplate(($saved['template'] ?? '') === 'shop', 'selected template should persist in page metadata');
+    assertTemplate(($saved['show_latest_posts'] ?? false) === true, 'latest-posts visibility should persist in page metadata');
+    assertTemplate(($saved['latest_posts_limit'] ?? 0) === 12, 'latest-posts limit should be constrained to the supported range');
     $unsafe = $pages->save(['title' => 'Unsafe', 'slug' => 'unsafe', 'status' => 'draft', 'template' => '../shop', 'body' => '<p>Unsafe</p>'], 'owner');
     assertTemplate(($unsafe['template'] ?? '') === 'page', 'unsafe template metadata should normalize to page');
 

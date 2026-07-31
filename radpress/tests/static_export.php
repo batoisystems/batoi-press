@@ -106,6 +106,9 @@ try {
     assertTrue(str_contains((string)$zip->getFromName('index.html'), 'class="bp-header"'), 'Static HTML should use the active theme header.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), 'bp-template-landing'), 'Static HTML should preserve the selected page template.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), 'bp-page-landing'), 'Static HTML should render the selected landing layout.');
+    assertTrue(str_contains((string)$zip->getFromName('index.html'), 'Latest articles'), 'Static homepage output should render the configured latest-posts section.');
+    assertTrue(str_contains((string)$zip->getFromName('index.html'), 'First Post'), 'Static homepage latest-posts output should include the newest published post.');
+    assertTrue(!str_contains((string)$zip->getFromName('index.html'), 'Second Post'), 'Static homepage latest-posts output should respect the configured post limit.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './assets/images/site/logo.png'), 'Static HTML should render the configured brand logo.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './theme-assets/default/css/theme.css'), 'Static HTML should load declared theme styles.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './theme-assets/default/js/theme.js'), 'Static HTML should load declared theme scripts.');
@@ -162,6 +165,8 @@ function createFixture(string $root): void
         'slug' => 'about',
         'status' => 'published',
         'template' => 'landing',
+        'show_latest_posts' => true,
+        'latest_posts_limit' => 1,
     ], '<h1>About</h1>');
     writeContent($root . '/radpress/content/pages/team', [
         'title' => 'Team',

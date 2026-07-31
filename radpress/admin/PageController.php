@@ -145,7 +145,7 @@ final class PageController
             : $this->bodyEditor($bodyValue, 'Use clean HTML. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.');
         $modeSwitch = $isEdit && $textSegments !== [] ? $this->editorModeSwitch($slug, $textOnly) : '';
         $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($page['title'] ?? ''), true, 'data-bp-slug-source') . $this->input('Slug', 'slug', $slug, true, 'data-bp-slug-target') . $modeSwitch . $editor . '</div>';
-        $publishing = $this->select((string)($page['status'] ?? 'draft')) . $this->parentSelect($requestedParent, $slug) . $this->templateSelect((string)($page['template'] ?? 'page')) . $this->metaList($page);
+        $publishing = $this->select((string)($page['status'] ?? 'draft')) . $this->parentSelect($requestedParent, $slug) . $this->templateSelect((string)($page['template'] ?? 'page')) . $this->latestPostsFields($page) . $this->metaList($page);
         $seo = $this->input('SEO Title', 'seo_title', (string)($page['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($page['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short page summary for search snippets and social previews.</span></label>';
 
         $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible page content.') . '</div><aside class="bp-editor-side">' . $this->editorPanel('Publishing', $publishing, 'Control draft or live availability.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->pageChecklist(), 'Review before publishing or changing a live page.') . '</aside>';
@@ -205,6 +205,17 @@ final class PageController
             $options .= '<option value="' . $this->e($slug) . '"' . ($slug === $selected ? ' selected' : '') . '>' . $this->e($label) . '</option>';
         }
         return '<label>Parent page <select name="parent_slug">' . $options . '</select><span class="bp-field-help">Child pages use a nested public route under their parent.</span></label>';
+    }
+
+    private function latestPostsFields(?array $page): string
+    {
+        $enabled = (bool)($page['show_latest_posts'] ?? false);
+        $limit = max(1, min(12, (int)($page['latest_posts_limit'] ?? 3)));
+        return '<label>Latest posts section <select name="show_latest_posts">'
+            . '<option value="0"' . (!$enabled ? ' selected' : '') . '>Hidden</option>'
+            . '<option value="1"' . ($enabled ? ' selected' : '') . '>Visible</option>'
+            . '</select><span class="bp-field-help">Show the newest published posts below this page. Enable this on the selected homepage for a dynamic homepage feed.</span></label>'
+            . '<label>Latest posts count <input type="number" name="latest_posts_limit" min="1" max="12" value="' . $limit . '"><span class="bp-field-help">Between 1 and 12 posts.</span></label>';
     }
 
     private function toolbar(array $pages, array $filters): string

@@ -40,6 +40,18 @@ try {
     assertTrue($wrappedApply['ok'] ?? false, 'wrapped desktop ZIPs should apply files relative to their package root');
     assertSame('wrapped update', file_get_contents($root . '/README.md'), 'wrapped package contents should install');
 
+    $htmlPackage = $root . '/downloaded-release-page.zip';
+    file_put_contents($htmlPackage, '<!doctype html><html><body>Release page</body></html>');
+    $invalidHtml = $runner->stage($htmlPackage);
+    assertTrue(!($invalidHtml['ok'] ?? false), 'HTML saved with a ZIP filename should fail staging');
+    assertTrue(str_contains((string)($invalidHtml['error'] ?? ''), 'contains an HTML page instead of ZIP data'), 'HTML package failures should explain that the webpage was uploaded instead of a ZIP');
+
+    $truncatedPackage = $root . '/truncated.zip';
+    file_put_contents($truncatedPackage, "PK\x03\x04incomplete");
+    $invalidTruncated = $runner->stage($truncatedPackage);
+    assertTrue(!($invalidTruncated['ok'] ?? false), 'truncated ZIP data should fail staging');
+    assertTrue(str_contains((string)($invalidTruncated['error'] ?? ''), 'could not be opened'), 'truncated ZIP failures should recommend downloading the package again');
+
     $validUpdate = json_encode(['current_version' => '0.1.0'], JSON_PRETTY_PRINT);
     file_put_contents($paths->configPath('update.json'), $validUpdate);
 

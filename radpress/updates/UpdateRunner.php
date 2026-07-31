@@ -21,8 +21,9 @@ final class UpdateRunner
             return ['ok' => false, 'error' => 'Package checksum verification failed.'];
         }
 
-        if (!$verifier->verifyZip($packagePath)) {
-            return ['ok' => false, 'error' => 'Package is not a valid ZIP archive.'];
+        $zipError = $verifier->zipError($packagePath);
+        if ($zipError !== null) {
+            return ['ok' => false, 'error' => $zipError];
         }
 
         if (!$verifier->verifyZipEntries($packagePath)) {

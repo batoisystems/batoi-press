@@ -83,6 +83,7 @@ final class PageRepository
         }
         $parentSlug = Slug::normalize((string)($input['parent_slug'] ?? $existing['parent_slug'] ?? ''));
         $this->validateParent($parentSlug, $slug, $originalSlug);
+        $latestPostsLimit = max(1, min(12, (int)($input['latest_posts_limit'] ?? $existing['latest_posts_limit'] ?? 3)));
         $meta = [
             'id' => (string)($existing['id'] ?? 'pg_' . bin2hex(random_bytes(6))),
             'type' => 'page',
@@ -96,6 +97,8 @@ final class PageRepository
             'updated_at' => $now,
             'seo_title' => trim((string)($input['seo_title'] ?? $input['title'] ?? '')),
             'seo_description' => trim((string)($input['seo_description'] ?? '')),
+            'show_latest_posts' => (string)($input['show_latest_posts'] ?? '0') === '1',
+            'latest_posts_limit' => $latestPostsLimit,
         ];
 
         $dir = $this->targetDir($originalSlug, $slug);

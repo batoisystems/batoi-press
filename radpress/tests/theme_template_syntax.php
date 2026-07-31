@@ -60,6 +60,18 @@ try {
     rename($themeJsBackup, $themeJs);
 }
 
+$contactLayout = $config->paths()->themePath('default/layouts/contact.php');
+$contactLayoutBackup = $contactLayout . '.syntax-test-backup';
+rename($contactLayout, $contactLayoutBackup);
+try {
+    $missingContactIndex = $controller->index('default')->content();
+    assertTrue(substr_count($missingContactIndex, 'Create on save') >= 1, 'A missing Contact layout should be creatable from the constrained theme editor.');
+    $missingContactEditor = $controller->edit('default/contact')->content();
+    assertTrue(str_contains($missingContactEditor, 'bp-contact-page') && str_contains($missingContactEditor, '$page[&#039;body&#039;]'), 'A missing Contact layout should open with a safe PHP starter template.');
+} finally {
+    rename($contactLayoutBackup, $contactLayout);
+}
+
 $binaryNameMethod = new ReflectionMethod($controller, 'isCliCandidateName');
 $binaryNameMethod->setAccessible(true);
 assertTrue($binaryNameMethod->invoke($controller, 'php'), 'The standard PHP CLI binary name should be accepted.');

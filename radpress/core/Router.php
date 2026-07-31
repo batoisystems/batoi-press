@@ -91,8 +91,20 @@ final class Router
             : $this->pages->findByPath($request->path);
 
         return $page !== null && ($page['status'] ?? '') === 'published'
-            ? $this->theme->render($this->theme->pageLayout((string)($page['template'] ?? 'page')), ['page' => $page, 'title' => (string)$page['title']])
+            ? $this->theme->render($this->theme->pageLayout((string)($page['template'] ?? 'page')), $this->pageData($page))
             : $this->notFound();
+    }
+
+    private function pageData(array $page): array
+    {
+        $limit = max(1, min(12, (int)($page['latest_posts_limit'] ?? 3)));
+        return [
+            'page' => $page,
+            'title' => (string)($page['title'] ?? ''),
+            'latestPosts' => !empty($page['show_latest_posts'])
+                ? array_slice($this->posts->allPublished(), 0, $limit)
+                : [],
+        ];
     }
 
     private function admin(Request $request): Response

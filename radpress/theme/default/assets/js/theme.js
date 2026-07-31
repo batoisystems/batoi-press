@@ -2,10 +2,26 @@
     const toggle = document.querySelector('.bp-nav-toggle');
     const links = document.getElementById('bp-primary-links');
     if (toggle && links) {
+        const closeMenu = () => {
+            toggle.setAttribute('aria-expanded', 'false');
+            links.classList.remove('is-open');
+        };
         toggle.addEventListener('click', () => {
             const open = toggle.getAttribute('aria-expanded') !== 'true';
             toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
             links.classList.toggle('is-open', open);
+        });
+        links.addEventListener('click', (event) => {
+            if (event.target instanceof HTMLAnchorElement) closeMenu();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && toggle.getAttribute('aria-expanded') === 'true') {
+                closeMenu();
+                toggle.focus();
+            }
+        });
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 760) closeMenu();
         });
     }
 
