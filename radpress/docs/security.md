@@ -28,6 +28,9 @@ Batoi Press establishes secure defaults and structure:
 - Every routed response receives MIME-sniffing, frame, referrer, and permissions
   safeguards. HTTPS responses receive HSTS. CSP is emitted in report-only mode
   by default so custom themes can be audited before switching to `enforce`.
+- Stable updates require Ed25519 signatures over canonical release metadata and
+  every installable file checksum. Public verifier keys ship by key ID;
+  private release keys remain offline in excluded runtime security storage.
 
 Run the local security baseline check with:
 
@@ -35,6 +38,7 @@ Run the local security baseline check with:
 php radpress/tests/security_baseline.php
 php radpress/tests/machine_access.php
 php radpress/tests/mfa_security.php
+php radpress/tests/release_signature.php
 ```
 
 ## Browser header configuration

@@ -45,6 +45,25 @@ final class UpdateRunner
             return ['ok' => false, 'error' => 'Staged package does not include a release manifest.', 'stage_dir' => $stageDir];
         }
 
+        $updateConfig = $this->updateConfig();
+        try {
+            $signatureError = ReleaseSignature::verify(
+                (array)$package['manifest'],
+                (array)($updateConfig['release_public_keys'] ?? []),
+                (bool)($updateConfig['require_signed_packages'] ?? false),
+                'package-manifest'
+            );
+        } catch (\RuntimeException $exception) {
+            $signatureError = $exception->getMessage();
+        }
+        if ($signatureError !== null) {
+            return ['ok' => false, 'error' => $signatureError, 'stage_dir' => $stageDir];
+        }
+        $fileError = $this->verifyStagedFiles((string)$package['root'], (array)$package['manifest'], (bool)($updateConfig['require_signed_packages'] ?? false));
+        if ($fileError !== null) {
+            return ['ok' => false, 'error' => $fileError, 'stage_dir' => $stageDir];
+        }
+
         return ['ok' => true, 'stage_dir' => $stageDir, 'manifest' => $package['manifest']];
     }
 
@@ -166,6 +185,30 @@ final class UpdateRunner
         $root = $stageDir . '/' . $entries[0];
         $manifest = $this->manifestAt($root);
         return $manifest !== null ? ['root' => $root, 'manifest' => $manifest] : null;
+    }
+
+    private function updateConfig(): array
+    {
+        $path = $this->paths->configPath('update.json');
+        $decoded = is_file($path) ? json_decode((string)file_get_contents($path), true) : [];
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function verifyStagedFiles(string $root, array $manifest, bool $checksumsRequired): ?string
+    {
+        $files = $manifest['files'] ?? null;
+        if (!is_array($files) || $files === []) return 'Release manifest does not list files to install.';
+        foreach ($files as $file) {
+            if (!is_array($file)) return 'Release manifest contains an invalid file entry.';
+            $sourceRelative = (string)($file['source'] ?? $file['path'] ?? '');
+            $targetRelative = (string)($file['target'] ?? $file['path'] ?? '');
+            $source = $this->joinRelative($root, $sourceRelative);
+            if ($source === null || !$this->isAllowedTarget($targetRelative) || !is_file($source)) return 'Release manifest contains a missing or unsafe file path.';
+            $checksum = strtolower((string)($file['sha256'] ?? ''));
+            if ($checksum === '' && !$checksumsRequired) continue;
+            if ($checksum === '' || !hash_equals($checksum, (string)hash_file('sha256', $source))) return 'Checksum failed for staged file: ' . $sourceRelative;
+        }
+        return null;
     }
 
     private function manifestAt(string $root): ?array

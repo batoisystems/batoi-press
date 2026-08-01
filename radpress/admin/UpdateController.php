@@ -71,7 +71,12 @@ final class UpdateController
         $update = $this->config->update();
         $current = (string)($update['current_version'] ?? '0.1.0');
         $manifestUrl = (string)($update['stable_manifest_url'] ?? 'https://batoi.com/pub/press/latest.json');
-        $result = (new VersionChecker($manifestUrl))->check($current);
+        $result = (new VersionChecker(
+            $manifestUrl,
+            null,
+            (array)($update['release_public_keys'] ?? []),
+            (bool)($update['require_signed_packages'] ?? false)
+        ))->check($current);
         $this->audit->record((string)($this->user['username'] ?? 'admin'), ($result['ok'] ?? false) ? 'update.checked' : 'update.failed', $manifestUrl, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
 
         return $this->index($result);

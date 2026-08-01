@@ -7,7 +7,7 @@ final class VersionChecker
 {
     private readonly ?\Closure $fetcher;
 
-    public function __construct(private readonly string $manifestUrl, ?callable $fetcher = null)
+    public function __construct(private readonly string $manifestUrl, ?callable $fetcher = null, private readonly array $publicKeys = [], private readonly bool $signatureRequired = false)
     {
         $this->fetcher = $fetcher !== null ? \Closure::fromCallable($fetcher) : null;
     }
@@ -37,6 +37,14 @@ final class VersionChecker
                 'error' => 'Update manifest is invalid.',
                 'manifest_url' => $this->manifestUrl,
             ];
+        }
+        try {
+            $signatureError = ReleaseSignature::verify($manifest, $this->publicKeys, $this->signatureRequired, 'release-index');
+        } catch (\RuntimeException $exception) {
+            $signatureError = $exception->getMessage();
+        }
+        if ($signatureError !== null) {
+            return ['ok' => false, 'error' => $signatureError, 'manifest_url' => $this->manifestUrl];
         }
 
         $latest = (string)$manifest['version'];

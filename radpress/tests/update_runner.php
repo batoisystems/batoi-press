@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 use Batoi\Press\Core\Paths;
 use Batoi\Press\Update\UpdateRunner;
+use Batoi\Press\Update\ReleaseSignature;
 
 require dirname(__DIR__) . '/autoload.php';
 
@@ -39,6 +40,26 @@ try {
     $wrappedApply = $runner->apply((string)$wrappedStage['stage_dir']);
     assertTrue($wrappedApply['ok'] ?? false, 'wrapped desktop ZIPs should apply files relative to their package root');
     assertSame('wrapped update', file_get_contents($root . '/README.md'), 'wrapped package contents should install');
+
+    $keypair = sodium_crypto_sign_keypair();
+    $secretKey = sodium_crypto_sign_secretkey($keypair);
+    $publicKey = base64_encode(sodium_crypto_sign_publickey($keypair));
+    file_put_contents($paths->configPath('update.json'), json_encode([
+        'current_version' => '0.1.0', 'require_signed_packages' => true, 'release_public_keys' => ['test-key' => $publicKey],
+    ], JSON_PRETTY_PRINT));
+    $signedPackage = createPackage($root, 'signed', ['README.md' => 'signed update'], [
+        ['path' => 'README.md', 'sha256' => hash('sha256', 'signed update')],
+    ], false, $secretKey);
+    $signedStage = $runner->stage($signedPackage);
+    assertTrue($signedStage['ok'] ?? false, 'a valid Ed25519-signed package should stage');
+
+    $unsignedWhileRequired = createPackage($root, 'unsigned-required', ['README.md' => 'unsigned'], [
+        ['path' => 'README.md', 'sha256' => hash('sha256', 'unsigned')],
+    ]);
+    $unsignedRejected = $runner->stage($unsignedWhileRequired);
+    assertTrue(!($unsignedRejected['ok'] ?? false) && str_contains((string)($unsignedRejected['error'] ?? ''), 'signature is required'), 'unsigned packages should fail when release signatures are required');
+
+    file_put_contents($paths->configPath('update.json'), json_encode(['current_version' => '0.1.0'], JSON_PRETTY_PRINT));
 
     $htmlPackage = $root . '/downloaded-release-page.zip';
     file_put_contents($htmlPackage, '<!doctype html><html><body>Release page</body></html>');
@@ -138,7 +159,7 @@ function createFixture(string $root): void
     file_put_contents($root . '/radpress/config/update.json', json_encode(['current_version' => '0.1.0'], JSON_PRETTY_PRINT));
 }
 
-function createPackage(string $root, string $name, array $files, array $manifestFiles, bool $wrapped = false): string
+function createPackage(string $root, string $name, array $files, array $manifestFiles, bool $wrapped = false, ?string $secretKey = null): string
 {
     $dir = $root . '/package-' . $name;
     mkdir($dir, 0775, true);
@@ -149,10 +170,15 @@ function createPackage(string $root, string $name, array $files, array $manifest
         }
         file_put_contents($target, $body);
     }
-    file_put_contents($dir . '/release.json', json_encode([
+    $manifest = [
+        'name' => 'Batoi Press',
         'version' => '0.1.1-' . $name,
         'files' => $manifestFiles,
-    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    ];
+    if ($secretKey !== null) {
+        $manifest = ReleaseSignature::sign($manifest, $secretKey, 'test-key', 'package-manifest');
+    }
+    file_put_contents($dir . '/release.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
     $zipPath = $root . '/' . $name . '.zip';
     $zip = new ZipArchive();

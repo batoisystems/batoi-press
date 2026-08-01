@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require dirname(__DIR__) . '/radpress/autoload.php';
+
 $root = dirname(__DIR__);
 $version = readVersion($root);
 $output = optionValue($argv, '--output') ?? $root . '/dist/batoi-press-' . $version . '.zip';
@@ -29,6 +31,13 @@ foreach (releaseRoots($root) as $path) {
 }
 
 $manifest = releaseManifest($version, $files);
+$signingKey = optionValue($argv, '--signing-key') ?? $root . '/radpress/data/security/release-signing.key';
+if (is_file($signingKey)) {
+    $manifest = \Batoi\Press\Update\ReleaseSignature::sign($manifest, readSigningKey($signingKey), 'batoi-press-release-2026-01', 'package-manifest');
+} elseif (releaseSignatureRequired($root)) {
+    fwrite(STDERR, "Signed releases are required but the offline signing key is unavailable: {$signingKey}\n");
+    exit(1);
+}
 $encodedManifest = json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 if ($encodedManifest === false || !$zip->addFromString('release.json', $encodedManifest . PHP_EOL)) {
     fwrite(STDERR, "Unable to add release manifest to ZIP: {$output}\n");
@@ -141,6 +150,22 @@ function releaseManifest(string $version, array $files): array
         'version' => $version,
         'files' => $files,
     ];
+}
+
+function readSigningKey(string $path): string
+{
+    $decoded = base64_decode(trim((string)file_get_contents($path)), true);
+    if (!is_string($decoded)) {
+        fwrite(STDERR, "Unable to decode release signing key.\n");
+        exit(1);
+    }
+    return $decoded;
+}
+
+function releaseSignatureRequired(string $root): bool
+{
+    $config = json_decode((string)file_get_contents($root . '/radpress/config/update.json'), true);
+    return is_array($config) && ($config['require_signed_packages'] ?? false) === true;
 }
 
 function isInstallableTarget(string $relative): bool

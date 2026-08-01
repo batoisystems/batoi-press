@@ -6,6 +6,7 @@ radpress/data/log/*.jsonl
 radpress/data/sessions/sess_*
 radpress/data/tmp/*
 radpress/data/versions/*
+radpress/data/security/*
 
 !radpress/data/backups/.gitkeep
 !radpress/data/cache/.gitkeep
@@ -14,3 +15,4 @@ radpress/data/versions/*
 !radpress/data/sessions/.gitkeep
 !radpress/data/tmp/.gitkeep
 !radpress/data/versions/.gitkeep
+!radpress/data/security/.gitkeep

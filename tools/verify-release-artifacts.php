@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require dirname(__DIR__) . '/radpress/autoload.php';
+
 $root = dirname(__DIR__);
 $version = readCurrentVersion($root);
 $zipPath = optionValue($argv, '--zip') ?? $root . '/dist/batoi-press-' . $version . '.zip';
@@ -44,6 +46,12 @@ if (!is_array($packageManifest)) {
 
 if ((string)($packageManifest['version'] ?? '') !== $version) {
     fail('Release package root release.json version does not match current_version.');
+}
+$updateConfig = json_decode((string)file_get_contents($root . '/radpress/config/update.json'), true);
+$publicKeys = is_array($updateConfig) ? (array)($updateConfig['release_public_keys'] ?? []) : [];
+$packageSignatureError = \Batoi\Press\Update\ReleaseSignature::verify($packageManifest, $publicKeys, true, 'package-manifest');
+if ($packageSignatureError !== null) {
+    fail($packageSignatureError);
 }
 
 $packageFiles = $packageManifest['files'] ?? null;
@@ -97,6 +105,19 @@ if (!str_ends_with($downloadUrl, '/releases/batoi-press-' . $version . '.zip')) 
 $trust = $manifest['trust'] ?? null;
 if (!is_array($trust) || !array_key_exists('signature_required', $trust)) {
     fail('Release manifest is missing package trust metadata.');
+}
+$indexSignatureError = \Batoi\Press\Update\ReleaseSignature::verify($manifest, $publicKeys, true, 'release-index');
+if ($indexSignatureError !== null) {
+    fail($indexSignatureError);
+}
+$signaturePath = dirname($manifestPath) . '/latest.json.sig';
+if (!is_file($signaturePath) || trim((string)file_get_contents($signaturePath)) !== (string)($trust['signature'] ?? '')) {
+    fail('Detached release-index signature is missing or inconsistent.');
+}
+$publicKeyPath = dirname($manifestPath) . '/release-public-keys.json';
+$publicKeyDocument = is_file($publicKeyPath) ? json_decode((string)file_get_contents($publicKeyPath), true) : null;
+if (!is_array($publicKeyDocument) || ($publicKeyDocument['keys'] ?? null) !== $publicKeys) {
+    fail('Published release public keys are missing or inconsistent.');
 }
 
 echo "Release artifacts verified\n";
