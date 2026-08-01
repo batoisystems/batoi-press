@@ -71,7 +71,7 @@ Theme files under `radpress/theme/` must be readable.
 - `radpress/content/` stores page/post HTML bodies and JSON metadata.
 - `radpress/data/` stores cache, logs, sessions, backups, versions, and exports.
 - `radpress/uif/` stores native UIF metadata and component notes.
-- `radpress/aif/` stores optional AIF provider scaffolding.
+- `radpress/aif/` contains the integrated AIF service, guarded provider adapters, and assisted-authoring actions.
 - `radpress/theme/` stores render templates and theme assets.
 
 Empty `bin/`, `ms/`, and `vendor/` directories are intentionally omitted from MVP. Add them only when a concrete CLI, RAD module-service, or bundled dependency requirement exists.
@@ -140,6 +140,8 @@ The generated files are:
 ```text
 dist/batoi-press-{version}.zip
 dist/latest.json
+dist/latest.json.sig
+dist/release-public-keys.json
 ```
 
 `latest.json` is published to:
@@ -168,7 +170,7 @@ The bundled Batoi Versatile theme supports corporate, service, editorial, campai
 
 Batoi UIF primitives are bundled locally under `public_html/assets/uif/` and documented in `radpress/docs/uif-aif.md`.
 
-Batoi AIF is disabled by default through `radpress/config/aif.json`. It has provider scaffolding for future integrations but makes no AI network calls unless a future provider is explicitly configured. The admin status screen documents provider availability, feature flags, and trust boundaries. Batoi AIF is the integrated outbound intelligence layer; the inbound JSON API and MCP interface remain provider-neutral and do not call an AI model. See `radpress/docs/machine-interfaces.md` for their security and protocol contract.
+Batoi AIF is the integrated, opt-in outbound intelligence layer. It is disabled by default through `radpress/config/aif.json`; an owner can enable the bundled offline local provider for content health, SEO, summary, tag, and outline assistance without sending content over the network. External providers remain disabled until explicitly configured and approved. Page and post editors require human review before applying suggestions, and AIF has no publication authority. The inbound JSON API and MCP interface remain provider-neutral and do not call an AI model. See `radpress/docs/uif-aif.md` and `radpress/docs/machine-interfaces.md` for configuration, security, and protocol contracts.
 
 ## Roadmap
 
