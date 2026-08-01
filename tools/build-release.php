@@ -204,9 +204,7 @@ function installableTargetPrefixes(): array
         'radpress/autoload.php',
         'radpress/composer.json',
         'radpress/composer.lock',
-        'radpress/config/aif.json',
         'radpress/config/update.json',
-        'radpress/config/paths.json',
     ];
 }
 
