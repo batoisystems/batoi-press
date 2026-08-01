@@ -18,8 +18,12 @@ try {
 
     $package = createPackage($root, 'success', [
         'README.md' => 'updated readme',
+        'radpress/config/aif.json' => '{"enabled":false}',
+        'radpress/config/paths.json' => '{"public_root":"changed"}',
     ], [
         ['path' => 'README.md', 'sha256' => hash('sha256', 'updated readme')],
+        ['path' => 'radpress/config/aif.json', 'sha256' => hash('sha256', '{"enabled":false}')],
+        ['path' => 'radpress/config/paths.json', 'sha256' => hash('sha256', '{"public_root":"changed"}')],
     ]);
 
     $stage = $runner->stage($package);
@@ -27,6 +31,8 @@ try {
     $applied = $runner->apply((string)$stage['stage_dir']);
     assertTrue($applied['ok'] ?? false, 'successful package should apply');
     assertSame('updated readme', file_get_contents($root . '/README.md'), 'README should be updated');
+    assertSame('{"enabled":true}', (string)file_get_contents($paths->configPath('aif.json')), 'existing AIF provider policy should be preserved during updates');
+    assertTrue(str_contains((string)file_get_contents($paths->configPath('paths.json')), 'public_html'), 'existing deployment paths should be preserved during updates');
     assertTrue(!is_file($paths->dataPath('cache/page.html')), 'cache should be cleared after apply');
     assertTrue(!is_file($paths->dataPath('maintenance.json')), 'maintenance mode should be disabled after apply');
 
@@ -154,6 +160,7 @@ function createFixture(string $root): void
     file_put_contents($root . '/radpress/composer.json', '{}');
     file_put_contents($root . '/radpress/composer.lock', '{}');
     file_put_contents($root . '/radpress/config/paths.json', json_encode(['public_root' => 'public_html'], JSON_PRETTY_PRINT));
+    file_put_contents($root . '/radpress/config/aif.json', '{"enabled":true}');
     file_put_contents($root . '/radpress/config/site.json', json_encode(['site_name' => 'Test'], JSON_PRETTY_PRINT));
     file_put_contents($root . '/radpress/config/security.json', json_encode(['session_name' => 'test'], JSON_PRETTY_PRINT));
     file_put_contents($root . '/radpress/config/update.json', json_encode(['current_version' => '0.1.0'], JSON_PRETTY_PRINT));

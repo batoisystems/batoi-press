@@ -5,7 +5,8 @@ installations. Create an operator backup before staging the signed package.
 
 ## Preserved installation data
 
-The updater does not replace `site.json`, `security.json`, `users.json`, content,
+The updater does not replace `site.json`, `security.json`, `users.json`, existing
+`aif.json`, customized `paths.json`, content,
 media, session data, access tokens, AIF provider settings, encrypted secrets, or
 the installer lock. It updates application/runtime files and the release-owned
 `update.json`, `paths.json`, and default AIF baseline only.

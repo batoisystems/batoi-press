@@ -99,6 +99,7 @@ final class UpdateRunner
 
         $installed = 0;
         $installedTargets = [];
+        $preservedTargets = [];
         foreach ($files as $file) {
             if (!is_array($file)) {
                 return $this->failAndRollback('Release manifest contains an invalid file entry.', (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
@@ -122,6 +123,11 @@ final class UpdateRunner
                 return $this->failAndRollback('Checksum failed for staged file: ' . $sourceRelative, (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
             }
 
+            if ($this->preserveExistingTarget($targetRelative) && is_file($target)) {
+                $preservedTargets[trim($targetRelative, '/')] = true;
+                continue;
+            }
+
             $targetDir = dirname($target);
             if (!is_dir($targetDir)) {
                 mkdir($targetDir, 0775, true);
@@ -136,7 +142,13 @@ final class UpdateRunner
         }
 
         $cacheCleared = (new Cache($this->paths))->clear();
-        $health = (new UpdateHealthCheck($this->paths))->run($manifest);
+        $healthManifest = $manifest;
+        $healthManifest['files'] = array_values(array_filter((array)($manifest['files'] ?? []), static function (mixed $file) use ($preservedTargets): bool {
+            if (!is_array($file)) return true;
+            $target = trim((string)($file['target'] ?? $file['path'] ?? ''), '/');
+            return !isset($preservedTargets[$target]);
+        }));
+        $health = (new UpdateHealthCheck($this->paths))->run($healthManifest);
         if (!($health['ok'] ?? false)) {
             return $this->failAndRollback(
                 'Post-update health check failed: ' . implode('; ', $health['errors'] ?? []),
@@ -244,6 +256,11 @@ final class UpdateRunner
         }
 
         return false;
+    }
+
+    private function preserveExistingTarget(string $relative): bool
+    {
+        return in_array(trim($relative, '/'), ['radpress/config/aif.json', 'radpress/config/paths.json'], true);
     }
 
     private function allowedTargetPrefixes(): array
