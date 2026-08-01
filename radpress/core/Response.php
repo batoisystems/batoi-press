@@ -22,6 +22,16 @@ final class Response
         return new self($body, $status, ['Content-Type' => 'application/xml; charset=UTF-8']);
     }
 
+    public static function json(array $body, int $status = 200, array $headers = []): self
+    {
+        $encoded = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if (!is_string($encoded)) {
+            $encoded = '{"error":{"code":"encoding_failed","message":"Unable to encode response."}}';
+            $status = 500;
+        }
+        return new self($encoded, $status, ['Content-Type' => 'application/json; charset=UTF-8'] + $headers);
+    }
+
     public static function body(string $body, string $contentType, int $status = 200): self
     {
         return new self($body, $status, ['Content-Type' => $contentType]);
@@ -49,6 +59,11 @@ final class Response
     public function headers(): array
     {
         return $this->headers;
+    }
+
+    public function withHeader(string $name, string $value): self
+    {
+        return new self($this->body, $this->status, array_merge($this->headers, [$name => $value]));
     }
 
     public function send(): void

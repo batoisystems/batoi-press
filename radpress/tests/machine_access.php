@@ -26,8 +26,9 @@ try {
 
     $storagePath = $root . '/radpress/data/integrations/access-tokens.json';
     $stored = (string)file_get_contents($storagePath);
+    preg_match('/^bp2_[a-f0-9]{24}_([A-Za-z0-9_-]{43})$/D', $token, $tokenParts);
     assertTrue(!str_contains($stored, $token), 'plaintext token should never be stored');
-    assertTrue(!str_contains($stored, substr($token, strrpos($token, '_') + 1)), 'plaintext token secret should never be stored');
+    assertTrue(isset($tokenParts[1]) && !str_contains($stored, $tokenParts[1]), 'plaintext token secret should never be stored');
     assertTrue(str_contains($stored, 'secret_hash'), 'token storage should retain only a password hash');
 
     $authenticated = $repository->authenticate($token, ['content:read']);

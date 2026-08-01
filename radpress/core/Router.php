@@ -19,11 +19,13 @@ use Batoi\Press\Admin\ThemeTemplateController;
 use Batoi\Press\Admin\UpdateController;
 use Batoi\Press\Admin\UserController;
 use Batoi\Press\Admin\WidgetController;
+use Batoi\Press\Api\ApiController;
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
 use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\StaticExporter;
+use Batoi\Press\Mcp\McpController;
 use Batoi\Press\Security\Auth;
 use Batoi\Press\Security\AdminAccess;
 use Batoi\Press\Security\Csrf;
@@ -42,6 +44,14 @@ final class Router
 
     public function dispatch(Request $request): Response
     {
+        if ($request->path === '/api/v2' || str_starts_with($request->path, '/api/v2/')) {
+            return (new ApiController($this->config, $this->pages, $this->posts))->handle($request);
+        }
+
+        if ($request->path === '/mcp') {
+            return (new McpController($this->config, $this->pages, $this->posts))->handle($request);
+        }
+
         if ($request->path === '/sitemap.xml') {
             return Response::xml($this->sitemap());
         }

@@ -17,6 +17,8 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 - Cache clear, static export, and update-check admin surfaces.
 - Bundled Batoi UIF primitives for admin and installer UI.
 - Disabled-by-default Batoi AIF scaffolding with admin status at `/admin/aif`.
+- Scoped read-only JSON API at `/api/v2` with filtering, cursor pagination, stable errors, revision ETags, and request correlation.
+- Streamable HTTP MCP endpoint at `/mcp` with read-only tools/resources and citation-ready structured search/fetch results.
 
 ## Requirements
 
@@ -165,7 +167,7 @@ The bundled Batoi Versatile theme supports corporate, service, editorial, campai
 
 Batoi UIF primitives are bundled locally under `public_html/assets/uif/` and documented in `radpress/docs/uif-aif.md`.
 
-Batoi AIF is disabled by default through `radpress/config/aif.json`. It has provider scaffolding for future integrations but makes no AI network calls unless a future provider is explicitly configured. The admin status screen documents provider availability, feature flags, and trust boundaries.
+Batoi AIF is disabled by default through `radpress/config/aif.json`. It has provider scaffolding for future integrations but makes no AI network calls unless a future provider is explicitly configured. The admin status screen documents provider availability, feature flags, and trust boundaries. Batoi AIF is the integrated outbound intelligence layer; the inbound JSON API and MCP interface remain provider-neutral and do not call an AI model. See `radpress/docs/machine-interfaces.md` for their security and protocol contract.
 
 ## Roadmap
 

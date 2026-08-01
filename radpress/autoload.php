@@ -14,8 +14,11 @@ spl_autoload_register(static function (string $class): void {
     $map = [
         'Aif' => 'aif',
         'Admin' => 'admin',
+        'Api' => 'api',
+        'Application' => 'application',
         'Content' => 'core/content',
         'Core' => 'core',
+        'Mcp' => 'mcp',
         'Security' => 'security',
         'Update' => 'updates',
     ];
