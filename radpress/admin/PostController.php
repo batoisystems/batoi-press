@@ -3,7 +3,11 @@ declare(strict_types=1);
 
 namespace Batoi\Press\Admin;
 
+use Batoi\Press\Application\ContentMutationService;
+use Batoi\Press\Application\ContentRevision;
+use Batoi\Press\Application\IdempotencyStore;
 use Batoi\Press\Content\PostRepository;
+use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\Config;
 use Batoi\Press\Core\Request;
@@ -17,6 +21,7 @@ final class PostController
 {
     public function __construct(
         private readonly Config $config,
+        private readonly PageRepository $pages,
         private readonly PostRepository $posts,
         private readonly Csrf $csrf,
         private readonly AuditLog $audit,
@@ -91,12 +96,16 @@ final class PostController
         }
 
         try {
-            $meta = $this->posts->save($request->post, (string)($this->user['username'] ?? 'admin'));
+            (new ContentMutationService($this->config, $this->pages, $this->posts, $this->audit, new IdempotencyStore($this->config->paths())))->saveFromAdmin(
+                'post',
+                $request->post,
+                $request->input('expected_revision'),
+                (string)($this->user['username'] ?? 'admin'),
+                'admin_' . bin2hex(random_bytes(8))
+            );
         } catch (RuntimeException $exception) {
             return Response::html($this->layout('Posts', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>' . AdminLayout::buttonLink('Back to posts', '/admin/posts', 'back', true) . '</p>'), 409);
         }
-        $this->audit->record((string)($this->user['username'] ?? 'admin'), 'post.updated', (string)$meta['slug'], (string)($_SERVER['REMOTE_ADDR'] ?? ''));
-
         return Response::redirect('/admin/posts');
     }
 
@@ -117,6 +126,7 @@ final class PostController
         $body .= '<form method="post" action="/admin/posts/save" class="bp-form bp-admin-editor" novalidate>';
         $body .= $this->csrf->field();
         $body .= '<input type="hidden" name="original_slug" value="' . $this->e($slug) . '">';
+        $body .= '<input type="hidden" name="expected_revision" value="' . $this->e($post === null ? '' : ContentRevision::for($post)) . '">';
 
         $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($post['title'] ?? ''), true, 'data-bp-slug-source') . $this->input('Slug', 'slug', $slug, true, 'data-bp-slug-target') . '<label class="bp-field-wide">Subtitle <textarea name="subtitle" rows="3" maxlength="300">' . $this->e((string)($post['subtitle'] ?? '')) . '</textarea><span class="bp-field-help">Optional short description shown below the article title.</span></label>' . $this->bodyEditor((string)($post['body'] ?? ''), 'Use clean HTML for formatted article content. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.') . '</div>';
         $publishing = $this->select((string)($post['status'] ?? 'draft')) . $this->publishDateInput((string)($post['published_at'] ?? '')) . $this->categoryInput((string)($post['category'] ?? 'General')) . $this->layoutSelect((string)($post['layout'] ?? 'full')) . $this->input('Tags', 'tags', implode(', ', (array)($post['tags'] ?? [])), false) . '<p class="bp-field-help">Separate tags with commas.</p>' . $this->metaList($post);

@@ -170,35 +170,35 @@ final class Router
         }
 
         if ($request->path === '/admin/pages') {
-            return (new PageController($this->config, $this->pages, $csrf, $audit, $user))->index();
+            return (new PageController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->index();
         }
 
         if ($request->path === '/admin/pages/new') {
-            return (new PageController($this->config, $this->pages, $csrf, $audit, $user))->edit();
+            return (new PageController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->edit();
         }
 
         if (str_starts_with($request->path, '/admin/pages/edit/')) {
-            return (new PageController($this->config, $this->pages, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 18)));
+            return (new PageController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 18)));
         }
 
         if ($request->path === '/admin/pages/save' && $request->method === 'POST') {
-            return (new PageController($this->config, $this->pages, $csrf, $audit, $user))->save($request);
+            return (new PageController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->save($request);
         }
 
         if ($request->path === '/admin/posts') {
-            return (new PostController($this->config, $this->posts, $csrf, $audit, $user))->index();
+            return (new PostController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->index();
         }
 
         if ($request->path === '/admin/posts/new') {
-            return (new PostController($this->config, $this->posts, $csrf, $audit, $user))->edit();
+            return (new PostController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->edit();
         }
 
         if (str_starts_with($request->path, '/admin/posts/edit/')) {
-            return (new PostController($this->config, $this->posts, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 18)));
+            return (new PostController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 18)));
         }
 
         if ($request->path === '/admin/posts/save' && $request->method === 'POST') {
-            return (new PostController($this->config, $this->posts, $csrf, $audit, $user))->save($request);
+            return (new PostController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->save($request);
         }
 
         if ($request->path === '/admin/media') {

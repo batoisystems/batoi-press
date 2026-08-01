@@ -237,8 +237,7 @@ final class SiteReadService
 
     private function revision(array $record): string
     {
-        $encoded = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        return 'sha256:' . hash('sha256', is_string($encoded) ? $encoded : serialize($record));
+        return ContentRevision::for($record);
     }
 
     private function baseUrl(): string

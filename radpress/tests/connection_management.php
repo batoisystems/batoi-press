@@ -56,7 +56,7 @@ try {
     $plainToken = (string)($matches[0] ?? '');
     assertConnection($issued->status() === 200 && $plainToken !== '', 'successful issuance should display the token exactly once');
     assertConnection(($issued->headers()['Cache-Control'] ?? '') === 'private, no-store', 'one-time token response should disable caching');
-    assertConnection(($tokens->all()[0]['scopes'] ?? []) === ['content:read', 'site:read'], 'connection UI should refuse scopes not available in the rollout stage');
+    assertConnection(($tokens->all()[0]['scopes'] ?? []) === ['content:read', 'content:write', 'site:read'], 'connection UI should issue governed draft-write scopes after rollout gates pass');
     assertConnection($tokens->authenticate($plainToken, ['content:read']) !== null, 'issued one-time token should authenticate for its granted scope');
     assertConnection(!str_contains($controller->index()->content(), $plainToken), 'subsequent connection views should not reveal the plaintext token');
 

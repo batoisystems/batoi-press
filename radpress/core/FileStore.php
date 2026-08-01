@@ -34,13 +34,31 @@ final class FileStore
     public function write(string $path, string $contents, bool $append = false): void
     {
         $dir = dirname($path);
-        if (!is_dir($dir)) {
-            mkdir($dir, 0775, true);
+        if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+            throw new RuntimeException('Unable to create directory: ' . $dir);
         }
 
-        $flags = LOCK_EX | ($append ? FILE_APPEND : 0);
-        if (file_put_contents($path, $contents, $flags) === false) {
+        if ($append) {
+            if (file_put_contents($path, $contents, LOCK_EX | FILE_APPEND) === false) {
+                throw new RuntimeException('Unable to append file: ' . $path);
+            }
+            return;
+        }
+
+        $temporary = $path . '.tmp-' . bin2hex(random_bytes(6));
+        if (file_put_contents($temporary, $contents, LOCK_EX) === false) {
+            @unlink($temporary);
             throw new RuntimeException('Unable to write file: ' . $path);
+        }
+        if (is_file($path)) {
+            $mode = fileperms($path);
+            if (is_int($mode)) {
+                @chmod($temporary, $mode & 0777);
+            }
+        }
+        if (!rename($temporary, $path)) {
+            @unlink($temporary);
+            throw new RuntimeException('Unable to publish file: ' . $path);
         }
     }
 

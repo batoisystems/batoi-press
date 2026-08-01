@@ -50,6 +50,7 @@ try {
     $issued = $tokens->issue('Interface test', ['site:read', 'content:read'], 'owner', new DateTimeImmutable('+1 hour'));
     $token = (string)$issued['token'];
     $contentOnly = (string)$tokens->issue('Content only', ['content:read'], 'owner', new DateTimeImmutable('+1 hour'))['token'];
+    $editorToken = (string)$tokens->issue('Automation editor', ['site:read', 'content:read', 'content:write', 'content:publish'], 'owner', new DateTimeImmutable('+1 hour'))['token'];
     $api = new ApiController($config, $pages, $posts);
     $router = new Router(new Theme($config->paths(), $config->site()), $pages, $posts, $config);
 
@@ -73,6 +74,27 @@ try {
     $forbidden = $api->handle(machineRequest('GET', '/api/v2/site', $contentOnly));
     assertMachineInterface($forbidden->status() === 403, 'API should distinguish insufficient scope from invalid authentication');
 
+    $createdResponse = $api->handle(machineRequest('POST', '/api/v2/pages', $editorToken, [], json_encode([
+        'title' => 'API Draft', 'slug' => 'api-draft', 'body' => '<p>Created safely</p>',
+    ], JSON_UNESCAPED_SLASHES), ['CONTENT_TYPE' => 'application/json', 'HTTP_IDEMPOTENCY_KEY' => 'api-create-0001']));
+    $createdPayload = decodeMachineResponse($createdResponse);
+    assertMachineInterface($createdResponse->status() === 201 && ($createdPayload['data']['resource']['status'] ?? '') === 'draft', 'API create should produce drafts through the mutation service');
+    $createdRevision = (string)($createdPayload['data']['resource']['revision'] ?? '');
+    $updatedResponse = $api->handle(machineRequest('PATCH', '/api/v2/pages/api-draft', $editorToken, [], json_encode([
+        'title' => 'API Draft Revised',
+    ], JSON_UNESCAPED_SLASHES), ['CONTENT_TYPE' => 'application/json', 'HTTP_IF_MATCH' => '"' . $createdRevision . '"']));
+    $updatedPayload = decodeMachineResponse($updatedResponse);
+    assertMachineInterface($updatedResponse->status() === 200 && ($updatedPayload['data']['resource']['revision'] ?? '') !== $createdRevision, 'API draft update should require and advance the revision');
+    $staleResponse = $api->handle(machineRequest('PATCH', '/api/v2/pages/api-draft', $editorToken, [], '{"title":"Stale"}', ['CONTENT_TYPE' => 'application/json', 'HTTP_IF_MATCH' => $createdRevision]));
+    assertMachineInterface($staleResponse->status() === 409 && (decodeMachineResponse($staleResponse)['error']['code'] ?? '') === 'revision_conflict', 'API should reject stale draft updates');
+    $latestRevision = (string)($updatedPayload['data']['resource']['revision'] ?? '');
+    $publishedResponse = $api->handle(machineRequest('POST', '/api/v2/pages/api-draft/publish', $editorToken, [], '{}', [
+        'CONTENT_TYPE' => 'application/json', 'HTTP_IF_MATCH' => $latestRevision, 'HTTP_IDEMPOTENCY_KEY' => 'api-publish-0001',
+    ]));
+    assertMachineInterface($publishedResponse->status() === 200 && (decodeMachineResponse($publishedResponse)['data']['resource']['status'] ?? '') === 'published', 'API publish should require its distinct scope and operation');
+    $readTokenPublish = $api->handle(machineRequest('POST', '/api/v2/pages/private-notes/publish', $token, [], '{}', ['CONTENT_TYPE' => 'application/json']));
+    assertMachineInterface($readTokenPublish->status() === 403, 'read-only API tokens must not invoke publish operations');
+
     $mcp = new McpController($config, $pages, $posts);
     $initialize = $mcp->handle(mcpRequest($token, 'initialize', ['protocolVersion' => McpController::PROTOCOL_VERSION, 'capabilities' => [], 'clientInfo' => ['name' => 'test', 'version' => '1']], 1));
     $initializePayload = decodeMachineResponse($initialize);
@@ -83,6 +105,16 @@ try {
     $toolList = decodeMachineResponse($mcp->handle(mcpRequest($token, 'tools/list', [], 2)));
     $toolNames = array_column((array)($toolList['result']['tools'] ?? []), 'name');
     assertMachineInterface(in_array('search', $toolNames, true) && in_array('menu_get', $toolNames, true), 'MCP should expose scoped content and site read tools');
+    assertMachineInterface(!in_array('page_create_draft', $toolNames, true), 'MCP should omit write tools when the connection lacks write scope');
+
+    $writeToolList = decodeMachineResponse($mcp->handle(mcpRequest($editorToken, 'tools/list', [], 21)));
+    $writeTools = array_column((array)($writeToolList['result']['tools'] ?? []), 'name');
+    assertMachineInterface(in_array('page_create_draft', $writeTools, true) && in_array('post_publish', $writeTools, true), 'MCP should expose draft and publish tools only for matching scopes');
+    $mcpCreated = decodeMachineResponse($mcp->handle(mcpRequest($editorToken, 'tools/call', [
+        'name' => 'post_create_draft',
+        'arguments' => ['content' => ['title' => 'MCP Draft', 'slug' => 'mcp-draft', 'body' => '<p>Review me</p>'], 'idempotency_key' => 'mcp-create-0001'],
+    ], 22)));
+    assertMachineInterface(($mcpCreated['result']['structuredContent']['resource']['status'] ?? '') === 'draft', 'MCP create tools should return a governed draft result');
 
     $search = decodeMachineResponse($mcp->handle(mcpRequest($token, 'tools/call', ['name' => 'search', 'arguments' => ['query' => 'Launch']], 3)));
     $structured = (array)($search['result']['structuredContent'] ?? []);

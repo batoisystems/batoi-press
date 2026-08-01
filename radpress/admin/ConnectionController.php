@@ -19,6 +19,8 @@ final class ConnectionController
     private const ISSUABLE_SCOPES = [
         'site:read' => 'Read site identity, configuration, and navigation.',
         'content:read' => 'Read and search pages and posts, including drafts.',
+        'content:write' => 'Create and update drafts. Cannot publish content.',
+        'content:publish' => 'Publish content through a separate explicit operation.',
         'media:read' => 'Reserved for the governed media read interface.',
         'audit:read' => 'Reserved for a future bounded audit reporting interface.',
     ];
@@ -54,7 +56,7 @@ final class ConnectionController
             . AdminLayout::statCard('Active tokens', (string)$active, 'Credentials currently accepted by machine interfaces.')
             . AdminLayout::statCard('Revoked or expired', (string)(count($tokens) - $active), 'Credentials retained as safe metadata for governance.')
             . AdminLayout::statCard('OAuth provider', $this->oauthConfigured() ? 'Configured' : 'Not configured', $this->oauthConfigured() ? 'Remote connector discovery is available.' : 'Personal tokens are available for controlled clients.')
-            . AdminLayout::statCard('Write tools', 'Disabled', 'Draft writes and publishing are not exposed yet.')
+            . AdminLayout::statCard('Write tools', 'Governed', 'Draft writes require revisions; publishing has a separate scope.')
             . '</dl>';
         $body .= '<div class="bp-admin-editor"><div class="bp-editor-main">' . $this->tokenList($tokens) . '</div><aside class="bp-editor-side">' . $this->issueForm() . $this->securityGuide() . '</aside></div>';
         return Response::html($this->layout('Connections', $body), $status)->withHeader('Cache-Control', 'private, no-store');
@@ -159,7 +161,7 @@ final class ConnectionController
 
     private function securityGuide(): string
     {
-        return '<section class="bp-editor-panel"><header><h2>Connection policy</h2><p>Keep external access narrow and attributable.</p></header><ul class="bp-admin-checklist"><li>' . AdminLayout::icon('shield') . '<span>Use HTTPS and one token per client or automation.</span></li><li>' . AdminLayout::icon('shield') . '<span>Grant only scopes needed for the current workflow.</span></li><li>' . AdminLayout::icon('shield') . '<span>Revoke tokens immediately when a device, client, or operator changes.</span></li><li>' . AdminLayout::icon('shield') . '<span>OAuth and write tools remain disabled until their security gates are complete.</span></li></ul></section>';
+        return '<section class="bp-editor-panel"><header><h2>Connection policy</h2><p>Keep external access narrow and attributable.</p></header><ul class="bp-admin-checklist"><li>' . AdminLayout::icon('shield') . '<span>Use HTTPS and one token per client or automation.</span></li><li>' . AdminLayout::icon('shield') . '<span>Grant <code>content:write</code> for drafts without granting publication.</span></li><li>' . AdminLayout::icon('shield') . '<span>Grant <code>content:publish</code> only to clients approved to make content public.</span></li><li>' . AdminLayout::icon('shield') . '<span>Revoke tokens immediately when a device, client, or operator changes.</span></li></ul></section>';
     }
 
     private function oauthConfigured(): bool

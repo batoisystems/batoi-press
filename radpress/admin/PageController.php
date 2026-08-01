@@ -3,7 +3,11 @@ declare(strict_types=1);
 
 namespace Batoi\Press\Admin;
 
+use Batoi\Press\Application\ContentMutationService;
+use Batoi\Press\Application\ContentRevision;
+use Batoi\Press\Application\IdempotencyStore;
 use Batoi\Press\Content\PageRepository;
+use Batoi\Press\Content\PostRepository;
 use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\Config;
 use Batoi\Press\Core\HtmlContent;
@@ -19,6 +23,7 @@ final class PageController
     public function __construct(
         private readonly Config $config,
         private readonly PageRepository $pages,
+        private readonly PostRepository $posts,
         private readonly Csrf $csrf,
         private readonly AuditLog $audit,
         private readonly array $user
@@ -102,12 +107,16 @@ final class PageController
                 }
                 $input['body'] = (new HtmlContent())->replaceEditableText($sourceBody, $replacements);
             }
-            $meta = $this->pages->save($input, (string)($this->user['username'] ?? 'admin'));
+            (new ContentMutationService($this->config, $this->pages, $this->posts, $this->audit, new IdempotencyStore($this->config->paths())))->saveFromAdmin(
+                'page',
+                $input,
+                $request->input('expected_revision'),
+                (string)($this->user['username'] ?? 'admin'),
+                'admin_' . bin2hex(random_bytes(8))
+            );
         } catch (RuntimeException $exception) {
             return Response::html($this->layout('Pages', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>' . AdminLayout::buttonLink('Back to pages', '/admin/pages', 'back', true) . '</p>'), 409);
         }
-        $this->audit->record((string)($this->user['username'] ?? 'admin'), 'page.updated', (string)$meta['slug'], (string)($_SERVER['REMOTE_ADDR'] ?? ''));
-
         return Response::redirect('/admin/pages');
     }
 
@@ -132,6 +141,7 @@ final class PageController
         $body .= '<form method="post" action="/admin/pages/save" class="bp-form bp-admin-editor" novalidate>';
         $body .= $this->csrf->field();
         $body .= '<input type="hidden" name="original_slug" value="' . $this->e($slug) . '">';
+        $body .= '<input type="hidden" name="expected_revision" value="' . $this->e($page === null ? '' : ContentRevision::for($page)) . '">';
 
         $bodyValue = (string)($page['body'] ?? '');
         $htmlContent = new HtmlContent();
