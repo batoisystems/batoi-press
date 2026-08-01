@@ -1,8 +1,50 @@
 {
+  "schema_version": 2,
+  "id": "menu_main",
+  "name": "Primary navigation",
+  "location": "primary",
+  "revision": 1,
+  "updated_at": "",
+  "updated_by": "system",
   "items": [
-    {"label": "Home", "url": "/"},
-    {"label": "About", "url": "/about"},
-    {"label": "Blog", "url": "/blog"}
+    {
+      "id": "mi_primary_home",
+      "type": "page",
+      "label": "Home",
+      "url": "/",
+      "parent_id": null,
+      "parent": "",
+      "presentation": "link",
+      "description": "",
+      "column": 1,
+      "target": "_self",
+      "enabled": true
+    },
+    {
+      "id": "mi_primary_about",
+      "type": "page",
+      "label": "About",
+      "url": "/about",
+      "parent_id": null,
+      "parent": "",
+      "presentation": "link",
+      "description": "",
+      "column": 1,
+      "target": "_self",
+      "enabled": true
+    },
+    {
+      "id": "mi_primary_blog",
+      "type": "archive",
+      "label": "Blog",
+      "url": "/blog",
+      "parent_id": null,
+      "parent": "",
+      "presentation": "link",
+      "description": "",
+      "column": 1,
+      "target": "_self",
+      "enabled": true
+    }
   ]
 }
-

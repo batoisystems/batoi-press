@@ -105,6 +105,224 @@ function insertEditorSnippet(host, kind) {
     surface.focus();
 }
 
+function enhanceMenuBuilder() {
+    document.querySelectorAll('[data-bp-menu-builder]').forEach((builder) => {
+        const list = builder.querySelector('[data-bp-menu-list]');
+        const template = builder.querySelector('[data-bp-menu-template]');
+        const preview = builder.querySelector('[data-bp-menu-preview]');
+        const empty = builder.querySelector('[data-bp-menu-empty]');
+        if (!(list instanceof HTMLElement) || !(template instanceof HTMLTemplateElement)) {
+            return;
+        }
+
+        const rows = () => Array.from(list.querySelectorAll('[data-bp-menu-item]'));
+        const rowId = (row) => row.getAttribute('data-item-id') || '';
+        const rowLabel = (row) => row.querySelector('[data-bp-menu-label]')?.value.trim() || 'Untitled item';
+        const rowType = (row) => row.querySelector('[data-bp-menu-type]')?.value || 'link';
+        const rowParent = (row) => row.querySelector('[data-bp-menu-parent]')?.value || '';
+
+        const makeId = () => {
+            const random = window.crypto?.randomUUID?.().replaceAll('-', '').slice(0, 16)
+                || `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`;
+            return `mi_${random}`;
+        };
+
+        const updateParentOptions = () => {
+            const currentRows = rows();
+            currentRows.forEach((row) => {
+                const select = row.querySelector('[data-bp-menu-parent]');
+                if (!(select instanceof HTMLSelectElement)) return;
+                const selected = select.value;
+                const id = rowId(row);
+                select.replaceChildren(new Option('Top level', ''));
+                currentRows.forEach((candidate) => {
+                    if (candidate === row || rowType(candidate) === 'separator') return;
+                    select.add(new Option(rowLabel(candidate), rowId(candidate)));
+                });
+                if (selected !== id && Array.from(select.options).some((option) => option.value === selected)) {
+                    select.value = selected;
+                }
+            });
+        };
+
+        const depthFor = (row, currentRows) => {
+            const byId = new Map(currentRows.map((candidate) => [rowId(candidate), candidate]));
+            const seen = new Set([rowId(row)]);
+            let parent = rowParent(row);
+            let depth = 0;
+            while (parent && byId.has(parent) && !seen.has(parent) && depth < 3) {
+                seen.add(parent);
+                depth += 1;
+                parent = rowParent(byId.get(parent));
+            }
+            return depth;
+        };
+
+        const updateRow = (row, currentRows) => {
+            const label = rowLabel(row);
+            const type = rowType(row);
+            const url = row.querySelector('[data-bp-menu-url]');
+            row.querySelector('[data-bp-menu-summary-label]').textContent = label || 'New menu item';
+            row.querySelector('[data-bp-menu-summary-type]').textContent = type.charAt(0).toUpperCase() + type.slice(1);
+            row.querySelector('[data-bp-menu-summary-url]').textContent = url?.value.trim() || '';
+            row.style.setProperty('--bp-menu-depth', String(depthFor(row, currentRows)));
+
+            const hasDestination = !['heading', 'separator'].includes(type);
+            if (url instanceof HTMLInputElement) {
+                url.disabled = !hasDestination;
+                url.required = hasDestination;
+            }
+            const labelInput = row.querySelector('[data-bp-menu-label]');
+            if (labelInput instanceof HTMLInputElement) {
+                labelInput.required = type !== 'separator';
+            }
+            row.classList.toggle('is-disabled', !(row.querySelector('[data-bp-menu-enabled]')?.checked ?? true));
+        };
+
+        const buildPreview = () => {
+            if (!(preview instanceof HTMLElement)) return;
+            const currentRows = rows();
+            const children = new Map();
+            currentRows.forEach((row) => {
+                const parent = rowParent(row);
+                if (!children.has(parent)) children.set(parent, []);
+                children.get(parent).push(row);
+            });
+
+            const renderLevel = (parent, trail = new Set()) => {
+                const levelRows = children.get(parent) || [];
+                if (!levelRows.length) return null;
+                const listNode = document.createElement('ol');
+                levelRows.forEach((row) => {
+                    const id = rowId(row);
+                    if (trail.has(id)) return;
+                    const item = document.createElement('li');
+                    if (!(row.querySelector('[data-bp-menu-enabled]')?.checked ?? true)) item.classList.add('is-disabled');
+                    const summary = document.createElement('span');
+                    const strong = document.createElement('strong');
+                    strong.textContent = rowLabel(row);
+                    const small = document.createElement('small');
+                    const presentation = row.querySelector('[data-bp-menu-presentation]')?.value || 'link';
+                    const column = row.querySelector('[data-bp-menu-column]')?.value || '1';
+                    small.textContent = `${rowType(row)}${presentation !== 'link' ? ` · ${presentation}` : ''}${presentation === 'mega' ? ` · column ${column}` : ''}`;
+                    summary.append(strong, small);
+                    item.append(summary);
+                    const nextTrail = new Set(trail);
+                    nextTrail.add(id);
+                    const childList = renderLevel(id, nextTrail);
+                    if (childList) item.append(childList);
+                    listNode.append(item);
+                });
+                return listNode;
+            };
+
+            preview.replaceChildren(renderLevel('') || Object.assign(document.createElement('p'), { textContent: 'No menu items configured.' }));
+        };
+
+        const refresh = () => {
+            updateParentOptions();
+            const currentRows = rows();
+            currentRows.forEach((row) => updateRow(row, currentRows));
+            empty?.classList.toggle('is-visible', currentRows.length === 0);
+            buildPreview();
+        };
+
+        const addItem = (values = {}) => {
+            if (rows().length >= 100) return;
+            const id = makeId();
+            const fragment = template.content.cloneNode(true);
+            fragment.querySelectorAll('[name], [data-item-id]').forEach((element) => {
+                if (element.hasAttribute('name')) element.setAttribute('name', element.getAttribute('name').replaceAll('__ID__', id));
+                if (element.hasAttribute('data-item-id')) element.setAttribute('data-item-id', id);
+            });
+            fragment.querySelector('input[name="item_order[]"]')?.setAttribute('value', id);
+            const idInput = fragment.querySelector(`input[name="menu_items[${id}][id]"]`);
+            if (idInput) idInput.value = id;
+            const row = fragment.querySelector('[data-bp-menu-item]');
+            if (!row) return;
+            row.querySelector('[data-bp-menu-label]').value = values.label || '';
+            row.querySelector('[data-bp-menu-url]').value = values.url || '';
+            row.querySelector('[data-bp-menu-type]').value = values.type || 'link';
+            list.append(fragment);
+            refresh();
+            row.querySelector('[data-bp-menu-label]')?.focus();
+        };
+
+        builder.addEventListener('click', (event) => {
+            const add = event.target.closest('[data-bp-add-menu-item]');
+            if (add) {
+                addItem();
+                return;
+            }
+            const library = event.target.closest('[data-bp-add-menu-library]');
+            if (library) {
+                addItem({
+                    label: library.getAttribute('data-label') || '',
+                    url: library.getAttribute('data-url') || '',
+                    type: library.getAttribute('data-type') || 'link',
+                });
+                return;
+            }
+            const action = event.target.closest('[data-bp-menu-action], [data-bp-move]');
+            const row = action?.closest('[data-bp-menu-item]');
+            if (!action || !row) return;
+            const kind = action.getAttribute('data-bp-menu-action') || action.getAttribute('data-bp-move');
+            if (kind === 'remove') {
+                if (window.confirm(`Remove “${rowLabel(row)}” from this menu?`)) {
+                    const removedId = rowId(row);
+                    rows().forEach((candidate) => {
+                        const parent = candidate.querySelector('[data-bp-menu-parent]');
+                        if (parent?.value === removedId) parent.value = rowParent(row);
+                    });
+                    row.remove();
+                }
+            } else if (kind === 'indent') {
+                const previous = row.previousElementSibling;
+                if (previous?.matches('[data-bp-menu-item]')) row.querySelector('[data-bp-menu-parent]').value = rowId(previous);
+            } else if (kind === 'outdent') {
+                const parentId = rowParent(row);
+                const parent = rows().find((candidate) => rowId(candidate) === parentId);
+                row.querySelector('[data-bp-menu-parent]').value = parent ? rowParent(parent) : '';
+            } else {
+                const sibling = kind === 'up' ? row.previousElementSibling : row.nextElementSibling;
+                if (sibling) {
+                    if (kind === 'up') list.insertBefore(row, sibling);
+                    else list.insertBefore(sibling, row);
+                }
+            }
+            refresh();
+            action.focus();
+        });
+
+        builder.addEventListener('input', refresh);
+        builder.addEventListener('change', refresh);
+
+        let dragged = null;
+        list.addEventListener('dragstart', (event) => {
+            const row = event.target.closest('[data-bp-menu-item]');
+            if (!row) return;
+            dragged = row;
+            row.classList.add('is-dragging');
+            event.dataTransfer.effectAllowed = 'move';
+        });
+        list.addEventListener('dragover', (event) => {
+            if (!dragged) return;
+            event.preventDefault();
+            const target = event.target.closest('[data-bp-menu-item]');
+            if (!target || target === dragged) return;
+            const box = target.getBoundingClientRect();
+            list.insertBefore(dragged, event.clientY < box.top + box.height / 2 ? target : target.nextElementSibling);
+        });
+        list.addEventListener('dragend', () => {
+            dragged?.classList.remove('is-dragging');
+            dragged = null;
+            refresh();
+        });
+
+        refresh();
+    });
+}
+
 function enhanceContentEditors() {
     document.querySelectorAll('[data-bp-content-editor]').forEach((host) => {
         if (host.dataset.bpEditorEnhanced === 'true') {
@@ -327,6 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    enhanceMenuBuilder();
     enhanceContentEditors();
     window.requestAnimationFrame(enhanceContentEditors);
     enhancePublicCodeBlocks();

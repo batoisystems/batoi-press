@@ -87,6 +87,16 @@ For Batoi Press public pages:
 - Use `bp_is_current_url($url)` to add an `is-active` class and
   `aria-current="page"` to the current menu link. It also treats a parent route
   as active on nested child routes and accounts for subdirectory installations.
+- Read navigation through `Batoi\\Press\\Content\\MenuRepository`. Schema 2 menu
+  documents use stable `mi_*` item IDs and `parent_id` relationships; themes
+  must not infer hierarchy from URLs. Respect `enabled`, `type`, `presentation`,
+  `column`, `target`, and `description`, and bound recursive rendering to
+  `MenuRepository::MAX_DEPTH`.
+- Keep a parent destination and its submenu disclosure as separate controls.
+  Dropdown and mega-menu panels must work by click, keyboard, and touch, expose
+  `aria-expanded`/`aria-controls`, close with Escape, and remain usable without
+  hover. Heading and separator items are non-links; headings that own children
+  still require an operable disclosure on narrow screens.
 - Use the Contact Layout editor for theme-owned contact form handling. Keep
   validation, CSRF protection, rate limiting, and output escaping in place; do
   not place credentials in theme source. If a custom theme declares a Contact
