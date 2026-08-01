@@ -11,7 +11,7 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 - Default theme.
 - Public routes for `/`, `/about`, `/blog`, `/blog/first-blog-post`, `/sitemap.xml`, and `/feed.xml`.
 - Business-ready authenticated admin console at `/admin`.
-- Content workflows for pages, posts, media, menus, settings, users, cache, static export, updates, audit log, and Batoi AIF status.
+- Content workflows for pages, posts, media, menus, settings, users, machine connections, cache, static export, updates, audit log, and Batoi AIF status.
 - Searchable admin lists for pages, posts, media, users, and audit review.
 - Browser installer at `/install.php`; after installation it creates `radpress/config/installed.lock`.
 - Cache clear, static export, and update-check admin surfaces.

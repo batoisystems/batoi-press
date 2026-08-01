@@ -2526,6 +2526,65 @@ p {
     font-weight: 600;
 }
 
+.bp-connection-secret {
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+    margin-bottom: 18px;
+}
+
+.bp-connection-secret input {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.bp-check-stack {
+    display: grid;
+    gap: 8px;
+}
+
+.bp-form .bp-check-option {
+    align-items: start;
+    background: var(--bp-panel-soft);
+    border: 1px solid var(--bp-line);
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 9px;
+}
+
+.bp-check-option input {
+    margin-top: 3px;
+    width: auto;
+}
+
+.bp-check-option span,
+.bp-check-option small {
+    display: grid;
+    gap: 2px;
+}
+
+.bp-check-option small {
+    color: var(--bp-muted);
+    font-weight: 400;
+    line-height: 1.35;
+}
+
+.bp-token-scopes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.bp-token-scopes .bp-status-badge {
+    background: var(--bp-panel-soft);
+    color: var(--bp-muted);
+    padding: 5px 7px;
+}
+
+.bp-details .bp-compact-form {
+    display: grid;
+    gap: 8px;
+    min-width: 210px;
+    padding-top: 10px;
+}
+
 .bp-form label {
     display: grid;
     gap: 6px;

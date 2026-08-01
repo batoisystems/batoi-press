@@ -10,11 +10,14 @@ final class AdminAccess
     public static function canAccess(array $user, string $path, string $method = 'GET'): bool
     {
         $role = self::role($user);
+        $path = self::normalizePath($path);
+        if ($path === '/admin/connections' || str_starts_with($path, '/admin/connections/')) {
+            return $role === 'owner';
+        }
         if (in_array($role, ['owner', 'admin'], true)) {
             return true;
         }
 
-        $path = self::normalizePath($path);
         if ($path === '/admin' || $path === '/admin/logout') {
             return true;
         }

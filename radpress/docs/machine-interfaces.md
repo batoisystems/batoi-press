@@ -28,6 +28,10 @@ Personal access tokens are the initial operator/development credential. Remote
 end-user connections from ChatGPT or Claude require the OAuth authorization
 layer described in the 2.0 implementation plan; do not weaken authentication
 or put a token in a public connector URL while that layer is being deployed.
+Owners issue and revoke these credentials under **Admin → Connections**. The
+console requires current-password reauthentication, enforces an expiry, limits
+issuance to read scopes available in the current rollout, shows the secret once,
+disables response caching, and retains only safe token metadata afterward.
 
 ## JSON API
 

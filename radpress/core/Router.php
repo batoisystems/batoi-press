@@ -9,6 +9,7 @@ use Batoi\Press\Admin\AifController;
 use Batoi\Press\Admin\AuditController;
 use Batoi\Press\Admin\AuthController;
 use Batoi\Press\Admin\CacheController;
+use Batoi\Press\Admin\ConnectionController;
 use Batoi\Press\Admin\ExportController;
 use Batoi\Press\Admin\MediaController;
 use Batoi\Press\Admin\MenuController;
@@ -28,6 +29,7 @@ use Batoi\Press\Core\StaticExporter;
 use Batoi\Press\Mcp\McpController;
 use Batoi\Press\Security\Auth;
 use Batoi\Press\Security\AdminAccess;
+use Batoi\Press\Security\AccessTokenRepository;
 use Batoi\Press\Security\Csrf;
 use Batoi\Press\Security\RateLimiter;
 use Batoi\Press\Security\Session;
@@ -292,6 +294,18 @@ final class Router
 
         if ($request->path === '/admin/users') {
             return (new UserController($this->config, $files, $csrf, $audit, $user))->index();
+        }
+
+        if ($request->path === '/admin/connections') {
+            return (new ConnectionController($this->config, new AccessTokenRepository($this->config->paths(), $files), $csrf, $audit, $user))->index();
+        }
+
+        if ($request->path === '/admin/connections/issue' && $request->method === 'POST') {
+            return (new ConnectionController($this->config, new AccessTokenRepository($this->config->paths(), $files), $csrf, $audit, $user))->issue($request);
+        }
+
+        if ($request->path === '/admin/connections/revoke' && $request->method === 'POST') {
+            return (new ConnectionController($this->config, new AccessTokenRepository($this->config->paths(), $files), $csrf, $audit, $user))->revoke($request);
         }
 
         if ($request->path === '/admin/users/new') {
