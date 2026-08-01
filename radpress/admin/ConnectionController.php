@@ -53,7 +53,7 @@ final class ConnectionController
         $body .= '<dl class="bp-admin-stats bp-admin-stats-compact">'
             . AdminLayout::statCard('Active tokens', (string)$active, 'Credentials currently accepted by machine interfaces.')
             . AdminLayout::statCard('Revoked or expired', (string)(count($tokens) - $active), 'Credentials retained as safe metadata for governance.')
-            . AdminLayout::statCard('Available scopes', (string)count(self::ISSUABLE_SCOPES), 'Read scopes available in this rollout stage.')
+            . AdminLayout::statCard('OAuth provider', $this->oauthConfigured() ? 'Configured' : 'Not configured', $this->oauthConfigured() ? 'Remote connector discovery is available.' : 'Personal tokens are available for controlled clients.')
             . AdminLayout::statCard('Write tools', 'Disabled', 'Draft writes and publishing are not exposed yet.')
             . '</dl>';
         $body .= '<div class="bp-admin-editor"><div class="bp-editor-main">' . $this->tokenList($tokens) . '</div><aside class="bp-editor-side">' . $this->issueForm() . $this->securityGuide() . '</aside></div>';
@@ -160,6 +160,14 @@ final class ConnectionController
     private function securityGuide(): string
     {
         return '<section class="bp-editor-panel"><header><h2>Connection policy</h2><p>Keep external access narrow and attributable.</p></header><ul class="bp-admin-checklist"><li>' . AdminLayout::icon('shield') . '<span>Use HTTPS and one token per client or automation.</span></li><li>' . AdminLayout::icon('shield') . '<span>Grant only scopes needed for the current workflow.</span></li><li>' . AdminLayout::icon('shield') . '<span>Revoke tokens immediately when a device, client, or operator changes.</span></li><li>' . AdminLayout::icon('shield') . '<span>OAuth and write tools remain disabled until their security gates are complete.</span></li></ul></section>';
+    }
+
+    private function oauthConfigured(): bool
+    {
+        $oauth = is_array($this->config->security()['oauth'] ?? null) ? $this->config->security()['oauth'] : [];
+        return ($oauth['enabled'] ?? false) === true
+            && trim((string)($oauth['issuer'] ?? '')) !== ''
+            && (is_array($oauth['jwks'] ?? null) || trim((string)($oauth['jwks_uri'] ?? '')) !== '');
     }
 
     private function reauthenticate(Request $request): string

@@ -25,13 +25,45 @@ model access belongs to the integrated Batoi AIF feature.
   client requires them.
 
 Personal access tokens are the initial operator/development credential. Remote
-end-user connections from ChatGPT or Claude require the OAuth authorization
-layer described in the 2.0 implementation plan; do not weaken authentication
-or put a token in a public connector URL while that layer is being deployed.
+end-user connections from ChatGPT or Claude use an established external OAuth
+2.1 authorization server; do not weaken authentication or put a token in a
+public connector URL while that provider is being configured.
 Owners issue and revoke these credentials under **Admin → Connections**. The
 console requires current-password reauthentication, enforces an expiry, limits
 issuance to read scopes available in the current rollout, shows the secret once,
 disables response caching, and retains only safe token metadata afterward.
+
+## OAuth resource-server configuration
+
+Press deliberately does not implement an authorization server from scratch.
+Configure an established provider under `security.oauth`; that provider owns
+login, consent, Authorization Code + PKCE, client identification/registration,
+refresh tokens, and revocation. Press remains the resource server and performs
+full access-token validation on every request.
+
+```json
+{
+  "oauth": {
+    "enabled": true,
+    "issuer": "https://identity.example.com",
+    "resource": "https://press.example.com/mcp",
+    "authorization_servers": ["https://identity.example.com"],
+    "jwks_uri": "https://identity.example.com/.well-known/jwks.json",
+    "allowed_jwks_hosts": ["identity.example.com"],
+    "scopes_supported": ["site:read", "content:read"]
+  }
+}
+```
+
+When enabled, Press publishes
+`/.well-known/oauth-protected-resource` (and the `/mcp` path variant), adds its
+URL to bearer challenges, and declares per-tool OAuth schemes. JWT verification
+checks the signing key, issuer, exact MCP audience/resource, validity window,
+and allowlisted scopes. JWKS downloads require HTTPS, are size/time bounded,
+are host-pinned to the issuer or an explicit allowlist, and use a short cache
+with a bounded stale fallback. The bundled verifier is locked in
+`radpress/composer.lock`; run `composer audit --working-dir=radpress --no-dev`
+as part of security review.
 
 ## JSON API
 

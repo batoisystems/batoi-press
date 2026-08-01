@@ -218,7 +218,7 @@ final class McpController
 
     private function tool(string $name, string $description, array $inputSchema, array $outputSchema): array
     {
-        return [
+        $tool = [
             'name' => $name,
             'title' => ucwords(str_replace('_', ' ', $name)),
             'description' => $description,
@@ -226,6 +226,12 @@ final class McpController
             'outputSchema' => $outputSchema,
             'annotations' => ['readOnlyHint' => true, 'destructiveHint' => false, 'idempotentHint' => true, 'openWorldHint' => false],
         ];
+        $oauth = is_array($this->config->security()['oauth'] ?? null) ? $this->config->security()['oauth'] : [];
+        if (($oauth['enabled'] ?? false) === true) {
+            $scope = in_array($name, ['search', 'fetch', 'page_list', 'page_get', 'post_list', 'post_get'], true) ? 'content:read' : 'site:read';
+            $tool['securitySchemes'] = [['type' => 'oauth2', 'scopes' => [$scope]]];
+        }
+        return $tool;
     }
 
     private function identifierSchema(string $field): array

@@ -31,13 +31,16 @@ final class MachineAuthenticator
         $authorization = $request->header('Authorization');
         if (preg_match('/^Bearer\s+([^\s]+)$/Di', $authorization, $matches) !== 1) {
             $failureLimiter->hit($failureKey);
-            throw $this->unauthorized('A bearer access token is required.');
+            throw $this->unauthorized('A bearer access token is required.', $requiredScopes);
         }
 
         $access = $this->tokens->authenticate($matches[1]);
         if ($access === null) {
+            $access = (new OAuthTokenVerifier($this->config->paths(), $this->oauthConfiguration()))->verify($matches[1]);
+        }
+        if ($access === null) {
             $failureLimiter->hit($failureKey);
-            throw $this->unauthorized('The bearer access token is invalid, expired, or revoked.');
+            throw $this->unauthorized('The bearer access token is invalid, expired, revoked, or intended for another resource.', $requiredScopes);
         }
         $failureLimiter->clear($failureKey);
 
@@ -51,7 +54,7 @@ final class MachineAuthenticator
         $granted = is_array($access['scopes'] ?? null) ? $access['scopes'] : [];
         if (array_diff($requiredScopes, $granted) !== []) {
             throw new MachineAccessException('The access token does not grant the required scope.', 403, 'insufficient_scope', [
-                'WWW-Authenticate' => 'Bearer error="insufficient_scope", scope="' . implode(' ', $requiredScopes) . '"',
+                'WWW-Authenticate' => $this->challenge('insufficient_scope', $requiredScopes),
             ]);
         }
         return $access;
@@ -78,10 +81,35 @@ final class MachineAuthenticator
         }
     }
 
-    private function unauthorized(string $message): MachineAccessException
+    private function unauthorized(string $message, array $scopes = []): MachineAccessException
     {
         return new MachineAccessException($message, 401, 'unauthorized', [
-            'WWW-Authenticate' => 'Bearer realm="Batoi Press", error="invalid_token"',
+            'WWW-Authenticate' => $this->challenge('invalid_token', $scopes),
         ]);
+    }
+
+    private function challenge(string $error, array $scopes): string
+    {
+        $parts = ['Bearer realm="Batoi Press"', 'error="' . $error . '"'];
+        $oauth = $this->oauthConfiguration();
+        if (($oauth['enabled'] ?? false) === true) {
+            $base = rtrim((string)($this->config->site()['base_url'] ?? ''), '/');
+            if ($base !== '') {
+                $parts[] = 'resource_metadata="' . $base . '/.well-known/oauth-protected-resource"';
+            }
+        }
+        if ($scopes !== []) {
+            $parts[] = 'scope="' . implode(' ', $scopes) . '"';
+        }
+        return implode(', ', $parts);
+    }
+
+    private function oauthConfiguration(): array
+    {
+        $oauth = is_array($this->config->security()['oauth'] ?? null) ? $this->config->security()['oauth'] : [];
+        if (!isset($oauth['resource']) || trim((string)$oauth['resource']) === '') {
+            $oauth['resource'] = rtrim((string)($this->config->site()['base_url'] ?? ''), '/') . '/mcp';
+        }
+        return $oauth;
     }
 }

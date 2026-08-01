@@ -21,6 +21,7 @@ use Batoi\Press\Admin\UpdateController;
 use Batoi\Press\Admin\UserController;
 use Batoi\Press\Admin\WidgetController;
 use Batoi\Press\Api\ApiController;
+use Batoi\Press\Api\OAuthMetadataController;
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
 use Batoi\Press\Core\AuditLog;
@@ -46,6 +47,10 @@ final class Router
 
     public function dispatch(Request $request): Response
     {
+        if ($request->path === '/.well-known/oauth-protected-resource' || $request->path === '/.well-known/oauth-protected-resource/mcp') {
+            return (new OAuthMetadataController($this->config))->handle($request);
+        }
+
         if ($request->path === '/api/v2' || str_starts_with($request->path, '/api/v2/')) {
             return (new ApiController($this->config, $this->pages, $this->posts))->handle($request);
         }

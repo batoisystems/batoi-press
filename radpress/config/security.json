@@ -2,6 +2,16 @@
   "html_allowlist": "default",
   "session_name": "batoi_press_session",
   "installer_lock": "radpress/config/installed.lock",
+  "machine_allowed_origins": [],
+  "oauth": {
+    "enabled": false,
+    "issuer": "",
+    "resource": "",
+    "authorization_servers": [],
+    "jwks_uri": "",
+    "allowed_jwks_hosts": [],
+    "scopes_supported": ["site:read", "content:read"]
+  },
   "uploads": {
     "max_bytes": 26214400,
     "library_max_bytes": 26214400,

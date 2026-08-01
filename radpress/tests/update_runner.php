@@ -102,7 +102,9 @@ function createFixture(string $root): void
     foreach ([
         'public_html',
         'radpress/admin',
+        'radpress/api',
         'radpress/app',
+        'radpress/application',
         'radpress/config',
         'radpress/content',
         'radpress/core',
@@ -114,9 +116,11 @@ function createFixture(string $root): void
         'radpress/data/tmp',
         'radpress/data/versions',
         'radpress/helpers',
+        'radpress/mcp',
         'radpress/security',
         'radpress/theme/default',
         'radpress/updates',
+        'radpress/vendor',
     ] as $dir) {
         mkdir($root . '/' . $dir, 0775, true);
     }
@@ -126,6 +130,8 @@ function createFixture(string $root): void
     file_put_contents($root . '/public_html/index.php', '<?php echo "ok";');
     file_put_contents($root . '/public_html/admin.php', '<?php echo "admin";');
     file_put_contents($root . '/radpress/autoload.php', '<?php');
+    file_put_contents($root . '/radpress/composer.json', '{}');
+    file_put_contents($root . '/radpress/composer.lock', '{}');
     file_put_contents($root . '/radpress/config/paths.json', json_encode(['public_root' => 'public_html'], JSON_PRETTY_PRINT));
     file_put_contents($root . '/radpress/config/site.json', json_encode(['site_name' => 'Test'], JSON_PRETTY_PRINT));
     file_put_contents($root . '/radpress/config/security.json', json_encode(['session_name' => 'test'], JSON_PRETTY_PRINT));
