@@ -57,6 +57,7 @@ From `1.0.0` onward, public content files, theme templates, installer behavior, 
 - `1.6.0`–`1.6.1`: Theme integration, static-export, theme-editor, and featured-image accessibility improvements. See the corresponding files under `radpress/docs/releases/`.
 - `1.7.0`: Hierarchical content, improved authoring for LaTeX and code, protected special-page copy editing, responsive nested navigation, and desktop update ZIP support. See `radpress/docs/releases/v1.7.0.md`.
 - `1.8.0`: Testing-team follow-up for resilient update checks, actionable ZIP diagnostics, configurable latest homepage posts, creatable Contact layouts, and corrected full-width mobile navigation. See `radpress/docs/releases/v1.8.0.md`.
+- `2.0.0`: Governed JSON API/MCP automation, integrated Batoi AIF, professional multi-location navigation, editorial scheduling, MFA/session hardening, OAuth resource verification, and signed releases. See `radpress/docs/releases/v2.0.0.md`.
 
 ## Package Trust Metadata
 

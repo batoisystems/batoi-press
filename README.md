@@ -11,14 +11,15 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 - Default theme.
 - Public routes for `/`, `/about`, `/blog`, `/blog/first-blog-post`, `/sitemap.xml`, and `/feed.xml`.
 - Business-ready authenticated admin console at `/admin`.
-- Content workflows for pages, posts, media, menus, settings, users, machine connections, cache, static export, updates, audit log, and Batoi AIF status.
+- Governed editorial workflows for pages, posts, media, professional menus, settings, users, machine connections, security, cache, static export, updates, audit log, and integrated Batoi AIF.
 - Searchable admin lists for pages, posts, media, users, and audit review.
 - Browser installer at `/install.php`; after installation it creates `radpress/config/installed.lock`.
 - Cache clear, static export, and update-check admin surfaces.
 - Bundled Batoi UIF primitives for admin and installer UI.
-- Disabled-by-default Batoi AIF scaffolding with admin status at `/admin/aif`.
-- Scoped read-only JSON API at `/api/v2` with filtering, cursor pagination, stable errors, revision ETags, and request correlation.
-- Streamable HTTP MCP endpoint at `/mcp` with read-only tools/resources and citation-ready structured search/fetch results.
+- Integrated, opt-in Batoi AIF authoring assistance with a private offline provider, bounded context, explicit human review, and no publish authority.
+- Scoped JSON API at `/api/v2` with safe reads, revisioned/idempotent page/post draft writes, explicit publishing, filtering, cursor pagination, stable errors, ETags, and request correlation.
+- Streamable HTTP MCP endpoint at `/mcp` with governed reads/writes, citation-ready search/fetch results, personal tokens, and an external-OAuth resource-server boundary.
+- TOTP MFA and recovery, encrypted secrets, session inventory/revocation, security headers, upload signature validation, and signed releases.
 
 ## Requirements
 
@@ -88,11 +89,11 @@ This keeps metadata structured and content human-readable.
 
 ## Stable Contract
 
-Batoi Press `1.0.0` treats content format, public routes, theme template ownership, installer lock behavior, update package structure, and release artifacts as stable.
+Batoi Press 2.0 preserves the stable content, route, theme, installer-lock, and deployment contracts established in 1.0 while adding compatible workflow metadata and signed update trust.
 
 ## Security Notes
 
-Batoi Press uses password hashing, file-backed sessions, CSRF tokens for admin writes, login rate limiting, upload allowlists, generated upload filenames, audit logs, and installer locking through `radpress/config/installed.lock`.
+Batoi Press uses password hashing, TOTP MFA, encrypted secrets, bounded file-backed sessions with inventory/revocation, CSRF tokens, rate limiting, MIME/signature upload validation, browser security headers, audit logs, Ed25519-signed updates, and installer locking through `radpress/config/installed.lock`.
 
 ## Admin Setup
 
@@ -126,7 +127,7 @@ The default stable update manifest is:
 https://www.batoi.com/pub/press/latest.json
 ```
 
-Batoi Press can check the manifest, verify and stage a package, create a backup, apply manifest-listed files in maintenance mode, clear cache, run health checks, roll back automatically after failed checks, and restore manually from a selected backup ZIP.
+Batoi Press can authenticate the Ed25519-signed release index and internal package manifest, verify the ZIP and every installable checksum, stage a package, create a backup, apply manifest-listed files in maintenance mode, clear cache, run health checks, roll back automatically after failed checks, and restore manually from a selected backup ZIP.
 
 ## Release Packages
 
