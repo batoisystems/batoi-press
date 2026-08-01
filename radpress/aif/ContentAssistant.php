@@ -11,16 +11,16 @@ final class ContentAssistant
 
     public function suggestSeoDescription(array $content): array
     {
-        return $this->provider->assist('seo_description', $content);
+        return $this->provider->assist('seo_assist', AifContext::prepare($content));
     }
 
     public function suggestTags(array $content): array
     {
-        return $this->provider->assist('tags', $content);
+        return $this->provider->assist('tags', AifContext::prepare($content));
     }
 
     public function summarize(array $content): array
     {
-        return $this->provider->assist('summary', $content);
+        return $this->provider->assist('summarize', AifContext::prepare($content));
     }
 }

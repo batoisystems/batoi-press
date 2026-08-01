@@ -8,6 +8,7 @@
     "summarize": false,
     "tags": false,
     "translate": false,
-    "alt_text": false
+    "alt_text": false,
+    "content_health": false
   }
 }

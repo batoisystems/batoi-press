@@ -278,16 +278,46 @@ final class AuditLog
     private function safeDetails(array $details): array
     {
         $safe = [];
-        foreach ($details as $key => $value) {
+        foreach (array_slice($details, 0, 50, true) as $key => $value) {
             $key = (string)$key;
-            if (in_array(strtolower($key), ['password', 'csrf_token', 'token'], true)) {
+            if ($this->sensitiveDetailKey($key)) {
                 continue;
             }
-            if (is_scalar($value) || $value === null) {
-                $safe[$key] = substr((string)$value, 0, 500);
+            $normalized = $this->safeDetailValue($value, 0);
+            if ($normalized !== null || $value === null) {
+                $safe[$key] = $normalized;
             }
         }
         return $safe;
+    }
+
+    private function safeDetailValue(mixed $value, int $depth): mixed
+    {
+        if (is_bool($value) || is_int($value) || is_float($value) || $value === null) {
+            return $value;
+        }
+        if (is_string($value)) {
+            return substr($value, 0, 500);
+        }
+        if (!is_array($value) || $depth >= 2) {
+            return null;
+        }
+        $safe = [];
+        foreach (array_slice($value, 0, 50, true) as $key => $item) {
+            if (!is_int($key) && $this->sensitiveDetailKey((string)$key)) {
+                continue;
+            }
+            $normalized = $this->safeDetailValue($item, $depth + 1);
+            if ($normalized !== null || $item === null) {
+                $safe[$key] = $normalized;
+            }
+        }
+        return $safe;
+    }
+
+    private function sensitiveDetailKey(string $key): bool
+    {
+        return in_array(strtolower($key), ['password', 'password_hash', 'secret', 'secret_hash', 'csrf_token', 'token', 'authorization'], true);
     }
 
     private function path(): string

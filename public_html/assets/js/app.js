@@ -457,6 +457,137 @@ function loadMathJaxWhenNeeded() {
     document.head.append(script);
 }
 
+function enhanceAifPanels() {
+    document.querySelectorAll('[data-bp-aif-panel]').forEach((panel) => {
+        if (panel.dataset.bpAifEnhanced === 'true') return;
+        const form = panel.closest('form');
+        const result = panel.querySelector('[data-bp-aif-result]');
+        const endpoint = panel.getAttribute('data-endpoint') || '';
+        if (!(form instanceof HTMLFormElement) || !(result instanceof HTMLElement) || !endpoint) return;
+
+        const fieldValue = (name) => {
+            const field = form.elements.namedItem(name);
+            if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
+                return field.value;
+            }
+            if (name === 'body') {
+                return Array.from(form.querySelectorAll('[name^="body_text["]'))
+                    .map((input) => input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement ? input.value : '')
+                    .filter(Boolean)
+                    .join(' ');
+            }
+            return '';
+        };
+        const setField = (name, value) => {
+            const field = form.elements.namedItem(name);
+            if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return false;
+            field.value = Array.isArray(value) ? value.join(', ') : String(value ?? '');
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+            field.focus();
+            return true;
+        };
+        const renderSuggestions = (suggestions) => {
+            result.replaceChildren();
+            if (typeof suggestions.score === 'number') {
+                const score = document.createElement('strong');
+                score.className = 'bp-aif-score';
+                score.textContent = `Content health ${suggestions.score}/100`;
+                result.append(score);
+            }
+            if (Array.isArray(suggestions.checks)) {
+                const list = document.createElement('ul');
+                list.className = 'bp-aif-checks';
+                suggestions.checks.forEach((check) => {
+                    const item = document.createElement('li');
+                    item.className = check.passed ? 'is-passed' : 'is-warning';
+                    item.textContent = `${check.passed ? 'Pass' : 'Review'}: ${check.guidance || check.id}`;
+                    list.append(item);
+                });
+                result.append(list);
+            }
+            const applyFields = new Set(['seo_title', 'seo_description', 'subtitle', 'tags', 'featured_image_alt']);
+            Object.entries(suggestions).forEach(([name, value]) => {
+                if (['score', 'checks', 'word_count'].includes(name)) return;
+                const card = document.createElement('article');
+                const label = document.createElement('strong');
+                label.textContent = name.replaceAll('_', ' ');
+                const output = document.createElement('p');
+                output.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+                card.append(label, output);
+                if (applyFields.has(name) && form.elements.namedItem(name)) {
+                    const apply = document.createElement('button');
+                    apply.type = 'button';
+                    apply.className = 'bp-button bp-button-secondary';
+                    apply.textContent = `Apply ${name.replaceAll('_', ' ')}`;
+                    apply.addEventListener('click', () => {
+                        if (setField(name, value)) apply.textContent = 'Applied — review before saving';
+                    });
+                    card.append(apply);
+                } else {
+                    const copy = document.createElement('button');
+                    copy.type = 'button';
+                    copy.className = 'bp-button bp-button-secondary';
+                    copy.textContent = 'Copy suggestion';
+                    copy.addEventListener('click', async () => {
+                        await copyText(output.textContent || '');
+                        copy.textContent = 'Copied';
+                    });
+                    card.append(copy);
+                }
+                result.append(card);
+            });
+        };
+
+        panel.addEventListener('click', async (event) => {
+            const button = event.target.closest('[data-bp-aif-task]');
+            if (!(button instanceof HTMLButtonElement)) return;
+            const task = button.getAttribute('data-bp-aif-task') || '';
+            const csrf = fieldValue('csrf_token');
+            const body = new URLSearchParams({
+                format: 'json',
+                csrf_token: csrf,
+                task,
+                content_type: panel.getAttribute('data-content-type') || '',
+                title: fieldValue('title'),
+                body: fieldValue('body'),
+                seo_title: fieldValue('seo_title'),
+                seo_description: fieldValue('seo_description'),
+                subtitle: fieldValue('subtitle'),
+                category: fieldValue('category'),
+                tags: fieldValue('tags'),
+                featured_image: fieldValue('featured_image'),
+                featured_image_alt: fieldValue('featured_image_alt'),
+            });
+            const buttons = Array.from(panel.querySelectorAll('[data-bp-aif-task]'));
+            buttons.forEach((candidate) => { candidate.disabled = true; });
+            button.textContent = 'Working…';
+            result.hidden = false;
+            result.classList.remove('is-error');
+            result.textContent = 'Batoi AIF is preparing a suggestion.';
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+                    body: body.toString(),
+                    credentials: 'same-origin',
+                });
+                const payload = await response.json();
+                if (!response.ok || !payload.ok) throw new Error(payload.error || 'Batoi AIF request failed.');
+                renderSuggestions(payload.suggestions || {});
+                result.focus({ preventScroll: true });
+            } catch (error) {
+                result.classList.add('is-error');
+                result.textContent = error instanceof Error ? error.message : 'Batoi AIF request failed.';
+            } finally {
+                buttons.forEach((candidate) => { candidate.disabled = false; });
+                const labels = { content_health: 'Check content', seo_assist: 'Suggest SEO', summarize: 'Summarize', tags: 'Suggest tags', draft_content: 'Build outline' };
+                button.textContent = labels[task] || 'Run again';
+            }
+        });
+        panel.dataset.bpAifEnhanced = 'true';
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-bp-slug-source]').forEach((source) => {
         const form = source.closest('form');
@@ -548,6 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
     enhanceMenuBuilder();
     enhanceContentEditors();
     window.requestAnimationFrame(enhanceContentEditors);
+    enhanceAifPanels();
     enhancePublicCodeBlocks();
     loadMathJaxWhenNeeded();
     document.addEventListener('keydown', (event) => {

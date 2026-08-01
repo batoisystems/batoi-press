@@ -16,7 +16,10 @@ final class AifManager
 
     public function provider(): AifProvider
     {
-        return new DisabledAifProvider();
+        return match (strtolower(trim((string)($this->config['provider'] ?? 'disabled')))) {
+            'local', 'batoi-local' => new LocalAifProvider(),
+            default => new DisabledAifProvider(),
+        };
     }
 
     public function featureEnabled(string $feature): bool
@@ -35,7 +38,7 @@ final class AifManager
             ];
         }
 
-        return $this->provider()->assist($feature, $context);
+        return $this->provider()->assist($feature, AifContext::prepare($context));
     }
 
     public function status(): array
@@ -48,6 +51,7 @@ final class AifManager
             'available' => $provider->available(),
             'workspace_required' => ($this->config['workspace_required'] ?? false) === true,
             'features' => is_array($this->config['features'] ?? null) ? $this->config['features'] : [],
+            'network_access' => $provider->name() !== 'batoi-local' && $provider->available(),
         ];
     }
 }

@@ -3,12 +3,14 @@ declare(strict_types=1);
 
 namespace Batoi\Press\Admin;
 
+use Batoi\Press\Aif\AifContext;
 use Batoi\Press\Aif\AifManager;
 use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\Config;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
 use Batoi\Press\Security\Csrf;
+use Batoi\Press\Security\RateLimiter;
 
 final class AifController
 {
@@ -29,7 +31,7 @@ final class AifController
 
         $body = AdminLayout::pageHeader(
             'Batoi AIF',
-            'Review AI integration status, trust boundaries, and future assisted publishing capabilities.'
+            'Govern native content intelligence, provider trust boundaries, and assisted-authoring capabilities.'
         );
         $body .= $this->readinessPanel($enabled, $available);
 
@@ -51,16 +53,11 @@ final class AifController
         }
         $body .= '</tbody></table></div></section>';
 
-        $body .= '<section class="bp-admin-section"><header><div><h2>Content assist test actions</h2><p>Use these guarded actions only to verify configured feature behavior. Disabled installations return a clear disabled response and do not call a provider.</p></div></header>';
+        $body .= '<section class="bp-admin-section"><header><div><h2>Editor integration</h2><p>Enabled capabilities appear inside page and post editors, where suggestions can be reviewed and deliberately applied.</p></div></header>';
         if (!$enabled || !$available) {
             $body .= '<p class="bp-notice">Batoi AIF is currently disabled or unavailable. Action buttons are disabled to avoid implying that AI assistance is active.</p>';
         }
-        $body .= '<form method="post" action="/admin/aif/assist" class="bp-admin-nav bp-uif-toolbar">' . $this->csrf->field();
-        foreach ($this->assistTasks() as $task => $label) {
-            $disabled = (!$enabled || !$available || empty($features[$task])) ? ' disabled aria-disabled="true"' : '';
-            $body .= AdminLayout::submitButton($label, 'spark', 'name="task" value="' . $this->e($task) . '"' . $disabled);
-        }
-        $body .= '</form></section>';
+        $body .= '<div class="bp-admin-nav">' . AdminLayout::buttonLink('Open Page Editor', '/admin/pages', 'edit', true) . AdminLayout::buttonLink('Open Post Editor', '/admin/posts', 'edit', true) . '</div></section>';
 
         $body .= AdminLayout::section('Configuration file', '<dl class="bp-meta-list"><div><dt>File</dt><dd><code>radpress/config/aif.json</code></dd></div><div><dt>Provider</dt><dd>' . $this->e((string)($status['provider'] ?? 'disabled')) . '</dd></div><div><dt>Feature count</dt><dd>' . count($features) . '</dd></div></dl><p class="bp-field-help">Provider credentials and remote workspace settings should not be stored in theme templates or public files.</p>', 'Review the configuration source used by this installation.');
 
@@ -69,23 +66,42 @@ final class AifController
 
     public function assist(Request $request): Response
     {
+        $json = $request->input('format') === 'json' || str_contains(strtolower($request->header('Accept')), 'application/json');
+        $requestId = $this->requestId($request);
         if (!$this->csrf->validate($request->input('csrf_token'))) {
             $this->record('aif.assist_failed', 'csrf', $request, 'blocked');
-            return Response::html($this->layout('Batoi AIF', '<p class="bp-error">Security token expired.</p><p><a href="/admin/aif">Back to AIF</a></p>'), 400);
+            return $this->assistResponse(['ok' => false, 'error' => 'Security token expired.', 'request_id' => $requestId], 400, $json);
+        }
+
+        $limiter = new RateLimiter($this->config->paths(), 30, 3600);
+        $limitKey = 'aif-assist:' . (string)($this->user['username'] ?? 'admin') . ':' . (string)($request->server['REMOTE_ADDR'] ?? '');
+        if ($limiter->tooManyAttempts($limitKey)) {
+            $this->record('aif.assist_failed', 'rate-limit', $request, 'blocked');
+            return $this->assistResponse(['ok' => false, 'error' => 'Batoi AIF request limit reached. Try again later.', 'request_id' => $requestId], 429, $json, ['Retry-After' => '3600']);
         }
 
         $task = $request->input('task');
         if (!array_key_exists($task, $this->assistTasks())) {
             $this->record('aif.assist_failed', $task, $request, 'failed');
-            return Response::html($this->layout('Batoi AIF', '<p class="bp-error">Unknown AIF task.</p><p><a href="/admin/aif">Back to AIF</a></p>'), 400);
+            return $this->assistResponse(['ok' => false, 'error' => 'Unknown AIF task.', 'request_id' => $requestId], 400, $json);
         }
 
-        $result = (new AifManager($this->config->aif()))->assist($task, []);
-        $class = ($result['ok'] ?? false) ? 'bp-notice' : 'bp-error';
-        $message = (string)($result['error'] ?? 'AIF request completed.');
-        $this->record(($result['ok'] ?? false) ? 'aif.assist' : 'aif.assist_failed', $task, $request, ($result['ok'] ?? false) ? 'success' : 'failed');
+        $context = [];
+        foreach (['content_type', 'title', 'body', 'seo_title', 'seo_description', 'subtitle', 'category', 'tags', 'featured_image', 'featured_image_alt'] as $field) {
+            $context[$field] = $request->input($field);
+        }
+        $prepared = AifContext::prepare($context);
+        $limiter->hit($limitKey);
+        $result = (new AifManager($this->config->aif()))->assist($task, $context);
+        $result['request_id'] = $requestId;
+        $this->record(($result['ok'] ?? false) ? 'aif.assist' : 'aif.assist_failed', $task, $request, ($result['ok'] ?? false) ? 'success' : 'failed', [
+            'provider' => (string)($result['provider'] ?? $this->config->aif()['provider'] ?? 'disabled'),
+            'context' => AifContext::safeMetadata($prepared),
+            'request_id' => $requestId,
+            'network_used' => ($result['network_used'] ?? false) === true,
+        ]);
 
-        return Response::html($this->layout('Batoi AIF', '<p class="' . $class . '">' . $this->e($message) . '</p><p><a href="/admin/aif">Back to AIF</a></p>'), ($result['ok'] ?? false) ? 200 : 400);
+        return $this->assistResponse($result, ($result['ok'] ?? false) ? 200 : 409, $json);
     }
 
     private function layout(string $title, string $body): string
@@ -105,6 +121,7 @@ final class AifController
             'seo_assist' => 'SEO Description',
             'summarize' => 'Summarize',
             'tags' => 'Suggest Tags',
+            'content_health' => 'Check Content',
         ];
     }
 
@@ -153,15 +170,38 @@ final class AifController
             'tags' => 'Suggest taxonomy terms for posts.',
             'translate' => 'Prepare translation assistance when localization is supported.',
             'alt_text' => 'Suggest accessible image descriptions.',
+            'content_health' => 'Check metadata, structure, length, and image accessibility.',
             default => 'Configured assist capability.',
         };
     }
 
-    private function record(string $action, string $target, Request $request, string $outcome): void
+    private function assistResponse(array $result, int $status, bool $json, array $headers = []): Response
+    {
+        $headers = ['Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff'] + $headers;
+        if ($json) {
+            return Response::json($result, $status, $headers);
+        }
+        $class = ($result['ok'] ?? false) ? 'bp-notice' : 'bp-error';
+        $message = (string)($result['message'] ?? $result['error'] ?? 'AIF request completed.');
+        $details = '';
+        if (($result['ok'] ?? false) && isset($result['suggestions'])) {
+            $encoded = json_encode($result['suggestions'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $details = '<pre><code>' . $this->e(is_string($encoded) ? $encoded : '') . '</code></pre>';
+        }
+        return Response::html($this->layout('Batoi AIF', '<p class="' . $class . '">' . $this->e($message) . '</p>' . $details . '<p><a href="/admin/aif">Back to AIF</a></p>'), $status)->withHeader('Cache-Control', 'private, no-store');
+    }
+
+    private function requestId(Request $request): string
+    {
+        $provided = $request->header('X-Request-Id');
+        return preg_match('/^[A-Za-z0-9._-]{8,128}$/D', $provided) === 1 ? $provided : 'aif_' . bin2hex(random_bytes(10));
+    }
+
+    private function record(string $action, string $target, Request $request, string $outcome, array $details = []): void
     {
         $this->audit?->record((string)($this->user['username'] ?? 'admin'), $action, $target, (string)($request->server['REMOTE_ADDR'] ?? ''), $outcome, [
             'method' => $request->method,
             'route' => $request->path,
-        ]);
+        ] + $details);
     }
 }
