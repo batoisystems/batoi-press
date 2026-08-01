@@ -74,6 +74,8 @@ final class ApiController
                     'pages' => '/api/v2/pages',
                     'posts' => '/api/v2/posts',
                     'taxonomies' => '/api/v2/taxonomies',
+                    'media' => '/api/v2/media',
+                    'content_health' => '/api/v2/content-health',
                     'menus' => '/api/v2/menus',
                     'mcp' => '/mcp',
                 ],
@@ -91,11 +93,17 @@ final class ApiController
         if ($request->path === '/api/v2/taxonomies') {
             return $this->success($this->reads->taxonomies(), $requestId, true);
         }
+        if ($request->path === '/api/v2/media') {
+            return $this->success($this->reads->listMedia($request->query), $requestId);
+        }
+        if ($request->path === '/api/v2/content-health') {
+            return $this->success($this->reads->contentHealth(trim((string)($request->query['id'] ?? ''))), $requestId);
+        }
         if ($request->path === '/api/v2/menus') {
             return $this->success(['data' => $this->reads->listMenus()], $requestId);
         }
 
-        foreach (['/api/v2/pages/' => 'page', '/api/v2/posts/' => 'post', '/api/v2/menus/' => 'menu'] as $prefix => $kind) {
+        foreach (['/api/v2/pages/' => 'page', '/api/v2/posts/' => 'post', '/api/v2/menus/' => 'menu', '/api/v2/media/' => 'media'] as $prefix => $kind) {
             if (!str_starts_with($request->path, $prefix)) {
                 continue;
             }
@@ -175,7 +183,7 @@ final class ApiController
 
     private function requiredScope(Request $request): ?string
     {
-        $content = str_starts_with($request->path, '/api/v2/pages') || str_starts_with($request->path, '/api/v2/posts') || $request->path === '/api/v2/taxonomies';
+        $content = str_starts_with($request->path, '/api/v2/pages') || str_starts_with($request->path, '/api/v2/posts') || str_starts_with($request->path, '/api/v2/media') || $request->path === '/api/v2/taxonomies' || $request->path === '/api/v2/content-health';
         if ($request->method === 'GET') {
             return $content ? 'content:read' : 'site:read';
         }

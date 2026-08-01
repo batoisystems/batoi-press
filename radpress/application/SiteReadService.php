@@ -8,6 +8,7 @@ use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
 use Batoi\Press\Content\PublicationState;
 use Batoi\Press\Core\Config;
+use Batoi\Press\Core\AssetManager;
 use Batoi\Press\Core\FileStore;
 
 final class SiteReadService
@@ -106,6 +107,52 @@ final class SiteReadService
         ksort($categories, SORT_NATURAL | SORT_FLAG_CASE);
         ksort($tags, SORT_NATURAL | SORT_FLAG_CASE);
         return ['categories' => array_values($categories), 'tags' => array_values($tags)];
+    }
+
+    public function listMedia(array $filters = []): array
+    {
+        $query = $this->lower(trim((string)($filters['q'] ?? '')));
+        $type = strtolower(trim((string)($filters['type'] ?? '')));
+        $records = [];
+        foreach ((new AssetManager($this->config->paths()))->all() as $asset) {
+            if ($query !== '' && !str_contains($this->lower((string)($asset['relative'] ?? '')), $query)) continue;
+            if ($type !== '' && ($asset['type'] ?? '') !== $type) continue;
+            $records[] = $this->mediaRecord($asset);
+        }
+        return $this->paginate($records, $filters);
+    }
+
+    public function media(string $id): ?array
+    {
+        foreach ((new AssetManager($this->config->paths()))->all() as $asset) {
+            $record = $this->mediaRecord($asset);
+            if ($record['id'] === $id) return $record;
+        }
+        return null;
+    }
+
+    public function contentHealth(string $identifier = ''): array
+    {
+        $records = [];
+        foreach ([['type' => 'page', 'items' => $this->pages->all()], ['type' => 'post', 'items' => $this->posts->all()]] as $group) {
+            foreach ($group['items'] as $item) {
+                if ($identifier !== '' && ($item['id'] ?? '') !== $identifier && ($item['slug'] ?? '') !== $identifier) continue;
+                $issues = [];
+                if (trim((string)($item['seo_description'] ?? '')) === '') $issues[] = ['code' => 'missing_seo_description', 'severity' => 'warning', 'message' => 'Add a concise search description.'];
+                if (preg_match('/<img\b(?![^>]*\balt\s*=)[^>]*>/i', (string)($item['body'] ?? '')) === 1) $issues[] = ['code' => 'missing_image_alt', 'severity' => 'error', 'message' => 'One or more images need an alt attribute.'];
+                if (!preg_match('/<h[12]\b/i', (string)($item['body'] ?? ''))) $issues[] = ['code' => 'missing_primary_heading', 'severity' => 'warning', 'message' => 'Add an H1 or H2 heading to establish structure.'];
+                $updated = strtotime((string)($item['updated_at'] ?? ''));
+                if ($updated !== false && $updated < time() - 31536000) $issues[] = ['code' => 'stale_content', 'severity' => 'info', 'message' => 'This content has not been updated in more than one year.'];
+                $records[] = [
+                    'id' => (string)($item['id'] ?? ''), 'type' => (string)$group['type'], 'slug' => (string)($item['slug'] ?? ''),
+                    'title' => (string)($item['title'] ?? ''), 'status' => (string)($item['status'] ?? 'draft'), 'issues' => $issues,
+                    'score' => max(0, 100 - count(array_filter($issues, static fn (array $issue): bool => $issue['severity'] === 'error')) * 30 - count(array_filter($issues, static fn (array $issue): bool => $issue['severity'] === 'warning')) * 15 - count(array_filter($issues, static fn (array $issue): bool => $issue['severity'] === 'info')) * 5),
+                ];
+                if ($identifier !== '') return ['data' => $records, 'meta' => ['count' => count($records)]];
+                if (count($records) >= 100) break 2;
+            }
+        }
+        return ['data' => $records, 'meta' => ['count' => count($records), 'truncated' => count($records) >= 100]];
     }
 
     public function listMenus(): array
@@ -270,6 +317,24 @@ final class SiteReadService
         $value = $this->lower(trim($value));
         $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?? '';
         return trim($value, '-');
+    }
+
+    private function mediaRecord(array $asset): array
+    {
+        $storage = (string)($asset['storage'] ?? 'assets');
+        $relative = (string)($asset['relative'] ?? '');
+        return [
+            'id' => 'asset_' . substr(hash('sha256', $storage . ':' . $relative), 0, 24),
+            'name' => (string)($asset['name'] ?? basename($relative)),
+            'storage' => $storage,
+            'relative' => $relative,
+            'url' => $this->absoluteUrl((string)($asset['url'] ?? '')),
+            'type' => (string)($asset['type'] ?? 'documents'),
+            'kind' => (string)($asset['kind'] ?? 'Document asset'),
+            'mime_type' => AssetManager::mimeType($relative),
+            'size' => max(0, (int)($asset['size'] ?? 0)),
+            'modified_at' => !empty($asset['modified']) ? date(DATE_ATOM, (int)$asset['modified']) : '',
+        ];
     }
 
     private function revision(array $record): string

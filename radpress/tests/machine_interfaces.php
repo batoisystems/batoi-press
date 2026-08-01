@@ -16,7 +16,7 @@ use Batoi\Press\Security\AccessTokenRepository;
 require dirname(__DIR__) . '/autoload.php';
 
 $root = sys_get_temp_dir() . '/batoi-press-machine-interfaces-' . bin2hex(random_bytes(5));
-foreach (['radpress/config', 'radpress/content/pages/home', 'radpress/content/pages/private-notes', 'radpress/content/posts/launch', 'radpress/content/menus', 'radpress/data'] as $directory) {
+foreach (['radpress/config', 'radpress/content/pages/home', 'radpress/content/pages/private-notes', 'radpress/content/posts/launch', 'radpress/content/menus', 'radpress/content/assets/images/2026/08', 'radpress/data'] as $directory) {
     mkdir($root . '/' . $directory, 0775, true);
 }
 
@@ -41,6 +41,7 @@ try {
         'schema_version' => 2, 'id' => 'menu_main', 'name' => 'Primary navigation', 'location' => 'primary', 'revision' => 3,
         'items' => [['id' => 'mi_home', 'type' => 'page', 'label' => 'Home', 'url' => '/', 'parent_id' => null, 'presentation' => 'link', 'column' => 1, 'target' => '_self', 'enabled' => true]],
     ]);
+    $files->write($root . '/radpress/content/assets/images/2026/08/launch.png', "\x89PNG\r\n\x1a\nfixture");
 
     $config = Config::load($root);
     $html = new HtmlContent();
@@ -72,6 +73,12 @@ try {
     assertMachineInterface($router->dispatch(machineRequest('GET', '/api/v2', $token))->status() === 200, 'main router should dispatch the versioned API before public content routes');
     $taxonomyPayload = decodeMachineResponse($api->handle(machineRequest('GET', '/api/v2/taxonomies', $contentOnly)));
     assertMachineInterface(($taxonomyPayload['data']['categories'][0]['slug'] ?? '') === 'product', 'API should expose shared taxonomy counts under content read scope');
+    $mediaPayload = decodeMachineResponse($api->handle(machineRequest('GET', '/api/v2/media', $contentOnly)));
+    $mediaRecord = (array)($mediaPayload['data']['data'][0] ?? []);
+    assertMachineInterface(str_starts_with((string)($mediaRecord['id'] ?? ''), 'asset_') && ($mediaRecord['url'] ?? '') === 'https://press.example.test/assets/images/2026/08/launch.png', 'API should expose stable public media metadata');
+    assertMachineInterface(!array_key_exists('path', $mediaRecord), 'machine media records must not expose filesystem paths');
+    $healthPayload = decodeMachineResponse($api->handle(machineRequest('GET', '/api/v2/content-health', $contentOnly, ['id' => 'pg_private'])));
+    assertMachineInterface(($healthPayload['data']['data'][0]['issues'][0]['code'] ?? '') === 'missing_seo_description', 'API should expose deterministic content-health findings');
 
     $forbidden = $api->handle(machineRequest('GET', '/api/v2/site', $contentOnly));
     assertMachineInterface($forbidden->status() === 403, 'API should distinguish insufficient scope from invalid authentication');
@@ -106,7 +113,7 @@ try {
 
     $toolList = decodeMachineResponse($mcp->handle(mcpRequest($token, 'tools/list', [], 2)));
     $toolNames = array_column((array)($toolList['result']['tools'] ?? []), 'name');
-    assertMachineInterface(in_array('search', $toolNames, true) && in_array('menu_get', $toolNames, true) && in_array('taxonomy_list', $toolNames, true), 'MCP should expose scoped content, taxonomy, and site read tools');
+    assertMachineInterface(in_array('search', $toolNames, true) && in_array('menu_get', $toolNames, true) && in_array('taxonomy_list', $toolNames, true) && in_array('media_get', $toolNames, true) && in_array('content_health_check', $toolNames, true), 'MCP should expose scoped content, media, taxonomy, health, and site read tools');
     assertMachineInterface(!in_array('page_create_draft', $toolNames, true), 'MCP should omit write tools when the connection lacks write scope');
 
     $writeToolList = decodeMachineResponse($mcp->handle(mcpRequest($editorToken, 'tools/list', [], 21)));

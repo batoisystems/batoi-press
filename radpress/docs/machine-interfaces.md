@@ -80,6 +80,8 @@ The API root is `/api/v2`. Read routes are:
 - `/api/v2/pages` and `/api/v2/pages/{id-or-slug}`
 - `/api/v2/posts` and `/api/v2/posts/{id-or-slug}`
 - `/api/v2/taxonomies`
+- `/api/v2/media` and `/api/v2/media/{stable-id}`
+- `/api/v2/content-health`, optionally filtered with `id`
 - `/api/v2/menus` and `/api/v2/menus/{id-or-key}`
 
 Page and post lists accept `q`, `status`, `limit` (1–100), and an opaque
@@ -90,6 +92,11 @@ Supported lifecycle filters are `draft`, `in_review`, `approved`, `scheduled`,
 `published`, and `archived`. Content records expose `publish_at`,
 `unpublish_at`, reviewer, and current public-visibility state. Taxonomies return
 shared category/tag names, stable slugs, total counts, and public counts.
+Media responses contain stable IDs, public URLs, type, MIME type, byte size, and
+modified time, but never server filesystem paths. Content-health responses are
+bounded deterministic checks for missing search descriptions, heading
+structure, image alt attributes, and stale content; they do not invoke AIF or
+an external model.
 
 Draft mutation routes are:
 
@@ -138,12 +145,13 @@ Allowed` as permitted by the transport specification.
 Capabilities:
 
 - Tools: `search`, `fetch`, `site_get`, `page_list`, `page_get`, `post_list`,
-  `post_get`, `taxonomy_list`, `menu_list`, and `menu_get`.
+  `post_get`, `taxonomy_list`, `media_list`, `media_get`,
+  `content_health_check`, `menu_list`, and `menu_get`.
 - With `content:write`: `page_create_draft`, `page_update_draft`,
   `post_create_draft`, and `post_update_draft`.
 - With `content:publish`: `page_publish` and `post_publish`.
-- Resources: `batoi://site`, `batoi://menus`, `batoi://taxonomies`, and templates for individual
-  pages, posts, and menus.
+- Resources: `batoi://site`, `batoi://menus`, `batoi://taxonomies`,
+  `batoi://media`, and templates for individual pages, posts, media, and menus.
 - Tools return structured content mirrored as JSON text for client
   compatibility. Mutation tools carry accurate read-only/idempotent annotations
   and are omitted entirely when the connection lacks their scope.
