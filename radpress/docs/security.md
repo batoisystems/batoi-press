@@ -9,6 +9,9 @@ Batoi Press establishes secure defaults and structure:
 - Password hashes use `password_hash()`.
 - Secure, HTTP-only, SameSite session cookies are paired with configurable idle
   and absolute authenticated-session lifetimes.
+- Authenticated sessions are inventoried by hashed identifier with bounded
+  source metadata. Users can revoke other sessions after password and, when
+  enabled, MFA verification; revocation takes effect on the next request.
 - Standards-based TOTP two-factor authentication is available to every account.
   Secrets use authenticated encryption under `BATOI_PRESS_SECRET_KEY` or a
   generated `0600` host key in `radpress/data/security/master.key`.
@@ -52,6 +55,10 @@ The generated local encryption key and all encrypted runtime secrets are
 excluded from release packages. Back it up through an operator-controlled
 secret process; losing the key requires MFA recovery/reset rather than exposing
 the protected value.
+
+Admin → Security includes read-only diagnostics for Sodium, signed-update
+policy, private runtime storage, ZIP support, and HTTPS. A Review result is an
+operator prompt, not an automatic configuration change.
 
 ## Machine Access
 

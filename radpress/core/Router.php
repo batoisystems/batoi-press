@@ -193,6 +193,9 @@ final class Router
         if ($request->path === '/admin/security/mfa/disable' && $request->method === 'POST') {
             return (new SecurityController($this->config, $csrf, $session, $audit, $user))->disable($request);
         }
+        if ($request->path === '/admin/security/sessions/revoke' && $request->method === 'POST') {
+            return (new SecurityController($this->config, $csrf, $session, $audit, $user))->revokeSession($request);
+        }
 
         if ($request->path === '/admin/pages') {
             return (new PageController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->index();

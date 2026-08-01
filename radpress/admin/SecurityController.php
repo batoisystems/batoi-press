@@ -13,6 +13,7 @@ use Batoi\Press\Security\Password;
 use Batoi\Press\Security\RateLimiter;
 use Batoi\Press\Security\SecretStore;
 use Batoi\Press\Security\Session;
+use Batoi\Press\Security\SessionRegistry;
 use Batoi\Press\Security\Totp;
 use RuntimeException;
 
@@ -46,6 +47,8 @@ final class SecurityController
         $body .= '<div class="bp-admin-editor"><div class="bp-editor-main">' . ($enabled ? $this->disableForm() : $this->enrollForm()) . '</div><aside class="bp-editor-side">';
         $body .= AdminLayout::section('Security boundary', '<ul class="bp-admin-checklist"><li>' . AdminLayout::icon('shield') . '<span>TOTP secrets are encrypted at rest with a host key.</span></li><li>' . AdminLayout::icon('shield') . '<span>Recovery codes are shown once and stored only as password hashes.</span></li><li>' . AdminLayout::icon('shield') . '<span>MFA is required after the password at login and for machine-credential changes.</span></li><li>' . AdminLayout::icon('shield') . '<span>Security changes are CSRF protected, throttled, reauthenticated, and audited.</span></li></ul>', 'Account security remains separate from publishing content.');
         $body .= '</aside></div>';
+        $body .= $this->sessionInventory($enabled);
+        $body .= $this->diagnostics();
         return Response::html(AdminLayout::render('Security', $body), $status)->withHeader('Cache-Control', 'private, no-store');
     }
 
@@ -105,6 +108,21 @@ final class SecurityController
         return $this->index('Two-factor authentication was disabled.');
     }
 
+    public function revokeSession(Request $request): Response
+    {
+        if (!$this->csrf->validate($request->input('csrf_token'))) return $this->index('', 'Security token expired.', 400);
+        if (!$this->passwordVerified($request)) return $this->index('', 'Current password verification failed.', 403);
+        $fresh = $this->mfa()->findUser($this->username()) ?? $this->user;
+        if ($this->mfa()->enabled($fresh) && $this->mfa()->verify($this->username(), $request->input('mfa_code')) === null) {
+            return $this->index('', 'Authenticator or recovery code is invalid.', 403);
+        }
+        $hash = strtolower(trim($request->input('session_id')));
+        if (hash_equals(hash('sha256', $this->session->id()), $hash)) return $this->index('', 'Use Log Out to end the current session.', 409);
+        if (!$this->registry()->revoke($hash, $this->username())) return $this->index('', 'The selected session was not found.', 404);
+        $this->audit->record($this->username(), 'security.session_revoked', substr($hash, 0, 16), $this->ip($request));
+        return $this->index('The selected session was revoked.');
+    }
+
     private function enrollForm(): string
     {
         return '<section class="bp-editor-panel"><header><h2>Enable two-factor authentication</h2><p>Use any standards-based TOTP authenticator. Current-password verification is required.</p></header><form method="post" action="/admin/security/mfa/start" class="bp-form">' . $this->csrf->field() . '<label>Current password<input type="password" name="current_password" required autocomplete="current-password"></label>' . AdminLayout::submitButton('Begin Setup', 'shield') . '</form></section>';
@@ -113,6 +131,53 @@ final class SecurityController
     private function disableForm(): string
     {
         return '<section class="bp-editor-panel"><header><h2>Two-factor authentication is enabled</h2><p>Disabling it requires both the current password and a current authenticator or unused recovery code.</p></header><form method="post" action="/admin/security/mfa/disable" class="bp-form" data-confirm="Disable two-factor authentication for this account?">' . $this->csrf->field() . '<label>Current password<input type="password" name="current_password" required autocomplete="current-password"></label><label>Authenticator or recovery code<input type="text" name="mfa_code" required maxlength="12" autocomplete="one-time-code"></label><button type="submit" class="bp-button bp-button-danger">Disable Two-factor Authentication</button></form></section>';
+    }
+
+    private function sessionInventory(bool $mfaEnabled): string
+    {
+        $sessions = $this->registry()->allFor($this->username());
+        if ($sessions === []) return AdminLayout::section('Active sessions', '<p class="bp-muted">No session inventory is available yet. The current session will appear after its next authenticated request.</p>', 'Session identifiers are stored only as hashes.');
+        $current = hash('sha256', $this->session->id());
+        $html = '<div class="bp-table-wrap"><table class="bp-table bp-content-table"><thead><tr><th>Session</th><th>Last active</th><th>Source</th><th>Action</th></tr></thead><tbody>';
+        foreach ($sessions as $record) {
+            $id = (string)($record['id'] ?? '');
+            $isCurrent = hash_equals($current, $id);
+            $source = trim((string)($record['ip'] ?? '')) . (!empty($record['user_agent']) ? '<small>' . $this->e($this->browserLabel((string)$record['user_agent'])) . '</small>' : '');
+            $action = $isCurrent ? '<span class="bp-status-badge is-published">Current</span>' : '<form method="post" action="/admin/security/sessions/revoke" class="bp-form bp-compact-form">' . $this->csrf->field() . '<input type="hidden" name="session_id" value="' . $this->e($id) . '"><label>Current password<input type="password" name="current_password" required autocomplete="current-password"></label>' . ($mfaEnabled ? '<label>MFA code<input type="text" name="mfa_code" required maxlength="12" autocomplete="one-time-code"></label>' : '') . '<button type="submit" class="bp-button bp-button-danger">Revoke</button></form>';
+            $html .= '<tr><td><code>' . $this->e(substr($id, 0, 12)) . '</code>' . ($isCurrent ? '<small>This browser</small>' : '') . '</td><td>' . $this->e(date('M j, Y H:i', (int)($record['last_seen_at'] ?? 0))) . '</td><td>' . $this->e(trim((string)($record['ip'] ?? ''))) . (!empty($record['user_agent']) ? '<small>' . $this->e($this->browserLabel((string)$record['user_agent'])) . '</small>' : '') . '</td><td>' . $action . '</td></tr>';
+        }
+        return AdminLayout::section('Active sessions', $html . '</tbody></table></div>', 'Review recent sessions and revoke unfamiliar browsers. Revocation takes effect on their next request.');
+    }
+
+    private function diagnostics(): string
+    {
+        $update = $this->config->update();
+        $securityDir = $this->config->paths()->dataPath('security');
+        $checks = [
+            ['Sodium cryptography', function_exists('sodium_crypto_sign_verify_detached'), 'Required for secrets, MFA, and signed updates.'],
+            ['Signed updates', ($update['require_signed_packages'] ?? false) === true && (array)($update['release_public_keys'] ?? []) !== [], 'Stable update verification must fail closed.'],
+            ['Private security storage', is_dir($securityDir) && !is_writable($securityDir) ? true : is_dir($securityDir), 'Runtime keys and revocation state remain outside public files.'],
+            ['ZIP support', class_exists('ZipArchive'), 'Required to inspect and stage update packages.'],
+            ['HTTPS request', !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off', 'Production admin sessions and remote MCP require HTTPS.'],
+        ];
+        $html = '<ul class="bp-admin-checklist">';
+        foreach ($checks as [$label, $ok, $help]) {
+            $html .= '<li><span class="bp-status-badge ' . ($ok ? 'is-published' : 'is-draft') . '">' . ($ok ? 'Ready' : 'Review') . '</span><span><strong>' . $this->e($label) . '</strong><small>' . $this->e($help) . '</small></span></li>';
+        }
+        return AdminLayout::section('Security diagnostics', $html . '</ul>', 'Operational readiness checks reveal no secrets and do not change configuration.');
+    }
+
+    private function registry(): SessionRegistry
+    {
+        return new SessionRegistry($this->config->paths());
+    }
+
+    private function browserLabel(string $userAgent): string
+    {
+        foreach (['Edg/' => 'Edge', 'Chrome/' => 'Chrome', 'Firefox/' => 'Firefox', 'Safari/' => 'Safari'] as $needle => $label) {
+            if (str_contains($userAgent, $needle)) return $label;
+        }
+        return 'Browser or client';
     }
 
     private function passwordVerified(Request $request): bool

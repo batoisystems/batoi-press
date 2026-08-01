@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Batoi\Press\Security;
 
+use Batoi\Press\Core\Paths;
+
 final class Session
 {
     public function __construct(
@@ -35,7 +37,12 @@ final class Session
             'samesite' => 'Lax',
         ]);
         session_start();
+        if ($this->registry()?->isRevoked(session_id()) === true) {
+            $_SESSION = [];
+            session_regenerate_id(true);
+        }
         $this->enforceLifetime();
+        $this->touchRegistry();
     }
 
     public function get(string $key, mixed $default = null): mixed
@@ -59,7 +66,10 @@ final class Session
     public function regenerate(): void
     {
         $this->start();
+        $oldId = session_id();
         session_regenerate_id(true);
+        $this->registry()?->forget($oldId);
+        $this->touchRegistry(true);
     }
 
     public function markAuthenticated(): void
@@ -69,6 +79,7 @@ final class Session
         $_SESSION['_bp_created_at'] = $now;
         $_SESSION['_bp_last_seen_at'] = $now;
         unset($_SESSION['_bp_expired_reason']);
+        $this->touchRegistry(true);
     }
 
     public function pull(string $key, mixed $default = null): mixed
@@ -88,6 +99,7 @@ final class Session
     public function destroy(): void
     {
         $this->start();
+        $this->registry()?->forget(session_id());
         $_SESSION = [];
         if (ini_get('session.use_cookies')) {
             $params = session_get_cookie_params();
@@ -116,5 +128,28 @@ final class Session
             }
         }
         $_SESSION['_bp_last_seen_at'] = $now;
+    }
+
+    private function touchRegistry(bool $force = false): void
+    {
+        $user = $_SESSION['auth_user'] ?? null;
+        $username = is_array($user) ? trim((string)($user['username'] ?? '')) : '';
+        $now = time();
+        if ($username === '' || (!$force && $now - (int)($_SESSION['_bp_registry_seen_at'] ?? 0) < 60)) return;
+        $_SESSION['_bp_registry_seen_at'] = $now;
+        $this->registry()?->touch(
+            session_id(),
+            $username,
+            (int)($_SESSION['_bp_created_at'] ?? $now),
+            $now,
+            (string)($_SERVER['REMOTE_ADDR'] ?? ''),
+            (string)($_SERVER['HTTP_USER_AGENT'] ?? '')
+        );
+    }
+
+    private function registry(): ?SessionRegistry
+    {
+        if ($this->savePath === null || $this->savePath === '') return null;
+        return new SessionRegistry(new Paths(dirname($this->savePath), ['data' => '']));
     }
 }
