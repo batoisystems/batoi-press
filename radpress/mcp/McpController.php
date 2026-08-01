@@ -156,6 +156,7 @@ final class McpController
             $tools[] = $this->tool('page_get', 'Get one page by stable ID or slug.', $this->identifierSchema('id'), ['type' => 'object']);
             $tools[] = $this->tool('post_list', 'List post summaries, including drafts visible to this connection.', $this->listSchema(), ['type' => 'object']);
             $tools[] = $this->tool('post_get', 'Get one post by stable ID or slug.', $this->identifierSchema('id'), ['type' => 'object']);
+            $tools[] = $this->tool('taxonomy_list', 'List shared post categories and tags with total and public usage counts.', ['type' => 'object', 'properties' => [], 'additionalProperties' => false], ['type' => 'object']);
         }
         if ($this->hasScope($access, 'content:write')) {
             foreach (['page', 'post'] as $type) {
@@ -187,6 +188,7 @@ final class McpController
             'page_get' => $this->withScope($access, 'content:read', fn (): array => $this->required($this->reads->page($this->requiredString($arguments, 'id')))),
             'post_list' => $this->withScope($access, 'content:read', fn (): array => $this->reads->listPosts($arguments)),
             'post_get' => $this->withScope($access, 'content:read', fn (): array => $this->required($this->reads->post($this->requiredString($arguments, 'id')))),
+            'taxonomy_list' => $this->withScope($access, 'content:read', fn (): array => $this->reads->taxonomies()),
             'site_get' => $this->withScope($access, 'site:read', fn (): array => $this->reads->site()),
             'menu_list' => $this->withScope($access, 'site:read', fn (): array => ['data' => $this->reads->listMenus()]),
             'menu_get' => $this->withScope($access, 'site:read', fn (): array => $this->required($this->reads->menu($this->requiredString($arguments, 'id')))),
@@ -212,6 +214,9 @@ final class McpController
             $resources[] = ['uri' => 'batoi://site', 'name' => 'Site profile', 'description' => 'Non-sensitive Batoi Press site configuration.', 'mimeType' => 'application/json'];
             $resources[] = ['uri' => 'batoi://menus', 'name' => 'Navigation menus', 'description' => 'Configured structured navigation menus.', 'mimeType' => 'application/json'];
         }
+        if ($this->hasScope($access, 'content:read')) {
+            $resources[] = ['uri' => 'batoi://taxonomies', 'name' => 'Content taxonomies', 'description' => 'Shared post categories and tags with usage counts.', 'mimeType' => 'application/json'];
+        }
         return $resources;
     }
 
@@ -234,6 +239,7 @@ final class McpController
         $value = match (true) {
             $uri === 'batoi://site' => $this->withScope($access, 'site:read', fn (): array => $this->reads->site()),
             $uri === 'batoi://menus' => $this->withScope($access, 'site:read', fn (): array => ['data' => $this->reads->listMenus()]),
+            $uri === 'batoi://taxonomies' => $this->withScope($access, 'content:read', fn (): array => $this->reads->taxonomies()),
             str_starts_with($uri, 'batoi://pages/') => $this->withScope($access, 'content:read', fn (): array => $this->required($this->reads->page(rawurldecode(substr($uri, 14))))),
             str_starts_with($uri, 'batoi://posts/') => $this->withScope($access, 'content:read', fn (): array => $this->required($this->reads->post(rawurldecode(substr($uri, 14))))),
             str_starts_with($uri, 'batoi://menus/') => $this->withScope($access, 'site:read', fn (): array => $this->required($this->reads->menu(rawurldecode(substr($uri, 14))))),
@@ -258,7 +264,7 @@ final class McpController
         ];
         $oauth = is_array($this->config->security()['oauth'] ?? null) ? $this->config->security()['oauth'] : [];
         if (($oauth['enabled'] ?? false) === true) {
-            $requiredScope = $scope !== '' ? $scope : (in_array($name, ['search', 'fetch', 'page_list', 'page_get', 'post_list', 'post_get'], true) ? 'content:read' : 'site:read');
+            $requiredScope = $scope !== '' ? $scope : (in_array($name, ['search', 'fetch', 'page_list', 'page_get', 'post_list', 'post_get', 'taxonomy_list'], true) ? 'content:read' : 'site:read');
             $tool['securitySchemes'] = [['type' => 'oauth2', 'scopes' => [$requiredScope]]];
         }
         return $tool;
@@ -273,7 +279,7 @@ final class McpController
     {
         return ['type' => 'object', 'properties' => [
             'q' => ['type' => 'string', 'maxLength' => 500],
-            'status' => ['type' => 'string', 'enum' => ['draft', 'published']],
+            'status' => ['type' => 'string', 'enum' => ['draft', 'in_review', 'approved', 'scheduled', 'published', 'archived']],
             'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 100],
             'cursor' => ['type' => 'string', 'maxLength' => 128],
         ], 'additionalProperties' => false];

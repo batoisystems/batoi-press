@@ -8,6 +8,7 @@ use Batoi\Press\Application\ContentRevision;
 use Batoi\Press\Application\IdempotencyStore;
 use Batoi\Press\Content\PostRepository;
 use Batoi\Press\Content\PageRepository;
+use Batoi\Press\Content\PublicationState;
 use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\Config;
 use Batoi\Press\Core\Request;
@@ -63,7 +64,7 @@ final class PostController
         foreach ($filteredPosts as $post) {
             $slug = (string)($post['slug'] ?? '');
             $title = (string)($post['title'] ?? 'Untitled');
-            $publishedAt = (string)($post['published_at'] ?: ($post['updated_at'] ?? ''));
+            $publishedAt = (string)($post['publish_at'] ?? $post['published_at'] ?? $post['updated_at'] ?? '');
             $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>Post</small></td><td>' . $this->statusBadge((string)($post['status'] ?? 'draft')) . '</td><td>' . $this->e((string)($post['category'] ?? 'General')) . '</td><td>' . $this->formatDate($publishedAt) . '</td><td><code>' . $this->e($slug) . '</code></td><td><div class="bp-table-actions"><a href="/blog/' . rawurlencode($slug) . '">View</a><a href="/admin/posts/edit/' . rawurlencode($slug) . '">Edit</a></div></td></tr>';
         }
         $body .= '</tbody></table></div>';
@@ -129,7 +130,7 @@ final class PostController
         $body .= '<input type="hidden" name="expected_revision" value="' . $this->e($post === null ? '' : ContentRevision::for($post)) . '">';
 
         $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($post['title'] ?? ''), true, 'data-bp-slug-source') . $this->input('Slug', 'slug', $slug, true, 'data-bp-slug-target') . '<label class="bp-field-wide">Subtitle <textarea name="subtitle" rows="3" maxlength="300">' . $this->e((string)($post['subtitle'] ?? '')) . '</textarea><span class="bp-field-help">Optional short description shown below the article title.</span></label>' . $this->bodyEditor((string)($post['body'] ?? ''), 'Use clean HTML for formatted article content. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.') . '</div>';
-        $publishing = $this->select((string)($post['status'] ?? 'draft')) . $this->publishDateInput((string)($post['published_at'] ?? '')) . $this->categoryInput((string)($post['category'] ?? 'General')) . $this->layoutSelect((string)($post['layout'] ?? 'full')) . $this->input('Tags', 'tags', implode(', ', (array)($post['tags'] ?? [])), false) . '<p class="bp-field-help">Separate tags with commas.</p>' . $this->metaList($post);
+        $publishing = $this->select((string)($post['status'] ?? 'draft')) . $this->publishDateInput((string)($post['publish_at'] ?? $post['published_at'] ?? '')) . $this->dateTimeInput('Unpublish date', 'unpublish_at', (string)($post['unpublish_at'] ?? ''), 'Optional automatic public visibility cutoff.') . $this->input('Reviewer', 'reviewer', (string)($post['reviewer'] ?? ''), false) . '<label>Workflow note <textarea name="workflow_note" rows="3" maxlength="500"></textarea><span class="bp-field-help">Saved to workflow history; never displayed publicly.</span></label>' . $this->categoryInput((string)($post['category'] ?? 'General')) . $this->layoutSelect((string)($post['layout'] ?? 'full')) . $this->input('Tags', 'tags', implode(', ', (array)($post['tags'] ?? [])), false) . '<p class="bp-field-help">Separate tags with commas.</p>' . $this->workflowHistory($post) . $this->metaList($post);
         $media = $this->input('Featured image URL', 'featured_image', (string)($post['featured_image'] ?? ''), false) . $this->input('Featured image alt text', 'featured_image_alt', (string)($post['featured_image_alt'] ?? ''), false) . '<p class="bp-field-help">Use a public image URL from <a href="/admin/media?type=images" target="_blank" rel="noopener">Media</a>. Describe meaningful images for screen-reader users; leave alt text blank only for decorative images.</p>';
         $seo = $this->input('SEO Title', 'seo_title', (string)($post['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($post['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short article summary for search snippets and social previews.</span></label>';
 
@@ -151,16 +152,25 @@ final class PostController
 
     private function select(string $status): string
     {
-        $draft = $status === 'draft' ? ' selected' : '';
-        $published = $status === 'published' ? ' selected' : '';
-        return '<label>Status <select name="status"><option value="draft"' . $draft . '>Draft</option><option value="published"' . $published . '>Published</option></select></label>';
+        $html = '<label>Status <select name="status">';
+        foreach (PublicationState::STATUSES as $value) {
+            $html .= '<option value="' . $value . '"' . ($status === $value ? ' selected' : '') . '>' . $this->e(PublicationState::label($value)) . '</option>';
+        }
+        return $html . '</select><span class="bp-field-help">Use In review and Approved for handoff; Scheduled requires a publish date.</span></label>';
     }
 
     private function publishDateInput(string $value): string
     {
         $timestamp = $value !== '' ? strtotime($value) : false;
         $formatted = $timestamp !== false ? date('Y-m-d\TH:i', $timestamp) : '';
-        return '<label>Publish date <input type="datetime-local" name="published_at" value="' . $this->e($formatted) . '"><span class="bp-field-help">Used when status is Published. Leave blank to publish now.</span></label>';
+        return '<label>Publish date <input type="datetime-local" name="publish_at" value="' . $this->e($formatted) . '"><span class="bp-field-help">Published content uses this date; Scheduled content becomes public when it is due.</span></label>';
+    }
+
+    private function dateTimeInput(string $label, string $name, string $value, string $help): string
+    {
+        $timestamp = $value !== '' ? strtotime($value) : false;
+        $formatted = $timestamp !== false ? date('Y-m-d\TH:i', $timestamp) : '';
+        return '<label>' . $this->e($label) . ' <input type="datetime-local" name="' . $this->e($name) . '" value="' . $this->e($formatted) . '"><span class="bp-field-help">' . $this->e($help) . '</span></label>';
     }
 
     private function categoryInput(string $selected): string
@@ -191,13 +201,14 @@ final class PostController
 
     private function toolbar(array $posts, array $filters): string
     {
-        $published = count(array_filter($posts, static fn (array $post): bool => ($post['status'] ?? '') === 'published'));
-        $draft = count(array_filter($posts, static fn (array $post): bool => ($post['status'] ?? '') !== 'published'));
+        $published = count(array_filter($posts, static fn (array $post): bool => PublicationState::isPublic($post)));
+        $draft = count(array_filter($posts, static fn (array $post): bool => ($post['status'] ?? 'draft') === 'draft'));
         $status = (string)($filters['status'] ?? '');
         $html = '<div class="bp-admin-toolbar"><div class="bp-admin-tabs" aria-label="Post status summary"><span class="bp-admin-tab is-active">All ' . count($posts) . '</span><span class="bp-admin-tab">Published ' . $published . '</span><span class="bp-admin-tab">Draft ' . $draft . '</span></div></div>';
         $html .= '<form method="get" action="/admin/posts" class="bp-filter-form bp-filter-form-compact"><div class="bp-filter-field bp-filter-field-search"><label for="bp-post-filter-q">Search</label><input id="bp-post-filter-q" type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Title, slug, category, or tag"></div>';
         $html .= '<div class="bp-filter-field"><label for="bp-post-filter-status">Status</label><select id="bp-post-filter-status" name="status"><option value="">All statuses</option>';
-        foreach (['published' => 'Published', 'draft' => 'Draft'] as $value => $label) {
+        foreach (PublicationState::STATUSES as $value) {
+            $label = PublicationState::label($value);
             $html .= '<option value="' . $this->e($value) . '"' . ($status === $value ? ' selected' : '') . '>' . $this->e($label) . '</option>';
         }
         return $html . '</select></div><div class="bp-filter-actions">' . AdminLayout::submitButton('Apply Filters', 'check') . AdminLayout::buttonLink('Reset', '/admin/posts', 'back', true) . '</div></form>';
@@ -255,8 +266,22 @@ final class PostController
 
     private function statusBadge(string $status): string
     {
-        $normalized = $status === 'published' ? 'published' : 'draft';
-        return '<span class="bp-status-badge is-' . $normalized . '">' . $this->e(ucfirst($normalized)) . '</span>';
+        $normalized = PublicationState::normalize($status);
+        return '<span class="bp-status-badge is-' . str_replace('_', '-', $normalized) . '">' . $this->e(PublicationState::label($normalized)) . '</span>';
+    }
+
+    private function workflowHistory(?array $post): string
+    {
+        $history = array_reverse(array_slice((array)($post['workflow_history'] ?? []), -5));
+        if ($history === []) {
+            return '';
+        }
+        $html = '<details class="bp-workflow-history"><summary>Recent workflow history</summary><ol>';
+        foreach ($history as $event) {
+            if (!is_array($event)) continue;
+            $html .= '<li><strong>' . $this->e(PublicationState::label((string)($event['to'] ?? 'draft'))) . '</strong> · ' . $this->e((string)($event['actor'] ?? 'unknown')) . '<small>' . $this->formatDate((string)($event['at'] ?? '')) . (!empty($event['note']) ? ' — ' . $this->e((string)$event['note']) : '') . '</small></li>';
+        }
+        return $html . '</ol></details>';
     }
 
     private function formatDate(string $value): string

@@ -25,6 +25,7 @@ use Batoi\Press\Api\ApiController;
 use Batoi\Press\Api\OAuthMetadataController;
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
+use Batoi\Press\Content\PublicationState;
 use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\StaticExporter;
@@ -86,7 +87,7 @@ final class Router
 
         if (str_starts_with($request->path, '/blog/')) {
             $post = $this->posts->findBySlug(substr($request->path, 6));
-            if ($post === null || ($post['status'] ?? '') !== 'published') {
+            if ($post === null || !PublicationState::isPublic($post)) {
                 return $this->notFound();
             }
             $adjacent = $this->posts->adjacentPublished((string)($post['slug'] ?? ''));
@@ -108,7 +109,7 @@ final class Router
             ? $this->pages->findBySlug(Slug::normalize((string)($this->config->site()['homepage'] ?? 'home')))
             : $this->pages->findByPath($request->path);
 
-        return $page !== null && ($page['status'] ?? '') === 'published'
+        return $page !== null && PublicationState::isPublic($page)
             ? $this->theme->render($this->theme->pageLayout((string)($page['template'] ?? 'page')), $this->pageData($page))
             : $this->notFound();
     }

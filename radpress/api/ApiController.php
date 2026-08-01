@@ -73,6 +73,7 @@ final class ApiController
                     'site' => '/api/v2/site',
                     'pages' => '/api/v2/pages',
                     'posts' => '/api/v2/posts',
+                    'taxonomies' => '/api/v2/taxonomies',
                     'menus' => '/api/v2/menus',
                     'mcp' => '/mcp',
                 ],
@@ -86,6 +87,9 @@ final class ApiController
         }
         if ($request->path === '/api/v2/posts') {
             return $this->success($this->reads->listPosts($request->query), $requestId);
+        }
+        if ($request->path === '/api/v2/taxonomies') {
+            return $this->success($this->reads->taxonomies(), $requestId, true);
         }
         if ($request->path === '/api/v2/menus') {
             return $this->success(['data' => $this->reads->listMenus()], $requestId);
@@ -171,7 +175,7 @@ final class ApiController
 
     private function requiredScope(Request $request): ?string
     {
-        $content = str_starts_with($request->path, '/api/v2/pages') || str_starts_with($request->path, '/api/v2/posts');
+        $content = str_starts_with($request->path, '/api/v2/pages') || str_starts_with($request->path, '/api/v2/posts') || $request->path === '/api/v2/taxonomies';
         if ($request->method === 'GET') {
             return $content ? 'content:read' : 'site:read';
         }

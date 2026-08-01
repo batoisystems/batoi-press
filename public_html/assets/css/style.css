@@ -1429,6 +1429,48 @@ p {
     color: #92400e;
 }
 
+.bp-status-badge.is-in-review,
+.bp-status-badge.is-scheduled {
+    background: #eff6ff;
+    color: #0e68b0;
+}
+
+.bp-status-badge.is-approved {
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.bp-status-badge.is-archived {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
+.bp-workflow-history {
+    border-top: 1px solid #e5e7eb;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+}
+
+.bp-workflow-history summary {
+    color: #0e68b0;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.bp-workflow-history ol {
+    margin: 0.65rem 0 0;
+    padding-left: 1.2rem;
+}
+
+.bp-workflow-history li + li {
+    margin-top: 0.55rem;
+}
+
+.bp-workflow-history small {
+    display: block;
+    color: #6b7280;
+}
+
 .bp-status-badge.is-disabled {
     background: #fef2f2;
     color: #991b1b;

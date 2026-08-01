@@ -6,6 +6,7 @@ namespace Batoi\Press\Application;
 use Batoi\Press\Content\MenuRepository;
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
+use Batoi\Press\Content\PublicationState;
 use Batoi\Press\Core\Config;
 use Batoi\Press\Core\FileStore;
 
@@ -32,7 +33,7 @@ final class SiteReadService
             'version' => (string)($update['current_version'] ?? 'unknown'),
             'api_version' => 'v2',
             'mcp_protocol_version' => '2025-11-25',
-            'capabilities' => ['site_read', 'content_read', 'menu_read', 'search', 'fetch'],
+            'capabilities' => ['site_read', 'content_read', 'taxonomy_read', 'menu_read', 'search', 'fetch'],
         ];
     }
 
@@ -80,6 +81,31 @@ final class SiteReadService
             }
         }
         return null;
+    }
+
+    public function taxonomies(): array
+    {
+        $categories = [];
+        $tags = [];
+        foreach ($this->posts->all() as $post) {
+            $public = PublicationState::isPublic($post);
+            $category = trim((string)($post['category'] ?? ''));
+            if ($category !== '') {
+                $key = $this->lower($category);
+                $categories[$key] ??= ['name' => $category, 'slug' => $this->taxonomySlug($category), 'count' => 0, 'public_count' => 0];
+                $categories[$key]['count']++;
+                $categories[$key]['public_count'] += $public ? 1 : 0;
+            }
+            foreach (array_unique(array_filter(array_map('trim', (array)($post['tags'] ?? [])))) as $tag) {
+                $key = $this->lower($tag);
+                $tags[$key] ??= ['name' => $tag, 'slug' => $this->taxonomySlug($tag), 'count' => 0, 'public_count' => 0];
+                $tags[$key]['count']++;
+                $tags[$key]['public_count'] += $public ? 1 : 0;
+            }
+        }
+        ksort($categories, SORT_NATURAL | SORT_FLAG_CASE);
+        ksort($tags, SORT_NATURAL | SORT_FLAG_CASE);
+        return ['categories' => array_values($categories), 'tags' => array_values($tags)];
     }
 
     public function listMenus(): array
@@ -201,6 +227,10 @@ final class SiteReadService
             'status' => (string)($item['status'] ?? 'draft'),
             'url' => $this->absoluteUrl($path),
             'updated_at' => (string)($item['updated_at'] ?? ''),
+            'publish_at' => (string)($item['publish_at'] ?? $item['published_at'] ?? ''),
+            'unpublish_at' => (string)($item['unpublish_at'] ?? ''),
+            'reviewer' => (string)($item['reviewer'] ?? ''),
+            'public' => PublicationState::isPublic($item),
         ];
         if ($type === 'page') {
             $data['parent_slug'] = (string)($item['parent_slug'] ?? '');
@@ -233,6 +263,13 @@ final class SiteReadService
                 'has_more' => $next < count($items),
             ],
         ];
+    }
+
+    private function taxonomySlug(string $value): string
+    {
+        $value = $this->lower(trim($value));
+        $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?? '';
+        return trim($value, '-');
     }
 
     private function revision(array $record): string

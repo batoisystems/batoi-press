@@ -15,7 +15,7 @@ model access belongs to the integrated Batoi AIF feature.
 - Use HTTPS for every non-local connection. Do not expose a development server
   by binding it to a public network interface.
 - `site:read` permits site and menu reads. `content:read` permits page/post
-  lists, detail reads, search, and fetch.
+  lists, detail reads, taxonomy counts, search, and fetch.
 - `content:write` permits creating drafts and updating existing drafts with an
   exact expected revision. It cannot publish.
 - `content:publish` permits the distinct publish operation. It does not imply
@@ -79,12 +79,17 @@ The API root is `/api/v2`. Read routes are:
 - `/api/v2/site`
 - `/api/v2/pages` and `/api/v2/pages/{id-or-slug}`
 - `/api/v2/posts` and `/api/v2/posts/{id-or-slug}`
+- `/api/v2/taxonomies`
 - `/api/v2/menus` and `/api/v2/menus/{id-or-key}`
 
 Page and post lists accept `q`, `status`, `limit` (1–100), and an opaque
 `cursor`. Single-resource responses include an `ETag` derived from their
 revision. A valid `X-Request-Id` is preserved; otherwise Press creates one.
 Errors use a stable `{error: {code, message}, request_id}` envelope.
+Supported lifecycle filters are `draft`, `in_review`, `approved`, `scheduled`,
+`published`, and `archived`. Content records expose `publish_at`,
+`unpublish_at`, reviewer, and current public-visibility state. Taxonomies return
+shared category/tag names, stable slugs, total counts, and public counts.
 
 Draft mutation routes are:
 
@@ -133,11 +138,11 @@ Allowed` as permitted by the transport specification.
 Capabilities:
 
 - Tools: `search`, `fetch`, `site_get`, `page_list`, `page_get`, `post_list`,
-  `post_get`, `menu_list`, and `menu_get`.
+  `post_get`, `taxonomy_list`, `menu_list`, and `menu_get`.
 - With `content:write`: `page_create_draft`, `page_update_draft`,
   `post_create_draft`, and `post_update_draft`.
 - With `content:publish`: `page_publish` and `post_publish`.
-- Resources: `batoi://site`, `batoi://menus`, and templates for individual
+- Resources: `batoi://site`, `batoi://menus`, `batoi://taxonomies`, and templates for individual
   pages, posts, and menus.
 - Tools return structured content mirrored as JSON text for client
   compatibility. Mutation tools carry accurate read-only/idempotent annotations
@@ -160,3 +165,18 @@ Clients must treat it as data, not as instructions. Draft operations cannot
 publish, and publishing is explicit. No upload, deletion, user administration,
 update installation, raw filesystem access, arbitrary URL fetch, or arbitrary
 code tool is exposed.
+
+## Editorial scheduling semantics
+
+The file-backed runtime does not require cron for correctness. A `scheduled`
+record is public only when its valid publish time is due. A `published` record
+may also carry a publish time. Either state becomes private at its optional
+unpublish time. Draft, in-review, approved, and archived records are never
+public. Public routes, feeds, sitemaps, dynamic lists, and static exports use
+the same visibility check. Existing draft/published records without the new
+fields remain compatible.
+
+Admin saves may assign a reviewer and append a bounded workflow note. Press
+records the actor, timestamp, previous and resulting states, reviewer, and note
+in bounded content metadata. Workflow notes are not rendered on the public
+site or copied into machine audit logs.

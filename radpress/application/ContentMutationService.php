@@ -5,6 +5,7 @@ namespace Batoi\Press\Application;
 
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
+use Batoi\Press\Content\PublicationState;
 use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\Config;
 use RuntimeException;
@@ -105,10 +106,7 @@ final class ContentMutationService
             if ($existing !== null) {
                 $clean['original_slug'] = (string)$existing['slug'];
             }
-            $clean['status'] = in_array(($input['status'] ?? 'draft'), ['draft', 'published'], true) ? (string)$input['status'] : 'draft';
-            if ($type === 'post' && array_key_exists('published_at', $input)) {
-                $clean['published_at'] = (string)$input['published_at'];
-            }
+            $clean['status'] = PublicationState::normalize($input['status'] ?? 'draft');
             $saved = $this->repository($type)->save($clean, $actor);
             $record = $this->find($type, (string)$saved['slug']);
             $result = $this->result($type, $existing === null ? 'created' : 'updated', $existing, $record);
@@ -120,8 +118,8 @@ final class ContentMutationService
     private function validated(string $type, array $input, ?array $existing): array
     {
         $allowed = $type === 'page'
-            ? ['title', 'slug', 'parent_slug', 'body', 'template', 'seo_title', 'seo_description', 'show_latest_posts', 'latest_posts_limit']
-            : ['title', 'subtitle', 'slug', 'body', 'category', 'tags', 'featured_image', 'featured_image_alt', 'layout', 'seo_title', 'seo_description'];
+            ? ['title', 'slug', 'parent_slug', 'body', 'template', 'seo_title', 'seo_description', 'show_latest_posts', 'latest_posts_limit', 'publish_at', 'unpublish_at', 'reviewer', 'workflow_note']
+            : ['title', 'subtitle', 'slug', 'body', 'category', 'tags', 'featured_image', 'featured_image_alt', 'layout', 'seo_title', 'seo_description', 'published_at', 'publish_at', 'unpublish_at', 'reviewer', 'workflow_note'];
         $base = $existing === null ? [] : $this->repositoryInput($type, $existing);
         foreach ($input as $key => $value) {
             if (in_array((string)$key, $allowed, true)) {
@@ -139,6 +137,9 @@ final class ContentMutationService
         if (strlen((string)($base['seo_title'] ?? '')) > 200 || strlen((string)($base['seo_description'] ?? '')) > 500) {
             throw new ContentMutationException('Search metadata exceeds its allowed size.', 'validation_failed', 422);
         }
+        if (strlen((string)($base['reviewer'] ?? '')) > 100 || strlen((string)($base['workflow_note'] ?? '')) > 500) {
+            throw new ContentMutationException('Workflow reviewer or note exceeds its allowed size.', 'validation_failed', 422);
+        }
         if ($type === 'post' && is_array($base['tags'] ?? null)) {
             $base['tags'] = implode(', ', array_slice(array_map('strval', $base['tags']), 0, 30));
         }
@@ -148,8 +149,8 @@ final class ContentMutationService
     private function repositoryInput(string $type, array $record): array
     {
         $fields = $type === 'page'
-            ? ['title', 'slug', 'parent_slug', 'body', 'status', 'template', 'seo_title', 'seo_description', 'show_latest_posts', 'latest_posts_limit']
-            : ['title', 'subtitle', 'slug', 'body', 'status', 'published_at', 'category', 'featured_image', 'featured_image_alt', 'layout', 'seo_title', 'seo_description'];
+            ? ['title', 'slug', 'parent_slug', 'body', 'status', 'template', 'seo_title', 'seo_description', 'show_latest_posts', 'latest_posts_limit', 'publish_at', 'unpublish_at', 'reviewer']
+            : ['title', 'subtitle', 'slug', 'body', 'status', 'published_at', 'publish_at', 'unpublish_at', 'reviewer', 'category', 'featured_image', 'featured_image_alt', 'layout', 'seo_title', 'seo_description'];
         $input = [];
         foreach ($fields as $field) {
             if (array_key_exists($field, $record)) {
@@ -183,7 +184,7 @@ final class ContentMutationService
 
     private function result(string $type, string $action, ?array $before, array $after): array
     {
-        $fields = ['title', 'slug', 'body', 'status', 'seo_title', 'seo_description'];
+        $fields = ['title', 'slug', 'body', 'status', 'publish_at', 'unpublish_at', 'reviewer', 'seo_title', 'seo_description'];
         $changed = [];
         foreach ($fields as $field) {
             if (($before[$field] ?? null) !== ($after[$field] ?? null)) {

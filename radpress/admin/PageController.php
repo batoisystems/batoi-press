@@ -8,6 +8,7 @@ use Batoi\Press\Application\ContentRevision;
 use Batoi\Press\Application\IdempotencyStore;
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
+use Batoi\Press\Content\PublicationState;
 use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\Config;
 use Batoi\Press\Core\HtmlContent;
@@ -155,7 +156,7 @@ final class PageController
             : $this->bodyEditor($bodyValue, 'Use clean HTML. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.');
         $modeSwitch = $isEdit && $textSegments !== [] ? $this->editorModeSwitch($slug, $textOnly) : '';
         $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($page['title'] ?? ''), true, 'data-bp-slug-source') . $this->input('Slug', 'slug', $slug, true, 'data-bp-slug-target') . $modeSwitch . $editor . '</div>';
-        $publishing = $this->select((string)($page['status'] ?? 'draft')) . $this->parentSelect($requestedParent, $slug) . $this->templateSelect((string)($page['template'] ?? 'page')) . $this->latestPostsFields($page) . $this->metaList($page);
+        $publishing = $this->select((string)($page['status'] ?? 'draft')) . $this->workflowFields($page) . $this->parentSelect($requestedParent, $slug) . $this->templateSelect((string)($page['template'] ?? 'page')) . $this->latestPostsFields($page) . $this->workflowHistory($page) . $this->metaList($page);
         $seo = $this->input('SEO Title', 'seo_title', (string)($page['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($page['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short page summary for search snippets and social previews.</span></label>';
 
         $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible page content.') . '</div><aside class="bp-editor-side">' . AifEditorPanel::render($this->config, 'page') . $this->editorPanel('Publishing', $publishing, 'Control draft or live availability.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->pageChecklist(), 'Review before publishing or changing a live page.') . '</aside>';
@@ -185,9 +186,26 @@ final class PageController
 
     private function select(string $status): string
     {
-        $draft = $status === 'draft' ? ' selected' : '';
-        $published = $status === 'published' ? ' selected' : '';
-        return '<label>Status <select name="status"><option value="draft"' . $draft . '>Draft</option><option value="published"' . $published . '>Published</option></select></label>';
+        $html = '<label>Status <select name="status">';
+        foreach (PublicationState::STATUSES as $value) {
+            $html .= '<option value="' . $value . '"' . ($status === $value ? ' selected' : '') . '>' . $this->e(PublicationState::label($value)) . '</option>';
+        }
+        return $html . '</select><span class="bp-field-help">Use In review and Approved for handoff; Scheduled requires a publish date.</span></label>';
+    }
+
+    private function workflowFields(?array $page): string
+    {
+        return $this->dateTimeInput('Publish date', 'publish_at', (string)($page['publish_at'] ?? ''), 'Scheduled content becomes public at this time.')
+            . $this->dateTimeInput('Unpublish date', 'unpublish_at', (string)($page['unpublish_at'] ?? ''), 'Optional automatic public visibility cutoff.')
+            . $this->input('Reviewer', 'reviewer', (string)($page['reviewer'] ?? ''), false)
+            . '<label>Workflow note <textarea name="workflow_note" rows="3" maxlength="500"></textarea><span class="bp-field-help">Saved to workflow history; never displayed publicly.</span></label>';
+    }
+
+    private function dateTimeInput(string $label, string $name, string $value, string $help): string
+    {
+        $timestamp = $value !== '' ? strtotime($value) : false;
+        $formatted = $timestamp !== false ? date('Y-m-d\TH:i', $timestamp) : '';
+        return '<label>' . $this->e($label) . ' <input type="datetime-local" name="' . $this->e($name) . '" value="' . $this->e($formatted) . '"><span class="bp-field-help">' . $this->e($help) . '</span></label>';
     }
 
     private function templateSelect(string $selected): string
@@ -230,13 +248,14 @@ final class PageController
 
     private function toolbar(array $pages, array $filters): string
     {
-        $published = count(array_filter($pages, static fn (array $page): bool => ($page['status'] ?? '') === 'published'));
-        $draft = count(array_filter($pages, static fn (array $page): bool => ($page['status'] ?? '') !== 'published'));
+        $published = count(array_filter($pages, static fn (array $page): bool => PublicationState::isPublic($page)));
+        $draft = count(array_filter($pages, static fn (array $page): bool => ($page['status'] ?? 'draft') === 'draft'));
         $status = (string)($filters['status'] ?? '');
         $html = '<div class="bp-admin-toolbar"><div class="bp-admin-tabs" aria-label="Page status summary"><span class="bp-admin-tab is-active">All ' . count($pages) . '</span><span class="bp-admin-tab">Published ' . $published . '</span><span class="bp-admin-tab">Draft ' . $draft . '</span></div></div>';
         $html .= '<form method="get" action="/admin/pages" class="bp-filter-form bp-filter-form-compact"><div class="bp-filter-field bp-filter-field-search"><label for="bp-page-filter-q">Search</label><input id="bp-page-filter-q" type="search" name="q" value="' . $this->e((string)($filters['q'] ?? '')) . '" placeholder="Title, slug, or SEO text"></div>';
         $html .= '<div class="bp-filter-field"><label for="bp-page-filter-status">Status</label><select id="bp-page-filter-status" name="status"><option value="">All statuses</option>';
-        foreach (['published' => 'Published', 'draft' => 'Draft'] as $value => $label) {
+        foreach (PublicationState::STATUSES as $value) {
+            $label = PublicationState::label($value);
             $html .= '<option value="' . $this->e($value) . '"' . ($status === $value ? ' selected' : '') . '>' . $this->e($label) . '</option>';
         }
         return $html . '</select></div><div class="bp-filter-actions">' . AdminLayout::submitButton('Apply Filters', 'check') . AdminLayout::buttonLink('Reset', '/admin/pages', 'back', true) . '</div></form>';
@@ -292,8 +311,22 @@ final class PageController
 
     private function statusBadge(string $status): string
     {
-        $normalized = $status === 'published' ? 'published' : 'draft';
-        return '<span class="bp-status-badge is-' . $normalized . '">' . $this->e(ucfirst($normalized)) . '</span>';
+        $normalized = PublicationState::normalize($status);
+        return '<span class="bp-status-badge is-' . str_replace('_', '-', $normalized) . '">' . $this->e(PublicationState::label($normalized)) . '</span>';
+    }
+
+    private function workflowHistory(?array $page): string
+    {
+        $history = array_reverse(array_slice((array)($page['workflow_history'] ?? []), -5));
+        if ($history === []) {
+            return '';
+        }
+        $html = '<details class="bp-workflow-history"><summary>Recent workflow history</summary><ol>';
+        foreach ($history as $event) {
+            if (!is_array($event)) continue;
+            $html .= '<li><strong>' . $this->e(PublicationState::label((string)($event['to'] ?? 'draft'))) . '</strong> · ' . $this->e((string)($event['actor'] ?? 'unknown')) . '<small>' . $this->formatDate((string)($event['at'] ?? '')) . (!empty($event['note']) ? ' — ' . $this->e((string)$event['note']) : '') . '</small></li>';
+        }
+        return $html . '</ol></details>';
     }
 
     private function formatDate(string $value): string

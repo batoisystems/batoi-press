@@ -31,7 +31,7 @@ final class PostRepository
 
     public function allPublished(): array
     {
-        return array_values(array_filter($this->all(), static fn (array $post): bool => ($post['status'] ?? '') === 'published'));
+        return array_values(array_filter($this->all(), static fn (array $post): bool => PublicationState::isPublic($post)));
     }
 
     public function all(): array
@@ -54,7 +54,7 @@ final class PostRepository
             $items[] = $meta;
         }
 
-        usort($items, static fn (array $a, array $b): int => strcmp((string)($b['published_at'] ?? ''), (string)($a['published_at'] ?? '')));
+        usort($items, static fn (array $a, array $b): int => strcmp((string)($b['publish_at'] ?? $b['published_at'] ?? ''), (string)($a['publish_at'] ?? $a['published_at'] ?? '')));
         return $items;
     }
 
@@ -72,8 +72,18 @@ final class PostRepository
         if ($originalSlug !== '' && $originalSlug !== $slug && $this->findBySlug($slug) !== null) {
             throw new RuntimeException('A post with this slug already exists.');
         }
-        $status = in_array(($input['status'] ?? 'draft'), ['draft', 'published'], true) ? (string)($input['status'] ?? 'draft') : 'draft';
-        $publishedAt = $this->publishedAt((string)($input['published_at'] ?? ''), $status, (string)($existing['published_at'] ?? ''), $now);
+        $status = PublicationState::normalize($input['status'] ?? 'draft');
+        $requestedPublishAt = $input['publish_at'] ?? $input['published_at'] ?? $existing['publish_at'] ?? $existing['published_at'] ?? '';
+        $publishAt = PublicationState::normalizeDate($requestedPublishAt, 'Publish');
+        if ($status === 'published' && $publishAt === '') {
+            $publishAt = $now;
+        }
+        if ($status === 'scheduled' && $publishAt === '') {
+            throw new RuntimeException('A scheduled post requires a publish date and time.');
+        }
+        $unpublishAt = PublicationState::normalizeDate($input['unpublish_at'] ?? $existing['unpublish_at'] ?? '', 'Unpublish');
+        $reviewer = substr(trim((string)($input['reviewer'] ?? $existing['reviewer'] ?? '')), 0, 100);
+        $workflowNote = substr(trim((string)($input['workflow_note'] ?? '')), 0, 500);
         $layout = (string)($input['layout'] ?? $existing['layout'] ?? 'full');
         $meta = [
             'id' => (string)($existing['id'] ?? 'post_' . bin2hex(random_bytes(6))),
@@ -82,6 +92,10 @@ final class PostRepository
             'subtitle' => trim((string)($input['subtitle'] ?? '')),
             'slug' => $slug,
             'status' => $status,
+            'publish_at' => $publishAt,
+            'unpublish_at' => $unpublishAt,
+            'reviewer' => $reviewer,
+            'workflow_history' => PublicationState::history($existing ?? [], $status, $reviewer, $workflowNote, $actor, $now),
             'template' => 'post',
             'author' => (string)($existing['author'] ?? $actor),
             'category' => trim((string)($input['category'] ?? 'General')),
@@ -91,7 +105,7 @@ final class PostRepository
             'tags' => array_values(array_filter(array_map('trim', explode(',', (string)($input['tags'] ?? ''))))),
             'created_at' => (string)($existing['created_at'] ?? $now),
             'updated_at' => $now,
-            'published_at' => $publishedAt,
+            'published_at' => $publishAt,
             'seo_title' => trim((string)($input['seo_title'] ?? $input['title'] ?? '')),
             'seo_description' => trim((string)($input['seo_description'] ?? '')),
         ];
@@ -131,22 +145,6 @@ final class PostRepository
             return $value;
         }
         return filter_var($value, FILTER_VALIDATE_URL) !== false && preg_match('#^https?://#i', $value) === 1 ? $value : '';
-    }
-
-    private function publishedAt(string $value, string $status, string $existing, string $now): string
-    {
-        if ($status !== 'published') {
-            return '';
-        }
-        $value = trim($value);
-        if ($value === '') {
-            return $existing !== '' ? $existing : $now;
-        }
-        $timestamp = strtotime($value);
-        if ($timestamp === false) {
-            throw new RuntimeException('Enter a valid publish date and time.');
-        }
-        return date(DATE_ATOM, $timestamp);
     }
 
     private function targetDir(string $originalSlug, string $slug): string

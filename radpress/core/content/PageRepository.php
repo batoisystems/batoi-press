@@ -54,7 +54,7 @@ final class PageRepository
 
     public function allPublished(): array
     {
-        return array_values(array_filter($this->all(), static fn (array $page): bool => ($page['status'] ?? '') === 'published'));
+        return array_values(array_filter($this->all(), static fn (array $page): bool => PublicationState::isPublic($page)));
     }
 
     public function all(): array
@@ -76,7 +76,17 @@ final class PageRepository
         if ($originalSlug !== '' && $originalSlug !== $slug && $this->findBySlug($slug) !== null) {
             throw new RuntimeException('A page with this slug already exists.');
         }
-        $status = in_array(($input['status'] ?? 'draft'), ['draft', 'published'], true) ? (string)($input['status'] ?? 'draft') : 'draft';
+        $status = PublicationState::normalize($input['status'] ?? 'draft');
+        $publishAt = PublicationState::normalizeDate($input['publish_at'] ?? $existing['publish_at'] ?? '', 'Publish');
+        if ($status === 'published' && $publishAt === '') {
+            $publishAt = (string)($existing['publish_at'] ?? $now);
+        }
+        if ($status === 'scheduled' && $publishAt === '') {
+            throw new RuntimeException('A scheduled page requires a publish date and time.');
+        }
+        $unpublishAt = PublicationState::normalizeDate($input['unpublish_at'] ?? $existing['unpublish_at'] ?? '', 'Unpublish');
+        $reviewer = substr(trim((string)($input['reviewer'] ?? $existing['reviewer'] ?? '')), 0, 100);
+        $workflowNote = substr(trim((string)($input['workflow_note'] ?? '')), 0, 500);
         $template = strtolower(trim((string)($input['template'] ?? $existing['template'] ?? 'page')));
         if (preg_match('/^[a-z][a-z0-9_-]*$/', $template) !== 1) {
             $template = 'page';
@@ -91,6 +101,10 @@ final class PageRepository
             'slug' => $slug,
             'parent_slug' => $parentSlug,
             'status' => $status,
+            'publish_at' => $publishAt,
+            'unpublish_at' => $unpublishAt,
+            'reviewer' => $reviewer,
+            'workflow_history' => PublicationState::history($existing ?? [], $status, $reviewer, $workflowNote, $actor, $now),
             'template' => $template,
             'author' => (string)($existing['author'] ?? $actor),
             'created_at' => (string)($existing['created_at'] ?? $now),

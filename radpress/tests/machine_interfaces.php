@@ -35,7 +35,7 @@ try {
         'id' => 'pg_private', 'type' => 'page', 'title' => 'Private Notes', 'slug' => 'private-notes', 'status' => 'draft', 'updated_at' => '2026-08-01T11:00:00+00:00',
     ], '<p>Draft workflow notes.</p>');
     writeContentFixture($files, $root . '/radpress/content/posts/launch', [
-        'id' => 'post_launch', 'type' => 'post', 'title' => 'Launch', 'slug' => 'launch', 'status' => 'published', 'published_at' => '2026-08-01T12:00:00+00:00', 'updated_at' => '2026-08-01T12:00:00+00:00',
+        'id' => 'post_launch', 'type' => 'post', 'title' => 'Launch', 'slug' => 'launch', 'status' => 'published', 'published_at' => '2026-08-01T12:00:00+00:00', 'updated_at' => '2026-08-01T12:00:00+00:00', 'category' => 'Product', 'tags' => ['Launch'],
     ], '<p>Launch details for Batoi Press.</p>');
     $files->writeJson($root . '/radpress/content/menus/main.json', [
         'schema_version' => 2, 'id' => 'menu_main', 'name' => 'Primary navigation', 'location' => 'primary', 'revision' => 3,
@@ -70,6 +70,8 @@ try {
     assertMachineInterface(($pagePayload['data']['id'] ?? '') === 'pg_home' && str_contains((string)($pagePayload['data']['body'] ?? ''), 'Machine-readable'), 'page detail should support stable IDs and include governed content');
     assertMachineInterface(isset($pageResponse->headers()['ETag']), 'resource reads should expose an ETag revision');
     assertMachineInterface($router->dispatch(machineRequest('GET', '/api/v2', $token))->status() === 200, 'main router should dispatch the versioned API before public content routes');
+    $taxonomyPayload = decodeMachineResponse($api->handle(machineRequest('GET', '/api/v2/taxonomies', $contentOnly)));
+    assertMachineInterface(($taxonomyPayload['data']['categories'][0]['slug'] ?? '') === 'product', 'API should expose shared taxonomy counts under content read scope');
 
     $forbidden = $api->handle(machineRequest('GET', '/api/v2/site', $contentOnly));
     assertMachineInterface($forbidden->status() === 403, 'API should distinguish insufficient scope from invalid authentication');
@@ -104,7 +106,7 @@ try {
 
     $toolList = decodeMachineResponse($mcp->handle(mcpRequest($token, 'tools/list', [], 2)));
     $toolNames = array_column((array)($toolList['result']['tools'] ?? []), 'name');
-    assertMachineInterface(in_array('search', $toolNames, true) && in_array('menu_get', $toolNames, true), 'MCP should expose scoped content and site read tools');
+    assertMachineInterface(in_array('search', $toolNames, true) && in_array('menu_get', $toolNames, true) && in_array('taxonomy_list', $toolNames, true), 'MCP should expose scoped content, taxonomy, and site read tools');
     assertMachineInterface(!in_array('page_create_draft', $toolNames, true), 'MCP should omit write tools when the connection lacks write scope');
 
     $writeToolList = decodeMachineResponse($mcp->handle(mcpRequest($editorToken, 'tools/list', [], 21)));
