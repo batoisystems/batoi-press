@@ -99,8 +99,8 @@ final class MenuRepository
             return [
                 'schema_version' => self::SCHEMA_VERSION,
                 'id' => $this->validMenuId((string)($document['id'] ?? '')) ?: 'menu_' . $name,
-                'name' => $this->bounded((string)($document['name'] ?? 'Primary navigation'), 80),
-                'location' => $this->location((string)($document['location'] ?? 'primary')),
+                'name' => $this->bounded((string)($document['name'] ?? $this->defaultLabel($name)), 80),
+                'location' => $this->location((string)($document['location'] ?? $this->defaultLocation($name))),
                 'revision' => max(0, (int)($document['revision'] ?? 0)),
                 'updated_at' => (string)($document['updated_at'] ?? ''),
                 'updated_by' => (string)($document['updated_by'] ?? ''),
@@ -160,8 +160,8 @@ final class MenuRepository
         return [
             'schema_version' => self::SCHEMA_VERSION,
             'id' => 'menu_' . $name,
-            'name' => 'Primary navigation',
-            'location' => 'primary',
+            'name' => $this->defaultLabel($name),
+            'location' => $this->defaultLocation($name),
             'revision' => max(0, (int)($document['revision'] ?? 0)),
             'updated_at' => (string)($document['updated_at'] ?? ''),
             'updated_by' => (string)($document['updated_by'] ?? ''),
@@ -291,8 +291,8 @@ final class MenuRepository
         return [
             'schema_version' => self::SCHEMA_VERSION,
             'id' => $this->validMenuId((string)($document['id'] ?? '')) ?: (string)($current['id'] ?? 'menu_' . $name),
-            'name' => $this->bounded(trim((string)($document['name'] ?? $current['name'] ?? 'Primary navigation')), 80) ?: 'Primary navigation',
-            'location' => $this->location((string)($document['location'] ?? $current['location'] ?? 'primary')),
+            'name' => $this->bounded(trim((string)($document['name'] ?? $current['name'] ?? $this->defaultLabel($name))), 80) ?: $this->defaultLabel($name),
+            'location' => $this->location((string)($document['location'] ?? $current['location'] ?? $this->defaultLocation($name))),
             'revision' => $revision,
             'updated_at' => date(DATE_ATOM),
             'updated_by' => $this->bounded(trim($actor), 120),
@@ -305,8 +305,8 @@ final class MenuRepository
         return [
             'schema_version' => self::SCHEMA_VERSION,
             'id' => 'menu_' . $name,
-            'name' => 'Primary navigation',
-            'location' => 'primary',
+            'name' => $this->defaultLabel($name),
+            'location' => $this->defaultLocation($name),
             'revision' => 0,
             'updated_at' => '',
             'updated_by' => '',
@@ -381,6 +381,16 @@ final class MenuRepository
     {
         $location = strtolower(trim($location));
         return preg_match('/^[a-z][a-z0-9_-]{0,63}$/D', $location) === 1 ? $location : 'primary';
+    }
+
+    private function defaultLocation(string $name): string
+    {
+        return $name === 'main' ? 'primary' : $this->location($name);
+    }
+
+    private function defaultLabel(string $name): string
+    {
+        return ucfirst(str_replace(['-', '_'], ' ', $this->defaultLocation($name))) . ' navigation';
     }
 
     private function bounded(string $value, int $bytes): string

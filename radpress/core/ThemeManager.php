@@ -82,6 +82,7 @@ final class ThemeManager
             'version' => $version,
             'author' => $author,
             'supports' => $supports,
+            'menu_locations' => $this->normalizeMenuLocations((array)($raw['menu_locations'] ?? [])),
             'page_templates' => $this->normalizePageTemplates((array)($raw['page_templates'] ?? [])),
             'assets' => [
                 'styles' => $this->normalizeEntries((array)($assets['styles'] ?? []), 'style'),
@@ -131,6 +132,7 @@ final class ThemeManager
             'version' => '0.0.0',
             'author' => 'Unknown',
             'supports' => [],
+            'menu_locations' => $this->normalizeMenuLocations([]),
             'page_templates' => $this->normalizePageTemplates([]),
             'assets' => ['styles' => [], 'scripts' => []],
         ];
@@ -144,6 +146,28 @@ final class ThemeManager
         } catch (RuntimeException) {
             return $this->normalizePageTemplates([]);
         }
+    }
+
+    public function menuLocations(string $slug): array
+    {
+        try {
+            return (array)($this->manifest($slug)['menu_locations'] ?? $this->normalizeMenuLocations([]));
+        } catch (RuntimeException) {
+            return $this->normalizeMenuLocations([]);
+        }
+    }
+
+    private function normalizeMenuLocations(array $locations): array
+    {
+        $normalized = [];
+        foreach ($locations as $key => $label) {
+            $key = strtolower(trim((string)$key));
+            $label = trim((string)$label);
+            if (preg_match('/^[a-z][a-z0-9_-]{0,63}$/D', $key) === 1 && $label !== '') {
+                $normalized[$key] = substr($label, 0, 80);
+            }
+        }
+        return $normalized !== [] ? $normalized : ['primary' => 'Primary navigation'];
     }
 
     public function resolvePageLayout(string $slug, string $template): string

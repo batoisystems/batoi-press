@@ -15,15 +15,20 @@ require dirname(__DIR__) . '/helpers/url.php';
 $root = sys_get_temp_dir() . '/batoi-press-navigation-' . bin2hex(random_bytes(4));
 
 try {
-    foreach (['radpress/config', 'radpress/content/menus', 'radpress/content/pages/home', 'radpress/data/sessions', 'radpress/data/log'] as $directory) {
+    foreach (['radpress/config', 'radpress/content/menus', 'radpress/content/pages/home', 'radpress/data/sessions', 'radpress/data/log', 'radpress/theme/default'] as $directory) {
         mkdir($root . '/' . $directory, 0775, true);
     }
     file_put_contents($root . '/radpress/config/paths.json', json_encode([
         'config' => 'radpress/config',
         'content' => 'radpress/content',
         'data' => 'radpress/data',
+        'theme' => 'radpress/theme',
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX);
     file_put_contents($root . '/radpress/config/site.json', json_encode(['homepage' => 'home'], JSON_PRETTY_PRINT) . "\n", LOCK_EX);
+    file_put_contents($root . '/radpress/theme/default/theme.json', json_encode([
+        'schema' => 1, 'slug' => 'default', 'name' => 'Default', 'version' => '2.0.0', 'author' => 'Batoi',
+        'menu_locations' => ['primary' => 'Primary navigation', 'footer' => 'Footer navigation'],
+    ], JSON_PRETTY_PRINT) . "\n", LOCK_EX);
     file_put_contents($root . '/radpress/content/pages/home/meta.json', json_encode([
         'title' => 'Home',
         'slug' => 'home',
@@ -58,6 +63,21 @@ try {
     $editor = $controller->edit()->content();
     assertNavigation(str_contains($editor, 'Navigation tree') && str_contains($editor, 'Structure preview'), 'menu editor should expose professional tree and preview controls');
     assertNavigation(str_contains($editor, 'data-bp-add-menu-library') && str_contains($editor, 'Top-level display'), 'menu editor should expose an item library and presentation controls');
+    assertNavigation(str_contains($editor, 'Footer navigation') && str_contains($editor, 'location=footer'), 'menu editor should expose theme-declared locations');
+
+    $footerResponse = $controller->save(new Request('POST', '/admin/menus/save', [], [
+        'csrf_token' => $csrf->token(),
+        'menu_id' => 'menu_footer',
+        'menu_revision' => '0',
+        'menu_location' => 'footer',
+        'item_order' => ['mi_resources', 'mi_docs'],
+        'menu_items' => [
+            'mi_resources' => ['type' => 'heading', 'label' => 'Resources', 'url' => '', 'parent_id' => '', 'enabled' => '1'],
+            'mi_docs' => ['type' => 'link', 'label' => 'Documentation', 'url' => '/docs', 'parent_id' => 'mi_resources', 'enabled' => '1'],
+        ],
+    ], ['REMOTE_ADDR' => '127.0.0.1']));
+    $footer = $files->readJson($config->paths()->contentPath('menus/footer.json'));
+    assertNavigation($footerResponse->status() === 302 && ($footer['location'] ?? '') === 'footer' && ($footer['items'][1]['parent_id'] ?? '') === 'mi_resources', 'footer location should save independently with hierarchy and revision');
 
     $invalid = $controller->save(new Request('POST', '/admin/menus/save', [], [
         'csrf_token' => $csrf->token(),
@@ -74,9 +94,11 @@ try {
 
     $headerSource = (string)file_get_contents(dirname(__DIR__) . '/theme/default/partials/header.php');
     $themeScript = (string)file_get_contents(dirname(__DIR__) . '/theme/default/assets/js/theme.js');
+    $footerSource = (string)file_get_contents(dirname(__DIR__) . '/theme/default/partials/footer.php');
     assertNavigation(str_contains($headerSource, 'bp-mega-menu') && str_contains($headerSource, 'bp-submenu-toggle'), 'default theme should render mega menus and explicit submenu disclosures');
     assertNavigation(str_contains($headerSource, 'bp_is_current_url') && str_contains($headerSource, 'is-current-ancestor'), 'default theme should render active route and ancestor classes');
     assertNavigation(str_contains($themeScript, 'aria-expanded') && str_contains($themeScript, "event.key !== 'Escape'"), 'default theme should manage disclosure state and Escape behavior');
+    assertNavigation(str_contains($footerSource, "load('footer')") && str_contains($footerSource, 'bp-footer-menu-heading'), 'default theme should render the structured footer location with child groups');
 
     echo "Navigation hierarchy checks passed\n";
 } finally {

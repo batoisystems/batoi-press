@@ -124,6 +124,7 @@ try {
     assertTrue(str_contains((string)$zip->getFromName('blog/first-post/index.html'), 'Previous Article'), 'Static post pages should include adjacent article buttons.');
     assertTrue(str_contains((string)$zip->getFromName('blog/first-post/index.html'), '../../assets/images/site/logo.png'), 'Nested static posts should resolve root assets with a depth-aware relative path.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), 'Rendered through the active theme.'), 'Static HTML should use the active theme footer.');
+    assertTrue(str_contains((string)$zip->getFromName('index.html'), 'Support centre') && str_contains((string)$zip->getFromName('index.html'), 'Documentation'), 'Static HTML should render structured footer menu groups and children.');
     assertTrue($zip->locateName('admin/index.html') === false, 'static export ZIP should not include admin output');
     $zip->close();
 
@@ -136,11 +137,13 @@ function createFixture(string $root): void
 {
     foreach ([
         'public_html',
+        'radpress/config',
         'radpress/content/pages/home',
         'radpress/content/pages/about',
         'radpress/content/pages/team',
         'radpress/content/posts/first-post',
         'radpress/content/posts/second-post',
+        'radpress/content/menus',
         'radpress/content/widgets',
         'radpress/content/media',
         'radpress/content/assets/styles/custom',
@@ -153,6 +156,10 @@ function createFixture(string $root): void
     ] as $dir) {
         mkdir($root . '/' . $dir, 0775, true);
     }
+
+    file_put_contents($root . '/radpress/config/paths.json', json_encode([
+        'public_root' => 'public_html', 'config' => 'radpress/config', 'content' => 'radpress/content', 'data' => 'radpress/data', 'theme' => 'radpress/theme',
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX);
 
     writeContent($root . '/radpress/content/pages/home', [
         'title' => 'Home',
@@ -196,6 +203,13 @@ function createFixture(string $root): void
         'title' => 'Call to action',
         'body' => '<p>Contact our team.</p>',
     ]]], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX);
+    file_put_contents($root . '/radpress/content/menus/footer.json', json_encode([
+        'schema_version' => 2, 'id' => 'menu_footer', 'name' => 'Footer navigation', 'location' => 'footer', 'revision' => 1,
+        'items' => [
+            ['id' => 'mi_support', 'type' => 'heading', 'label' => 'Support centre', 'url' => '', 'parent_id' => null, 'enabled' => true],
+            ['id' => 'mi_documentation', 'type' => 'link', 'label' => 'Documentation', 'url' => '/docs', 'parent_id' => 'mi_support', 'enabled' => true],
+        ],
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n", LOCK_EX);
     file_put_contents($root . '/radpress/content/media/sample-media.txt', "sample media\n", LOCK_EX);
     file_put_contents($root . '/radpress/content/media/site.css', "body{color:#111}\n", LOCK_EX);
     file_put_contents($root . '/radpress/content/media/site.js', "console.log('asset');\n", LOCK_EX);

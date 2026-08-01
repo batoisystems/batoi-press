@@ -13,6 +13,7 @@ use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\HtmlContent;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
+use Batoi\Press\Core\ThemeManager;
 use Batoi\Press\Security\Csrf;
 use RuntimeException;
 
@@ -30,30 +31,36 @@ final class MenuController
     public function edit(array $errors = [], ?array $draft = null, int $status = 200): Response
     {
         $repository = $this->menus();
-        $menu = $draft ?? $repository->load();
+        $locations = $this->menuLocations();
+        $location = $this->requestedLocation($locations, (string)($draft['location'] ?? ''));
+        $menuKey = $this->menuKey($location);
+        $menu = $draft ?? $repository->load($menuKey);
         $items = array_values(array_filter((array)($menu['items'] ?? []), 'is_array'));
         $site = $this->config->site();
+        $label = (string)$locations[$location];
 
         $body = AdminLayout::pageHeader(
             'Menus',
             'Build clear, responsive navigation with stable hierarchy, dropdowns, and mega menus.',
-            '<span class="bp-status-badge is-published">Primary navigation</span>'
+            '<span class="bp-status-badge is-published">' . $this->e($label) . '</span>'
         );
         if ($errors !== []) {
             $body .= '<div class="bp-error" role="alert"><strong>Menu not saved.</strong> Review the highlighted items and preserve the intended hierarchy before trying again.</div>';
         }
-        $body .= $this->summary($menu, $items);
+        $body .= $this->locationTabs($locations, $location) . $this->summary($menu, $items);
         $body .= '<form method="post" action="/admin/menus/save" class="bp-form bp-admin-editor bp-menu-editor" data-bp-menu-builder>';
         $body .= $this->csrf->field();
-        $body .= '<input type="hidden" name="menu_id" value="' . $this->e((string)($menu['id'] ?? 'menu_main')) . '">';
+        $body .= '<input type="hidden" name="menu_id" value="' . $this->e((string)($menu['id'] ?? 'menu_' . $menuKey)) . '">';
         $body .= '<input type="hidden" name="menu_revision" value="' . (int)($menu['revision'] ?? 0) . '">';
-        $body .= '<input type="hidden" name="menu_location" value="primary">';
+        $body .= '<input type="hidden" name="menu_location" value="' . $this->e($location) . '">';
         $body .= '<div class="bp-editor-main">';
-        $body .= $this->editorPanel('Primary navigation', $this->builder($items, $errors), 'Arrange items in reading order. Select a parent to create a dropdown or nested child.');
+        $body .= $this->editorPanel($label, $this->builder($items, $errors), 'Arrange items in reading order. Select a parent to create a dropdown or nested child.');
         $body .= $this->editorPanel('Structure preview', '<div class="bp-menu-structure-preview" data-bp-menu-preview>' . $this->structurePreview($items) . '</div>', 'Review hierarchy and mega-menu columns before saving.');
         $body .= '</div><aside class="bp-editor-side">';
         $body .= $this->editorPanel('Add content', $this->itemLibrary(), 'Add published destinations without remembering their URLs.');
-        $body .= $this->editorPanel('Homepage', $this->homepageSelect((string)($site['homepage'] ?? 'home')), 'Choose the published page shown at the site root.');
+        if ($location === 'primary') {
+            $body .= $this->editorPanel('Homepage', $this->homepageSelect((string)($site['homepage'] ?? 'home')), 'Choose the published page shown at the site root.');
+        }
         $body .= $this->editorPanel('Navigation guide', $this->navigationGuide(), 'Keep labels concise and hierarchy predictable.');
         $body .= $this->editorPanel('Legacy import', $this->legacyImport($repository, $menu), 'Import line-based menus when migrating older installations.');
         $body .= '</aside>';
@@ -69,16 +76,22 @@ final class MenuController
         }
 
         $repository = $this->menus();
+        $locations = $this->menuLocations();
+        $location = strtolower(trim($request->input('menu_location', 'primary')));
+        if (!isset($locations[$location])) {
+            return Response::html($this->layout('Menus', '<p class="bp-error">The selected menu location is not declared by the active theme.</p>'), 422);
+        }
+        $menuKey = $this->menuKey($location);
         $items = $this->itemsFromRequest($request->post);
         if ($items === []) {
-            $imported = $repository->importLegacyLines($request->input('items'));
+            $imported = $repository->importLegacyLines($request->input('items'), $menuKey);
             $items = (array)($imported['items'] ?? []);
         }
         $draft = [
             'schema_version' => MenuRepository::SCHEMA_VERSION,
             'id' => $request->input('menu_id', 'menu_main'),
-            'name' => 'Primary navigation',
-            'location' => $request->input('menu_location', 'primary'),
+            'name' => (string)$locations[$location],
+            'location' => $location,
             'revision' => (int)$request->input('menu_revision', '0'),
             'items' => $items,
         ];
@@ -87,7 +100,8 @@ final class MenuController
             $saved = $repository->save(
                 $draft,
                 (string)($this->user['username'] ?? 'admin'),
-                (int)$request->input('menu_revision', '0')
+                (int)$request->input('menu_revision', '0'),
+                $menuKey
             );
         } catch (MenuValidationException $exception) {
             return $this->edit($exception->errors(), $draft, 422);
@@ -97,7 +111,7 @@ final class MenuController
             return Response::html($this->layout('Menus', '<p class="bp-error">Unable to save navigation: ' . $this->e($exception->getMessage()) . '</p><p><a href="/admin/menus">Back to Menus</a></p>'), 500);
         }
 
-        $homepage = trim($request->input('homepage'));
+        $homepage = $location === 'primary' ? trim($request->input('homepage')) : '';
         $pages = $this->pages();
         $page = $homepage !== '' ? $pages->findBySlug($homepage) : null;
         if ($page !== null && ($page['status'] ?? '') === 'published') {
@@ -118,7 +132,7 @@ final class MenuController
             ]
         );
 
-        return Response::redirect('/admin/menus');
+        return Response::redirect('/admin/menus?location=' . rawurlencode($location));
     }
 
     private function summary(array $menu, array $items): string
@@ -320,6 +334,33 @@ final class MenuController
     private function menus(): MenuRepository
     {
         return new MenuRepository($this->config->paths(), $this->files);
+    }
+
+    private function menuLocations(): array
+    {
+        $manager = new ThemeManager($this->config->paths(), $this->files);
+        return $manager->menuLocations($manager->activeSlug($this->config->site()));
+    }
+
+    private function requestedLocation(array $locations, string $draftLocation = ''): string
+    {
+        $requested = $draftLocation !== '' ? $draftLocation : (string)($_GET['location'] ?? 'primary');
+        $requested = strtolower(trim($requested));
+        return isset($locations[$requested]) ? $requested : (string)array_key_first($locations);
+    }
+
+    private function menuKey(string $location): string
+    {
+        return $location === 'primary' ? 'main' : $location;
+    }
+
+    private function locationTabs(array $locations, string $selected): string
+    {
+        $html = '<nav class="bp-admin-tabs" aria-label="Menu locations">';
+        foreach ($locations as $key => $label) {
+            $html .= '<a class="bp-admin-tab' . ($key === $selected ? ' is-active' : '') . '" href="/admin/menus?location=' . rawurlencode((string)$key) . '"' . ($key === $selected ? ' aria-current="page"' : '') . '>' . $this->e((string)$label) . '</a>';
+        }
+        return $html . '</nav>';
     }
 
     private function pages(): PageRepository

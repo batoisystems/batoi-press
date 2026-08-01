@@ -38,12 +38,23 @@ Theme layouts receive sanitized content and metadata from the engine plus normal
   "version": "1.0.0",
   "author": "Example Studio",
   "supports": ["pages", "posts", "menus", "seo", "brand_logo"],
+  "menu_locations": {
+    "primary": "Primary navigation",
+    "footer": "Footer navigation"
+  },
   "assets": {
     "styles": [{"file": "css/theme.css", "media": "all"}],
     "scripts": [{"file": "js/theme.js", "defer": true}]
   }
 }
 ```
+
+`menu_locations` declares the named, independently revisioned menus available
+to administrators. Location keys use lowercase letters, numbers, underscores,
+and hyphens. Existing themes without the field retain a compatible `primary`
+location backed by `content/menus/main.json`. The bundled theme also declares
+`footer`, backed by `content/menus/footer.json`, and renders its nested groups
+without requiring JavaScript.
 
 Themes may declare additional page templates in the manifest. Existing themes without this field continue to expose the standard page template.
 

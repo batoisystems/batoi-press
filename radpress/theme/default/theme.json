@@ -5,6 +5,10 @@
   "version": "3.0.0",
   "author": "Batoi",
   "supports": ["pages", "posts", "menus", "dropdown_menus", "mega_menus", "seo", "brand_logo", "landing_pages", "ecommerce_pages", "responsive_navigation", "accessibility"],
+  "menu_locations": {
+    "primary": "Primary navigation",
+    "footer": "Footer navigation"
+  },
   "page_templates": {
     "page": {"label": "Standard Page", "layout": "page"},
     "landing": {"label": "Landing Page", "layout": "landing"},
