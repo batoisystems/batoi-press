@@ -15,6 +15,7 @@ use Batoi\Press\Admin\MediaController;
 use Batoi\Press\Admin\MenuController;
 use Batoi\Press\Admin\PageController;
 use Batoi\Press\Admin\PostController;
+use Batoi\Press\Admin\SecurityController;
 use Batoi\Press\Admin\SettingsController;
 use Batoi\Press\Admin\ThemeTemplateController;
 use Batoi\Press\Admin\UpdateController;
@@ -126,9 +127,12 @@ final class Router
 
     private function admin(Request $request): Response
     {
+        $sessionSettings = is_array($this->config->security()['session'] ?? null) ? $this->config->security()['session'] : [];
         $session = new Session(
             (string)($this->config->security()['session_name'] ?? 'batoi_press_session'),
-            $this->config->paths()->dataPath('sessions')
+            $this->config->paths()->dataPath('sessions'),
+            max(60, (int)($sessionSettings['idle_seconds'] ?? 1800)),
+            max(300, (int)($sessionSettings['absolute_seconds'] ?? 43200))
         );
         $csrf = new Csrf($session);
         AdminLayout::setCsrf($csrf);
@@ -141,6 +145,10 @@ final class Router
 
         if ($request->path === '/admin/login') {
             return $authController->login($request);
+        }
+
+        if ($request->path === '/admin/login/mfa') {
+            return $authController->mfa($request);
         }
 
         if ($request->path === '/admin/forgot-password') {
@@ -167,6 +175,22 @@ final class Router
 
         if ($request->path === '/admin') {
             return (new DashboardController($this->config, $this->pages, $this->posts, $csrf, $user))->index();
+        }
+
+        if ($request->path === '/admin/security') {
+            return (new SecurityController($this->config, $csrf, $session, $audit, $user))->index();
+        }
+
+        if ($request->path === '/admin/security/mfa/start' && $request->method === 'POST') {
+            return (new SecurityController($this->config, $csrf, $session, $audit, $user))->start($request);
+        }
+
+        if ($request->path === '/admin/security/mfa/confirm' && $request->method === 'POST') {
+            return (new SecurityController($this->config, $csrf, $session, $audit, $user))->confirm($request);
+        }
+
+        if ($request->path === '/admin/security/mfa/disable' && $request->method === 'POST') {
+            return (new SecurityController($this->config, $csrf, $session, $audit, $user))->disable($request);
         }
 
         if ($request->path === '/admin/pages') {

@@ -2,10 +2,14 @@
 declare(strict_types=1);
 
 use Batoi\Press\Core\Paths;
+use Batoi\Press\Core\Config;
+use Batoi\Press\Core\Request;
+use Batoi\Press\Core\Response;
 use Batoi\Press\Security\AdminAccess;
 use Batoi\Press\Security\Csrf;
 use Batoi\Press\Security\RateLimiter;
 use Batoi\Press\Security\Session;
+use Batoi\Press\Security\SecurityHeaders;
 use Batoi\Press\Security\UploadGuard;
 
 require dirname(__DIR__) . '/autoload.php';
@@ -44,15 +48,39 @@ assertSame('File type is not allowed.', $guard->validate(['error' => UPLOAD_ERR_
 assertSame('File size is not allowed.', $guard->validate(['error' => UPLOAD_ERR_OK, 'size' => 0, 'name' => 'asset.png']), 'empty upload should be rejected');
 $safeName = $guard->safeName('My Unsafe File.PNG');
 assertTrue((bool)preg_match('/^my-unsafe-file-[a-f0-9]{8}\.png$/', $safeName), 'safe upload name should be normalized');
+$validPng = tempnam(sys_get_temp_dir(), 'bp-png-');
+$fakePng = tempnam(sys_get_temp_dir(), 'bp-fake-');
+file_put_contents($validPng, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='));
+file_put_contents($fakePng, '<?php echo "not an image";');
+try {
+    assertSame(null, $guard->validate(['error' => UPLOAD_ERR_OK, 'size' => filesize($validPng), 'name' => 'pixel.png', 'tmp_name' => $validPng]), 'valid image signature should pass');
+    assertSame('Uploaded file content is not allowed.', $guard->validate(['error' => UPLOAD_ERR_OK, 'size' => filesize($fakePng), 'name' => 'payload.png', 'tmp_name' => $fakePng]), 'executable content disguised as an image should be rejected');
+} finally {
+    unlink($validPng);
+    unlink($fakePng);
+}
+
+$headerConfig = Config::load($root);
+$secured = SecurityHeaders::apply(Response::html('ok'), new Request('GET', '/', [], [], ['HTTPS' => 'on']), $headerConfig);
+assertSame('nosniff', (string)($secured->headers()['X-Content-Type-Options'] ?? ''), 'responses should prevent MIME sniffing');
+assertSame('DENY', (string)($secured->headers()['X-Frame-Options'] ?? ''), 'responses should deny framing');
+assertTrue(isset($secured->headers()['Content-Security-Policy-Report-Only']), 'default CSP rollout should be report-only');
+assertTrue(str_starts_with((string)($secured->headers()['Strict-Transport-Security'] ?? ''), 'max-age='), 'HTTPS responses should carry HSTS');
 
 $sessionRoot = sys_get_temp_dir() . '/batoi-press-security-baseline-' . bin2hex(random_bytes(4));
 mkdir($sessionRoot . '/sessions', 0775, true);
 try {
-    $csrf = new Csrf(new Session('batoi_press_security_' . bin2hex(random_bytes(3)), $sessionRoot . '/sessions'));
+    $session = new Session('batoi_press_security_' . bin2hex(random_bytes(3)), $sessionRoot . '/sessions', 60, 300);
+    $csrf = new Csrf($session);
     $token = $csrf->token();
     assertTrue(strlen($token) === 64, 'CSRF token should be 32 random bytes encoded as hex');
     assertTrue($csrf->validate($token), 'CSRF should validate current token');
     assertTrue(!$csrf->validate('invalid-token'), 'CSRF should reject invalid token');
+    $session->set('auth_user', 'owner');
+    $_SESSION['_bp_created_at'] = time() - 301;
+    $_SESSION['_bp_last_seen_at'] = time();
+    assertSame(null, $session->get('auth_user'), 'absolute session lifetime should clear authenticated state');
+    assertSame('absolute', $session->pull('_bp_expired_reason'), 'session expiry should retain a safe login notice reason');
     session_write_close();
 
     $paths = new Paths($sessionRoot, [

@@ -9,6 +9,7 @@ use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
 use Batoi\Press\Security\AccessTokenRepository;
 use Batoi\Press\Security\Csrf;
+use Batoi\Press\Security\MfaRepository;
 use Batoi\Press\Security\Password;
 use Batoi\Press\Security\RateLimiter;
 use DateTimeImmutable;
@@ -136,7 +137,7 @@ final class ConnectionController
             $html .= '<td>' . $this->date((string)($token['created_at'] ?? '')) . '</td><td>' . $this->date((string)($token['expires_at'] ?? '')) . '</td>';
             $html .= '<td><span class="bp-status-badge ' . ($active ? 'is-published' : 'is-draft') . '">' . ($active ? 'Active' : 'Inactive') . '</span></td><td>';
             if ($active) {
-                $html .= '<details class="bp-details"><summary>Revoke</summary><form method="post" action="/admin/connections/revoke" class="bp-form bp-compact-form">' . $this->csrf->field() . '<input type="hidden" name="token_id" value="' . $this->e($id) . '"><label>Current password<input type="password" name="current_password" required autocomplete="current-password"></label><button type="submit" class="bp-button bp-button-danger">Revoke token</button></form></details>';
+                $html .= '<details class="bp-details"><summary>Revoke</summary><form method="post" action="/admin/connections/revoke" class="bp-form bp-compact-form">' . $this->csrf->field() . '<input type="hidden" name="token_id" value="' . $this->e($id) . '"><label>Current password<input type="password" name="current_password" required autocomplete="current-password"></label>' . $this->mfaField() . '<button type="submit" class="bp-button bp-button-danger">Revoke token</button></form></details>';
             } else {
                 $html .= '<span class="bp-muted">No action</span>';
             }
@@ -156,6 +157,7 @@ final class ConnectionController
             . '<fieldset><legend>Scopes</legend><div class="bp-check-stack">' . $scopeFields . '</div></fieldset>'
             . '<label>Expires after<select name="expires_days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">1 year</option></select></label>'
             . '<label>Current password<input type="password" name="current_password" required autocomplete="current-password"><span class="bp-field-help">Required immediately before issuing a credential.</span></label>'
+            . $this->mfaField()
             . '<button type="submit">Issue one-time token</button></form></section>';
     }
 
@@ -182,11 +184,25 @@ final class ConnectionController
         $password = $request->input('current_password');
         $hash = (string)($this->user['password_hash'] ?? '');
         if ($password !== '' && $hash !== '' && Password::verify($password, $hash)) {
+            if ($this->mfaEnabled() && (new MfaRepository($this->config->paths()))->verify($this->username(), $request->input('mfa_code')) === null) {
+                $limiter->hit($key);
+                return 'invalid';
+            }
             $limiter->clear($key);
             return 'ok';
         }
         $limiter->hit($key);
         return 'invalid';
+    }
+
+    private function mfaEnabled(): bool
+    {
+        return (new MfaRepository($this->config->paths()))->enabled($this->user);
+    }
+
+    private function mfaField(): string
+    {
+        return $this->mfaEnabled() ? '<label>Authenticator or recovery code<input type="text" name="mfa_code" required maxlength="12" autocomplete="one-time-code"><span class="bp-field-help">Required because two-factor authentication is enabled.</span></label>' : '';
     }
 
     private function username(): string

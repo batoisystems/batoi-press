@@ -2,6 +2,17 @@
   "html_allowlist": "default",
   "session_name": "batoi_press_session",
   "installer_lock": "radpress/config/installed.lock",
+  "session": {
+    "idle_seconds": 1800,
+    "absolute_seconds": 43200
+  },
+  "headers": {
+    "csp_mode": "report-only",
+    "hsts": true,
+    "hsts_max_age": 31536000,
+    "referrer_policy": "strict-origin-when-cross-origin",
+    "permissions_policy": "camera=(), microphone=(), geolocation=(), payment=()"
+  },
   "machine_allowed_origins": [],
   "oauth": {
     "enabled": false,

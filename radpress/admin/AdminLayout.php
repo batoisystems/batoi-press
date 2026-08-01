@@ -148,6 +148,7 @@ final class AdminLayout
                 ['label' => 'Cache', 'href' => '/admin/cache', 'icon' => 'database'],
             ],
             'Governance' => [
+                ['label' => 'Security', 'href' => '/admin/security', 'icon' => 'shield'],
                 ['label' => 'Users', 'href' => '/admin/users', 'icon' => 'users'],
                 ['label' => 'Connections', 'href' => '/admin/connections', 'icon' => 'link'],
                 ['label' => 'Updates', 'href' => '/admin/updates', 'icon' => 'refresh'],

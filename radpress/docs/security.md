@@ -7,26 +7,52 @@ Batoi Press establishes secure defaults and structure:
 - Configuration is JSON and not executable PHP.
 - Installer access is blocked by `radpress/config/installed.lock`.
 - Password hashes use `password_hash()`.
-- Secure session cookie flags are set where available.
+- Secure, HTTP-only, SameSite session cookies are paired with configurable idle
+  and absolute authenticated-session lifetimes.
+- Standards-based TOTP two-factor authentication is available to every account.
+  Secrets use authenticated encryption under `BATOI_PRESS_SECRET_KEY` or a
+  generated `0600` host key in `radpress/data/security/master.key`.
+- Recovery codes are displayed once, stored only as password hashes, consumed
+  on use, and required alongside the password when MFA is used to change
+  machine credentials.
 - CSRF tokens protect admin write forms.
 - File-backed login rate limiting protects login attempts.
 - Admin routes redirect to login when not authenticated.
-- Media uploads use allowlisted extensions, generated filenames, size limits, and executable-file denial.
+- Media uploads use allowlisted extensions, generated filenames, size limits,
+  executable-content denial, and MIME/signature-to-extension validation.
 - Admin write actions record audit log entries.
 - Admin route access is enforced by role before controllers run.
 - Author-role users can manage only posts assigned to their username.
 - Blocked route and post ownership attempts are recorded in the audit log.
 - A versioned machine-access token repository foundation stores only password hashes, restricts tokens to explicit scopes, supports expiry and revocation, and keeps token metadata out of public routes.
+- Every routed response receives MIME-sniffing, frame, referrer, and permissions
+  safeguards. HTTPS responses receive HSTS. CSP is emitted in report-only mode
+  by default so custom themes can be audited before switching to `enforce`.
 
 Run the local security baseline check with:
 
 ```text
 php radpress/tests/security_baseline.php
 php radpress/tests/machine_access.php
+php radpress/tests/mfa_security.php
 ```
+
+## Browser header configuration
+
+Configure `security.headers.csp_mode` as `report-only`, `enforce`, or `off`.
+Keep report-only during a theme compatibility review, then use `enforce` after
+required image, frame, script, and style sources are represented by a narrow
+policy. Batoi Press never adds arbitrary request values to the policy.
+
+The generated local encryption key and all encrypted runtime secrets are
+excluded from release packages. Back it up through an operator-controlled
+secret process; losing the key requires MFA recovery/reset rather than exposing
+the protected value.
 
 ## Machine Access
 
-Version 2.0 work is introducing machine access in guarded layers. The token repository is an internal foundation for tests and later owner-governed API/MCP access; it does not add an externally reachable endpoint.
-
-Machine access must fail closed. API and MCP routes must not be enabled until authorization, rate limits, audit attribution, atomic writes, revision preconditions, idempotency, and protocol tests are complete. OAuth access for end-user Claude and ChatGPT connections must use a current audited OAuth 2.1/PKCE implementation rather than treating an Admin Console session or password as an API credential.
+Version 2.0 exposes its governed API and MCP routes only after authentication,
+rate limits, audit attribution, atomic file replacement, revision preconditions,
+idempotency, and protocol tests. OAuth access for end-user Claude and ChatGPT
+connections uses an established external OAuth 2.1/PKCE authorization server;
+an Admin Console session or password is never an API credential.

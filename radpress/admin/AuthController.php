@@ -27,6 +27,9 @@ final class AuthController
         if ($this->auth->check()) {
             return Response::redirect('/admin');
         }
+        if ($request->method === 'GET' && $this->auth->pendingMfa() !== null) {
+            return Response::redirect('/admin/login/mfa');
+        }
 
         if (!$this->auth->hasUsers()) {
             return Response::html($this->layout(
@@ -36,6 +39,7 @@ final class AuthController
         }
 
         $error = '';
+        $expired = $this->csrfSessionNotice();
         if ($request->method === 'POST') {
             if (!$this->csrf->validate($request->input('csrf_token'))) {
                 $this->record('system', 'auth.login_failed', 'csrf', $request, 'blocked');
@@ -47,11 +51,18 @@ final class AuthController
                 if ($this->rateLimiter->tooManyAttempts($key)) {
                     $this->record($username, 'auth.login_failed', 'rate_limit', $request, 'blocked');
                     $error = 'Too many login attempts. Try again later.';
-                } elseif ($this->auth->attempt($username, $request->input('password'))) {
-                    $this->rateLimiter->clear($key);
-                    $this->record($username, 'auth.login', 'admin', $request);
-                    return Response::redirect('/admin');
                 } else {
+                    $result = $this->auth->beginAttempt($username, $request->input('password'));
+                    if ($result === 'authenticated') {
+                        $this->rateLimiter->clear($key);
+                        $this->record($username, 'auth.login', 'admin', $request);
+                        return Response::redirect('/admin');
+                    }
+                    if ($result === 'mfa_required') {
+                        $this->rateLimiter->clear($key);
+                        $this->record($username, 'auth.mfa_required', 'admin', $request, 'success');
+                        return Response::redirect('/admin/login/mfa');
+                    }
                     $this->rateLimiter->hit($key);
                     $this->record($username, 'auth.login_failed', 'credentials', $request, 'failed');
                     $error = 'Invalid username or password.';
@@ -62,6 +73,8 @@ final class AuthController
         $html = '<h1>Admin Login</h1>';
         if ($error !== '') {
             $html .= '<p class="bp-error">' . htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>';
+        } elseif ($expired !== '') {
+            $html .= '<p class="bp-notice">' . htmlspecialchars($expired, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>';
         }
         $html .= '<form method="post" class="bp-form">';
         $html .= $this->csrf->field();
@@ -72,6 +85,44 @@ final class AuthController
         $html .= '<p><a href="/admin/forgot-password">Forgot password?</a></p>';
 
         return Response::html($this->layout('Admin Login', $html));
+    }
+
+    public function mfa(Request $request): Response
+    {
+        if ($this->auth->check()) return Response::redirect('/admin');
+        $user = $this->auth->pendingMfa();
+        if ($user === null) return Response::redirect('/admin/login');
+
+        $error = '';
+        $username = (string)($user['username'] ?? 'user');
+        $key = 'login-mfa:' . $username . ':' . (string)($request->server['REMOTE_ADDR'] ?? 'local');
+        if ($request->method === 'POST') {
+            if (!$this->csrf->validate($request->input('csrf_token'))) {
+                $error = 'Security token expired. Try again.';
+                $this->record($username, 'auth.mfa_failed', 'csrf', $request, 'blocked');
+            } elseif ($this->rateLimiter->tooManyAttempts($key)) {
+                $error = 'Too many verification attempts. Start sign-in again later.';
+                $this->record($username, 'auth.mfa_failed', 'rate_limit', $request, 'blocked');
+            } else {
+                $method = $this->auth->completeMfa($request->input('mfa_code'));
+                if ($method !== null) {
+                    $this->rateLimiter->clear($key);
+                    $this->record($username, 'auth.login', 'admin', $request, 'success', ['mfa' => $method]);
+                    return Response::redirect('/admin');
+                }
+                $this->rateLimiter->hit($key);
+                $error = 'Verification code is invalid or expired.';
+                $this->record($username, 'auth.mfa_failed', 'code', $request, 'failed');
+            }
+        }
+
+        $html = '<h1>Two-factor verification</h1>';
+        if ($error !== '') $html .= '<p class="bp-error">' . htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>';
+        $html .= '<p>Enter the current six-digit authenticator code or one unused recovery code for <strong>' . htmlspecialchars($username, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</strong>.</p>';
+        $html .= '<form method="post" class="bp-form">' . $this->csrf->field();
+        $html .= '<label>Verification code <input type="text" name="mfa_code" required maxlength="12" inputmode="numeric" autocomplete="one-time-code" spellcheck="false"></label>';
+        $html .= AdminLayout::submitButton('Verify and Continue', 'shield') . '</form>';
+        return Response::html($this->layout('Two-factor verification', $html))->withHeader('Cache-Control', 'private, no-store');
     }
 
     public function forgotPassword(): Response
@@ -101,11 +152,17 @@ final class AuthController
         return AdminLayout::render($title, $body);
     }
 
-    private function record(string $user, string $action, string $target, Request $request, string $outcome = 'success'): void
+    private function record(string $user, string $action, string $target, Request $request, string $outcome = 'success', array $details = []): void
     {
         $this->audit?->record($user, $action, $target, (string)($request->server['REMOTE_ADDR'] ?? ''), $outcome, [
             'method' => $request->method,
             'route' => $request->path,
-        ]);
+        ] + $details);
+    }
+
+    private function csrfSessionNotice(): string
+    {
+        $reason = $this->csrf->session()->pull('_bp_expired_reason', '');
+        return in_array($reason, ['idle', 'absolute'], true) ? 'Your previous session expired. Sign in again to continue.' : '';
     }
 }

@@ -11,6 +11,9 @@ final class AdminAccess
     {
         $role = self::role($user);
         $path = self::normalizePath($path);
+        if ($path === '/admin/security' || str_starts_with($path, '/admin/security/')) {
+            return in_array($role, self::ROLES, true);
+        }
         if ($path === '/admin/connections' || str_starts_with($path, '/admin/connections/')) {
             return $role === 'owner';
         }

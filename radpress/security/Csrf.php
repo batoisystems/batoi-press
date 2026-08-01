@@ -9,6 +9,11 @@ final class Csrf
     {
     }
 
+    public function session(): Session
+    {
+        return $this->session;
+    }
+
     public function token(): string
     {
         $token = $this->session->get('csrf_token');

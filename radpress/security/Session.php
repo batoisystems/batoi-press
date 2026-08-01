@@ -7,13 +7,16 @@ final class Session
 {
     public function __construct(
         private readonly string $name = 'batoi_press_session',
-        private readonly ?string $savePath = null
+        private readonly ?string $savePath = null,
+        private readonly int $idleSeconds = 1800,
+        private readonly int $absoluteSeconds = 43200
     ) {
     }
 
     public function start(): void
     {
         if (session_status() === PHP_SESSION_ACTIVE) {
+            $this->enforceLifetime();
             return;
         }
 
@@ -32,6 +35,7 @@ final class Session
             'samesite' => 'Lax',
         ]);
         session_start();
+        $this->enforceLifetime();
     }
 
     public function get(string $key, mixed $default = null): mixed
@@ -58,6 +62,29 @@ final class Session
         session_regenerate_id(true);
     }
 
+    public function markAuthenticated(): void
+    {
+        $this->start();
+        $now = time();
+        $_SESSION['_bp_created_at'] = $now;
+        $_SESSION['_bp_last_seen_at'] = $now;
+        unset($_SESSION['_bp_expired_reason']);
+    }
+
+    public function pull(string $key, mixed $default = null): mixed
+    {
+        $this->start();
+        $value = $_SESSION[$key] ?? $default;
+        unset($_SESSION[$key]);
+        return $value;
+    }
+
+    public function id(): string
+    {
+        $this->start();
+        return session_id();
+    }
+
     public function destroy(): void
     {
         $this->start();
@@ -67,5 +94,27 @@ final class Session
             setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], (bool)$params['secure'], (bool)$params['httponly']);
         }
         session_destroy();
+    }
+
+    private function enforceLifetime(): void
+    {
+        $now = time();
+        $created = (int)($_SESSION['_bp_created_at'] ?? $now);
+        $lastSeen = (int)($_SESSION['_bp_last_seen_at'] ?? $now);
+        $_SESSION['_bp_created_at'] ??= $created;
+        if (isset($_SESSION['auth_user'])) {
+            $reason = '';
+            if ($this->absoluteSeconds > 0 && $now - $created > $this->absoluteSeconds) {
+                $reason = 'absolute';
+            } elseif ($this->idleSeconds > 0 && $now - $lastSeen > $this->idleSeconds) {
+                $reason = 'idle';
+            }
+            if ($reason !== '') {
+                $_SESSION = ['_bp_created_at' => $now, '_bp_last_seen_at' => $now, '_bp_expired_reason' => $reason];
+                session_regenerate_id(true);
+                return;
+            }
+        }
+        $_SESSION['_bp_last_seen_at'] = $now;
     }
 }

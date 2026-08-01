@@ -9,8 +9,10 @@ use Batoi\Press\Core\Request;
 use Batoi\Press\Security\AccessTokenRepository;
 use Batoi\Press\Security\AdminAccess;
 use Batoi\Press\Security\Csrf;
+use Batoi\Press\Security\MfaRepository;
 use Batoi\Press\Security\Password;
 use Batoi\Press\Security\Session;
+use Batoi\Press\Security\Totp;
 
 require dirname(__DIR__) . '/autoload.php';
 require dirname(__DIR__) . '/helpers/url.php';
@@ -66,6 +68,20 @@ try {
     ], ['REMOTE_ADDR' => '127.0.0.1']));
     assertConnection($revoked->status() === 302, 'verified owners should be able to revoke active tokens');
     assertConnection($tokens->authenticate($plainToken) === null, 'revoked connection tokens should stop authenticating immediately');
+
+    $files->writeJson($config->paths()->configPath('users.json'), ['users' => [$owner]]);
+    $mfaSecret = Totp::generateSecret();
+    (new MfaRepository($config->paths(), $files))->enable('owner', $mfaSecret, Totp::recoveryCodes(6));
+    $mfaOwner = (array)(new MfaRepository($config->paths(), $files))->findUser('owner');
+    $mfaController = new ConnectionController($config, $tokens, $csrf, new AuditLog($config->paths(), $files), $mfaOwner);
+    $missingMfa = $mfaController->issue(new Request('POST', '/admin/connections/issue', [], [
+        'csrf_token' => $csrf->token(), 'name' => 'Missing step-up', 'scopes' => ['content:read'], 'expires_days' => '7', 'current_password' => $password,
+    ], ['REMOTE_ADDR' => '127.0.0.1']));
+    assertConnection($missingMfa->status() === 403, 'MFA-enabled owners should need a second factor for connection changes');
+    $withMfa = $mfaController->issue(new Request('POST', '/admin/connections/issue', [], [
+        'csrf_token' => $csrf->token(), 'name' => 'MFA protected client', 'scopes' => ['content:read'], 'expires_days' => '7', 'current_password' => $password, 'mfa_code' => Totp::currentCode($mfaSecret),
+    ], ['REMOTE_ADDR' => '127.0.0.1']));
+    assertConnection($withMfa->status() === 200 && str_contains($withMfa->content(), 'MFA protected client'), 'valid MFA step-up should allow a machine credential change');
 
     $audit = (string)file_get_contents($config->paths()->dataPath('log/audit.jsonl'));
     assertConnection(str_contains($audit, 'machine.token.issued') && str_contains($audit, 'machine.token.revoked'), 'token lifecycle changes should be audited');

@@ -227,6 +227,7 @@ function excludedPrefixes(): array
         'radpress/data/export/',
         'radpress/data/log/',
         'radpress/data/sessions/',
+        'radpress/data/security/',
         'radpress/data/tmp/',
         'radpress/data/versions/',
     ];

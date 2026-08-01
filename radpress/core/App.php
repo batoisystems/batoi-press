@@ -5,6 +5,7 @@ namespace Batoi\Press\Core;
 
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
+use Batoi\Press\Security\SecurityHeaders;
 
 final class App
 {
@@ -17,7 +18,7 @@ final class App
         $config = Config::load($this->root);
         $maintenance = new MaintenanceMode($config->paths());
         if ($maintenance->active() && !str_starts_with($request->path, '/admin')) {
-            return $maintenance->response();
+            return SecurityHeaders::apply($maintenance->response(), $request, $config);
         }
 
         $files = new FileStore();
@@ -26,6 +27,6 @@ final class App
         $pages = new PageRepository($config->paths(), $files, $html);
         $posts = new PostRepository($config->paths(), $files, $html);
 
-        return (new Router($theme, $pages, $posts, $config))->dispatch($request);
+        return SecurityHeaders::apply((new Router($theme, $pages, $posts, $config))->dispatch($request), $request, $config);
     }
 }

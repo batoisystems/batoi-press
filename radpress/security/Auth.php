@@ -39,27 +39,73 @@ final class Auth
 
     public function attempt(string $username, string $password): bool
     {
+        return $this->beginAttempt($username, $password) === 'authenticated';
+    }
+
+    public function beginAttempt(string $username, string $password): string
+    {
         $user = $this->findUser($username);
         if (!$user || !isset($user['password_hash']) || !is_string($user['password_hash'])) {
-            return false;
+            return 'invalid';
         }
 
         if ($this->isDisabled($user)) {
-            return false;
+            return 'invalid';
         }
 
         if (!Password::verify($password, $user['password_hash'])) {
-            return false;
+            return 'invalid';
         }
+
+        if ((new MfaRepository($this->paths, $this->files))->enabled($user)) {
+            $this->session->regenerate();
+            $this->session->set('pending_mfa', ['username' => (string)$user['username'], 'expires_at' => time() + 300, 'attempts' => 0]);
+            return 'mfa_required';
+        }
+
+        $this->loginUser($user);
+        return 'authenticated';
+    }
+
+    public function pendingMfa(): ?array
+    {
+        $pending = $this->session->get('pending_mfa');
+        if (!is_array($pending) || (int)($pending['expires_at'] ?? 0) < time() || (int)($pending['attempts'] ?? 0) >= 5) {
+            $this->session->remove('pending_mfa');
+            return null;
+        }
+        $user = $this->findUser((string)($pending['username'] ?? ''));
+        return $user !== null && !$this->isDisabled($user) ? $user : null;
+    }
+
+    public function completeMfa(string $code): ?string
+    {
+        $user = $this->pendingMfa();
+        if ($user === null) return null;
+        $method = (new MfaRepository($this->paths, $this->files))->verify((string)$user['username'], $code);
+        if ($method === null) {
+            $pending = (array)$this->session->get('pending_mfa', []);
+            $pending['attempts'] = (int)($pending['attempts'] ?? 0) + 1;
+            $this->session->set('pending_mfa', $pending);
+            return null;
+        }
+        $this->session->remove('pending_mfa');
+        $this->loginUser($user);
+        return $method;
+    }
+
+    private function loginUser(array $user): void
+    {
 
         $this->session->regenerate();
         $this->session->set('auth_user', (string)$user['username']);
-        return true;
+        $this->session->markAuthenticated();
     }
 
     public function logout(): void
     {
         $this->session->remove('auth_user');
+        $this->session->remove('pending_mfa');
         $this->session->regenerate();
     }
 
