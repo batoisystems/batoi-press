@@ -51,6 +51,15 @@ Keep report-only during a theme compatibility review, then use `enforce` after
 required image, frame, script, and style sources are represented by a narrow
 policy. Batoi Press never adds arbitrary request values to the policy.
 
+Theme ZIP uploads undergo non-executing compatibility inspection before
+installation. The inspection rejects unsafe paths, links, encrypted entries,
+archive-limit violations, likely secrets, prohibited PHP execution operations,
+invalid PHP syntax, and direct output from common request globals. Inline
+browser code and remote dependencies prevent direct compatibility and require
+repair or governed conversion. Inspection is a pre-install gate, not a malware
+scanner or proof that a theme is trustworthy; preview and human approval remain
+required, and uploaded source is never executed during inspection.
+
 The generated local encryption key and all encrypted runtime secrets are
 excluded from release packages. Back it up through an operator-controlled
 secret process; losing the key requires MFA recovery/reset rather than exposing

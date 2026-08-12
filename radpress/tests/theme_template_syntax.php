@@ -47,6 +47,24 @@ assertTrue(str_contains($templateIndex, 'Theme CSS') && str_contains($templateIn
 assertTrue(str_contains($templateIndex, 'Contact Layout'), 'Theme owners should be able to edit contact-page server-side layout code.');
 $themesIndex = $controller->themes()->content();
 assertTrue(str_contains($themesIndex, 'is-active-theme') && str_contains($themesIndex, 'aria-label="Active theme"'), 'The active theme should have a prominent semantic and visual state.');
+assertTrue(str_contains($themesIndex, 'Inspect and Upload') && str_contains($themesIndex, 'Platform conversion'), 'Theme upload should explain inspection and governed conversion before installation.');
+
+$reportMethod = new ReflectionMethod($controller, 'compatibilityReport');
+$reportMethod->setAccessible(true);
+$reportHtml = $reportMethod->invoke($controller, [
+    'contract' => 'press-theme-1',
+    'classification' => 'convertible',
+    'source_type' => 'static_html',
+    'original_name' => 'sample.zip',
+    'archive_sha256' => str_repeat('a', 64),
+    'file_count' => 3,
+    'extracted_bytes' => 1024,
+    'recommendation' => 'Convert with Batoi Platform Build.',
+    'checks' => [['code' => 'press.manifest', 'status' => 'fail', 'message' => 'No Press manifest was found.']],
+]);
+assertTrue(str_contains($reportHtml, 'Theme conversion required') && str_contains($reportHtml, 'Open Batoi Platform Build'), 'Convertible uploads should render a Platform conversion handoff.');
+assertTrue(str_contains($reportHtml, str_repeat('a', 64)) && str_contains($reportHtml, 'press-theme-1'), 'The handoff report should bind the exact archive checksum and contract version.');
+assertTrue(str_contains($reportHtml, 'class="bp-compatibility-report"') && str_contains($reportHtml, 'readonly aria-readonly="true"'), 'The safe handoff JSON should remain read-only and horizontally contained.');
 
 $themeJs = $config->paths()->themePath('default/assets/js/theme.js');
 $themeJsBackup = $themeJs . '.syntax-test-backup';

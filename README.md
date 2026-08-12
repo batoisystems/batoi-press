@@ -20,6 +20,7 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 - Scoped JSON API at `/api/v2` with safe reads, revisioned/idempotent page/post draft writes, explicit publishing, filtering, cursor pagination, stable errors, ETags, and request correlation.
 - Streamable HTTP MCP endpoint at `/mcp` with governed reads/writes, citation-ready search/fetch results, personal tokens, and an external-OAuth resource-server boundary.
 - TOTP MFA and recovery, encrypted secrets, session inventory/revocation, security headers, upload signature validation, and signed releases.
+- Non-executing theme compatibility inspection with explicit compatible, repairable, convertible, and unsafe classifications plus a governed Batoi Platform Build conversion handoff.
 
 ## Requirements
 

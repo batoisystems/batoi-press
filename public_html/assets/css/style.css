@@ -2190,6 +2190,39 @@ p {
     font-size: 0.8rem;
 }
 
+.bp-compatibility-report-field {
+    display: grid;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.bp-theme-compatibility-summary dd,
+.bp-theme-compatibility-summary code {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.bp-compatibility-report {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: var(--bp-radius);
+    box-sizing: border-box;
+    color: #e5edf7;
+    display: block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    max-width: 100%;
+    min-height: 20rem;
+    min-width: 0;
+    overflow: auto;
+    padding: 14px;
+    resize: vertical;
+    white-space: pre;
+    width: 100%;
+}
+
 .bp-admin-editor .uif-editor-status {
     color: var(--bp-muted);
 }

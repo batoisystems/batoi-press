@@ -12,6 +12,7 @@ use Batoi\Press\Core\HtmlContent;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
 use Batoi\Press\Core\Theme;
+use Batoi\Press\Core\ThemeCompatibilityInspector;
 use Batoi\Press\Core\ThemeManager;
 use Batoi\Press\Security\Csrf;
 use Batoi\Press\Security\UploadGuard;
@@ -67,8 +68,8 @@ final class ThemeTemplateController
 
         $active = $this->activeTheme();
         $actions = AdminLayout::buttonLink('Edit active theme', '/admin/theme-templates', 'code', true) . AdminLayout::buttonLink('View site', '/', 'site', true);
-        $body = AdminLayout::pageHeader('Themes', 'Manage installed themes, activate a theme, and upload validated theme packages.', $actions);
-        $body .= AdminLayout::section('Theme operations', $this->themeOperations(), 'Activate and upload themes only after previewing and validating package contents.');
+        $body = AdminLayout::pageHeader('Themes', 'Manage installed themes, inspect uploaded packages, and activate only reviewed Press themes.', $actions);
+        $body .= AdminLayout::section('Theme operations', $this->themeOperations(), 'Every upload is inspected without executing its source. Compatible themes install inactive; other packages receive a conversion report.');
 
         $cards = '<div class="bp-admin-action-grid">';
         foreach ($this->themesList() as $theme) {
@@ -95,11 +96,11 @@ final class ThemeTemplateController
 
         $upload = '<form method="post" action="/admin/themes/upload" enctype="multipart/form-data" class="bp-form bp-compact-form">';
         $upload .= $this->csrf->field();
-        $upload .= '<label>Theme ZIP <input type="file" name="theme_zip" accept=".zip" required><span class="bp-field-help">The package must include <code>theme.json</code> and required layout files.</span></label>';
-        $upload .= AdminLayout::submitButton('Upload Theme', 'upload') . '</form>';
+        $upload .= '<label>Theme ZIP <input type="file" name="theme_zip" accept=".zip" required><span class="bp-field-help">Press inspects the archive first. Compatible packages require <code>theme.json</code> and all required layouts; incompatible source is not installed or executed.</span></label>';
+        $upload .= AdminLayout::submitButton('Inspect and Upload', 'upload') . '</form>';
 
         $body .= AdminLayout::section('Installed themes', $cards, 'Active theme: ' . $active);
-        $body .= AdminLayout::section('Upload theme', $upload, 'Install a new theme from a validated ZIP package.');
+        $body .= AdminLayout::section('Inspect or upload theme', $upload, 'Compatible packages install as inactive themes. Convertible packages must be processed through the governed Batoi Platform Build converter.');
 
         return Response::html($this->layout('Themes', $body));
     }
@@ -149,6 +150,18 @@ final class ThemeTemplateController
         }
 
         try {
+            $report = (new ThemeCompatibilityInspector())->inspect((string)$file['tmp_name'], (string)$file['name']);
+            if (!($report['installable'] ?? false)) {
+                $classification = (string)($report['classification'] ?? 'unsafe');
+                $sourceType = (string)($report['source_type'] ?? 'unknown');
+                $this->audit->record(
+                    (string)($this->user['username'] ?? 'admin'),
+                    'theme.compatibility_reviewed',
+                    $classification . ':' . $sourceType . ':' . substr((string)($report['archive_sha256'] ?? ''), 0, 16),
+                    (string)($_SERVER['REMOTE_ADDR'] ?? '')
+                );
+                return Response::html($this->layout('Theme Compatibility', $this->compatibilityReport($report)), 422);
+            }
             $slug = $this->installThemeZip((string)$file['tmp_name'], (string)$file['name']);
         } catch (RuntimeException $exception) {
             return Response::html($this->layout('Themes', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>' . AdminLayout::buttonLink('Back to themes', '/admin/themes', 'back', true) . '</p>'), 400);
@@ -680,9 +693,64 @@ final class ThemeTemplateController
     {
         return '<div class="bp-admin-guidance-grid">'
             . $this->guidanceCard('Preview first', 'Use Preview to review public rendering before activating another theme.', 'site')
-            . $this->guidanceCard('Validated upload', 'ZIP packages are checked for safe paths, required files, and supported file types.', 'upload')
+            . $this->guidanceCard('Compatibility inspection', 'ZIP packages are classified without executing uploaded PHP, JavaScript, hooks, or build scripts.', 'upload')
+            . $this->guidanceCard('Platform conversion', 'Third-party presentation sources require governed conversion, quality gates, signed output, and human approval.', 'refresh')
             . $this->guidanceCard('Audit trail', 'Theme uploads, activations, template saves, and restores are recorded.', 'shield')
             . '</div>';
+    }
+
+    private function compatibilityReport(array $report): string
+    {
+        $classification = strtolower((string)($report['classification'] ?? 'unsafe'));
+        $sourceType = str_replace('_', ' ', (string)($report['source_type'] ?? 'unknown'));
+        $title = match ($classification) {
+            'repairable' => 'Press theme requires repair',
+            'convertible' => 'Theme conversion required',
+            default => 'Theme package rejected',
+        };
+        $body = AdminLayout::pageHeader(
+            $title,
+            'The uploaded archive was inspected without executing source code. It was not installed, retained, or activated.',
+            AdminLayout::buttonLink('Back to Themes', '/admin/themes', 'back', true)
+        );
+        $body .= '<div class="' . ($classification === 'unsafe' ? 'bp-error' : 'bp-notice') . '" role="' . ($classification === 'unsafe' ? 'alert' : 'status') . '">'
+            . '<strong>' . $this->e(ucfirst($classification)) . '</strong> · Detected source: ' . $this->e(ucwords($sourceType))
+            . '<br>' . $this->e((string)($report['recommendation'] ?? 'Review the compatibility findings.')) . '</div>';
+
+        $summary = '<dl class="bp-meta-list bp-theme-compatibility-summary">'
+            . '<div><dt>Package</dt><dd>' . $this->e((string)($report['original_name'] ?? 'theme.zip')) . '</dd></div>'
+            . '<div><dt>Contract</dt><dd><code>' . $this->e((string)($report['contract'] ?? 'unknown')) . '</code></dd></div>'
+            . '<div><dt>Files</dt><dd>' . (int)($report['file_count'] ?? 0) . '</dd></div>'
+            . '<div><dt>Extracted size</dt><dd>' . number_format(((int)($report['extracted_bytes'] ?? 0)) / 1024, 1) . ' KB</dd></div>'
+            . '<div><dt>SHA-256</dt><dd><code>' . $this->e((string)($report['archive_sha256'] ?? '')) . '</code></dd></div>'
+            . '</dl>';
+        $body .= AdminLayout::section('Inspection summary', $summary, 'Use the checksum to bind any later Platform conversion to this exact archive.');
+
+        $checks = '<ul class="bp-admin-checklist">';
+        foreach ((array)($report['checks'] ?? []) as $check) {
+            $status = (string)($check['status'] ?? 'warn');
+            $icon = $status === 'pass' ? 'check' : ($status === 'fail' ? 'shield' : 'info');
+            $checks .= '<li>' . AdminLayout::icon($icon) . '<span><strong>' . $this->e(strtoupper($status)) . '</strong> · ' . $this->e((string)($check['message'] ?? '')) . '</span></li>';
+        }
+        $checks .= '</ul>';
+        $body .= AdminLayout::section('Compatibility checks', $checks, 'A structural pass is not an activation decision; preview and review remain mandatory.');
+
+        if ($classification === 'convertible') {
+            $handoff = '<p>Use Batoi Platform Build Theme Studio to convert this presentation source into a Batoi UIF-based Press theme. Upload the original archive there and preserve the SHA-256 shown above.</p>'
+                . '<ul class="bp-check-list"><li>Conversion must not execute supplied code.</li><li>Platform quality gates and signed output are required.</li><li>Import the result as an inactive theme and review every preview before activation.</li></ul>'
+                . '<p><a class="bp-button" href="https://www.batoi.com/platform/build" target="_blank" rel="noopener noreferrer">Open Batoi Platform Build</a></p>';
+            $body .= AdminLayout::section('Governed conversion', $handoff, 'Press will support direct authenticated handoff after the Platform conversion API and signing contract are available.');
+        }
+
+        $safeReport = $report;
+        unset($safeReport['installable'], $safeReport['compatible']);
+        $encoded = json_encode($safeReport, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        if (is_string($encoded)) {
+            $reportField = '<label class="bp-field-wide bp-code-editor-label bp-compatibility-report-field" for="theme-compatibility-report"><span>Compatibility report JSON</span>'
+                . '<textarea id="theme-compatibility-report" class="bp-compatibility-report" rows="16" readonly aria-readonly="true" spellcheck="false" wrap="off">' . $this->e($encoded) . '</textarea></label>';
+            $body .= AdminLayout::section('Platform handoff report', $reportField, 'Copy this non-secret report into the Platform conversion record. The uploaded source archive is not embedded.');
+        }
+        return $body;
     }
 
     private function templateSafety(): string

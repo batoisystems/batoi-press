@@ -80,6 +80,35 @@ Page layouts also receive `$latestPosts`. It is an empty array unless the page e
 
 The Admin Themes preview supports home, standard, landing, ecommerce, post, blog, archive, and 404 layouts without activating the candidate theme. Static export uses the same page-template resolver and copies active-theme assets to matching public paths.
 
+## Upload Compatibility And Conversion
+
+`/admin/themes` inspects every uploaded ZIP before installation without
+executing supplied PHP, JavaScript, hooks, build scripts, or template engines.
+The versioned `press-theme-1` report checks archive paths and limits, links and
+encryption, supported file types, credentials, PHP syntax and prohibited
+operations, direct request-global output, browser inline code, remote asset
+dependencies, manifest validity, required layouts, and declared assets.
+
+An upload is classified as:
+
+- **compatible**: a complete Press theme that may be installed inactive;
+- **repairable**: a Press-shaped package requiring contract repair or migration;
+- **convertible**: a static, Bootstrap, WordPress-presentation, Twig, Liquid, or
+  other presentation source that must be converted by Batoi Platform Build;
+- **unsafe**: a package that must be rejected before conversion.
+
+Compatible does not mean approved. Preview every provided layout before an
+owner explicitly activates the theme. Press does not retain or install rejected
+source archives. A convertible report includes the exact source SHA-256 for a
+governed Platform conversion record.
+
+Batoi Platform conversion must treat CMS themes as presentation sources only,
+generate a Batoi UIF-based Press theme, run security/accessibility/rendering
+quality gates, and return signed output. Press must verify that signed contract
+before a future direct handoff can install the result. Until that Platform API
+and signing contract exists, upload the original archive and copy the safe
+compatibility report into Platform Build manually.
+
 ## Header and Footer Ownership
 
 Use the canonical Batoi header/footer knowledge base at
