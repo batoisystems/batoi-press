@@ -43,7 +43,7 @@ final class SettingsController
         $body .= $this->section('Identity', 'Public site name and supporting text.', '<div class="bp-form-grid">' . $this->input('Site Name', 'name', (string)($site['name'] ?? '')) . $this->input('Tagline', 'tagline', (string)($site['tagline'] ?? '')) . '</div>');
         $body .= $this->section('Branding', 'Control the public header identity and browser favicon.', $this->brandingField($site));
         $body .= $this->section('URLs', 'Canonical public URL used for links, feeds, and update metadata.', $this->input('Base URL', 'base_url', (string)($site['base_url'] ?? '')));
-        $body .= $this->section('Localization', 'Locale and timezone used for date formatting and future language-aware features.', '<div class="bp-form-grid">' . $this->input('Locale', 'locale', (string)($site['locale'] ?? 'en')) . $this->input('Timezone', 'timezone', (string)($site['timezone'] ?? 'UTC')) . '</div>');
+        $body .= $this->section('Localization', 'Locale and timezone used for date formatting and future language-aware features.', '<div class="bp-form-grid">' . $this->input('Locale', 'locale', (string)($site['locale'] ?? 'en')) . $this->timezoneSelect((string)($site['timezone'] ?? 'UTC')) . '</div>');
         $body .= $this->section('Editor', 'Configure the body editor used by pages and posts.', '<div class="bp-form-grid">' . $this->editorSelect((string)($editor['body_editor'] ?? 'rich_html')) . $this->input('Editor Height', 'editor_html_height', (string)($editor['html_height'] ?? '24rem')) . '<label class="bp-field-wide">HTML Toolbar <input type="text" name="editor_html_toolbar" value="' . $this->e((string)($editor['html_toolbar'] ?? 'undo redo bold italic underline strike heading quote code ul ol task link image table hr preview source')) . '" required><span class="bp-field-help">Space-separated Batoi UIF editor commands.</span></label></div>');
         $body .= $this->section('Theme', 'Current frontend theme and shared public shell templates.', '<dl class="bp-meta-list"><div><dt>Active theme</dt><dd>' . $this->e((string)($site['theme'] ?? 'default')) . '</dd></div></dl><p>' . AdminLayout::buttonLink('Manage Themes', '/admin/themes', 'code', true) . AdminLayout::buttonLink('Edit Templates', '/admin/theme-templates', 'code', true) . '</p>');
         $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin', 'back', true) . AdminLayout::submitButton('Save Settings', 'save') . '</div></form>';
@@ -76,6 +76,10 @@ final class SettingsController
         $branding = new BrandAssetManager($this->config->paths());
         $newFiles = [];
         try {
+            if (!$this->isSupportedTimezone((string)$site['timezone'])) {
+                throw new RuntimeException('Select a timezone supported by this server.');
+            }
+
             $logo = $branding->saveUpload((array)($_FILES['brand_logo'] ?? []), 'logo');
             if ($logo !== null) {
                 $newFiles[] = $logo;
@@ -128,6 +132,41 @@ final class SettingsController
     private function input(string $label, string $name, string $value): string
     {
         return '<label>' . $this->e($label) . ' <input type="text" name="' . $this->e($name) . '" value="' . $this->e($value) . '" required></label>';
+    }
+
+    private function timezoneSelect(string $value): string
+    {
+        $groups = [];
+        foreach ($this->supportedTimezones() as $timezone) {
+            $parts = explode('/', $timezone, 2);
+            $group = count($parts) === 2 ? $parts[0] : 'Global';
+            $groups[$group][] = $timezone;
+        }
+
+        $options = '';
+        if (!$this->isSupportedTimezone($value)) {
+            $options .= '<option value="' . $this->e($value) . '" selected disabled>Unsupported configured timezone — ' . $this->e($value) . '</option>';
+        }
+        foreach ($groups as $group => $timezones) {
+            $options .= '<optgroup label="' . $this->e($group) . '">';
+            foreach ($timezones as $timezone) {
+                $selected = $timezone === $value ? ' selected' : '';
+                $options .= '<option value="' . $this->e($timezone) . '"' . $selected . '>' . $this->e(str_replace('_', ' ', $timezone)) . '</option>';
+            }
+            $options .= '</optgroup>';
+        }
+
+        return '<label>Timezone <select name="timezone" required>' . $options . '</select><span class="bp-field-help">All timezones available in this server&#039;s PHP timezone database.</span></label>';
+    }
+
+    private function supportedTimezones(): array
+    {
+        return \DateTimeZone::listIdentifiers(\DateTimeZone::ALL_WITH_BC);
+    }
+
+    private function isSupportedTimezone(string $timezone): bool
+    {
+        return in_array($timezone, $this->supportedTimezones(), true);
     }
 
     private function brandingField(array $site): string
