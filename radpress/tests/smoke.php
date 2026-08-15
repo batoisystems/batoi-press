@@ -73,6 +73,8 @@ try {
         'public_html/assets/uif/uif.iife.js' => 250000,
         'public_html/assets/uif/uif.life.js' => 250000,
         'public_html/assets/uif/uif.esm.js' => 250000,
+        'public_html/assets/uif/uif-core.css' => 50000,
+        'public_html/assets/uif/uif-core.js' => 250000,
         'public_html/assets/img/press-color.svg' => 100,
         'public_html/assets/img/batoi-press/press-color.svg' => 100,
         'public_html/assets/img/batoi-press/press-color-tile-180.png' => 1000,
@@ -83,6 +85,16 @@ try {
         if (!is_file($path) || filesize($path) < $minimumBytes) {
             throw new RuntimeException("Batoi UIF release asset is missing or incomplete: {$asset}");
         }
+    }
+
+    $uifManifest = json_decode((string)file_get_contents($root . '/radpress/uif/manifest.json'), true);
+    if (($uifManifest['version'] ?? '') !== '3.0.0') {
+        throw new RuntimeException('Batoi UIF manifest must identify the bundled 3.0.0 release.');
+    }
+    if (hash_file('sha256', $root . '/public_html/assets/uif/uif.iife.js') !== hash_file('sha256', $root . '/public_html/assets/uif/uif.life.js')
+        || hash_file('sha256', $root . '/public_html/assets/uif/uif.iife.js') !== hash_file('sha256', $root . '/public_html/assets/uif/uif-core.js')
+        || hash_file('sha256', $root . '/public_html/assets/uif/uif.css') !== hash_file('sha256', $root . '/public_html/assets/uif/uif-core.css')) {
+        throw new RuntimeException('Batoi UIF compatibility aliases must match the bundled 3.0.0 assets.');
     }
 
     $aifStatus = (new AifManager(Config::load($root)->aif()))->status();

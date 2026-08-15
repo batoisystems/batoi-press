@@ -2,7 +2,8 @@
 
 ## Batoi UIF
 
-Batoi Press bundles native UIF primitives for admin and installer screens.
+Batoi Press bundles Batoi UIF 3.0.0 from the neighboring `batoi-uif`
+repository for admin, installer, and default-theme screens.
 
 Runtime files:
 
@@ -11,12 +12,17 @@ public_html/assets/uif/uif.css
 public_html/assets/uif/uif.iife.js
 public_html/assets/uif/uif.life.js
 public_html/assets/uif/uif.esm.js
+public_html/assets/uif/uif-core.css
+public_html/assets/uif/uif-core.js
 public_html/assets/uif/uif.js
 radpress/uif/manifest.json
 radpress/uif/components/
 ```
 
-`uif.css`, `uif.iife.js`, `uif.life.js`, and `uif.esm.js` are the full Batoi UIF distribution files bundled for downloads. `uif.js` is the small Batoi Press initializer wrapper.
+`uif.css`, `uif.iife.js`, and `uif.esm.js` are copied from the upstream UIF
+distribution. `uif.life.js`, `uif-core.css`, and `uif-core.js` are compatibility
+aliases that serve the same 3.0.0 bundles at legacy Press URLs. `uif.js` is the
+small Batoi Press initializer wrapper and is not replaced by the upstream build.
 
 `public_html/assets/css/style.css` imports the UIF stylesheet and carries Batoi Press compatibility classes so existing admin and installer screens can adopt primitives incrementally.
 

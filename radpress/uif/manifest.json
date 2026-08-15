@@ -1,13 +1,16 @@
 {
   "name": "Batoi UIF for Batoi Press",
-  "version": "0.2.0",
+  "version": "3.0.0",
   "runtime": "bundled",
+  "source": "batoi-uif@3.0.0",
   "public_assets": "/assets/uif/",
   "files": [
     "uif.css",
     "uif.iife.js",
     "uif.life.js",
     "uif.esm.js",
+    "uif-core.css",
+    "uif-core.js",
     "uif.js"
   ],
   "description": "Native UI primitives for Batoi Press admin, installer, and default theme foundations."

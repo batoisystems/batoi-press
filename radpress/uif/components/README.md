@@ -1,6 +1,6 @@
 # Batoi UIF Components
 
-Batoi Press bundles a small UIF runtime for admin and installer screens.
+Batoi Press bundles Batoi UIF 3.0.0 for admin and installer screens.
 
 Use these primitives in admin views:
 
