@@ -25,7 +25,7 @@ final class VersionChecker
         if (!is_string($raw) || trim($raw) === '') {
             return [
                 'ok' => false,
-                'error' => 'Unable to fetch update manifest. Confirm outbound HTTPS access, CA certificates, and PHP cURL or allow_url_fopen support.',
+                'error' => $this->transportFailureMessage(),
                 'manifest_url' => $this->manifestUrl,
             ];
         }
@@ -81,6 +81,10 @@ final class VersionChecker
             }
         }
 
+        if (!$this->streamTransportAvailable()) {
+            return false;
+        }
+
         $context = stream_context_create([
             'http' => [
                 'timeout' => 10,
@@ -95,5 +99,23 @@ final class VersionChecker
 
         $raw = @file_get_contents($this->manifestUrl, false, $context);
         return is_string($raw) && trim($raw) !== '' ? $raw : false;
+    }
+
+    private function streamTransportAvailable(): bool
+    {
+        return filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    private function transportFailureMessage(): string
+    {
+        if (!function_exists('curl_init')) {
+            return $this->streamTransportAvailable()
+                ? 'Unable to fetch update manifest. Enable PHP cURL, or confirm outbound HTTPS access and CA certificates for PHP HTTPS streams.'
+                : 'Unable to fetch update manifest. PHP cURL is required when allow_url_fopen is disabled.';
+        }
+
+        return $this->streamTransportAvailable()
+            ? 'Unable to fetch update manifest. Confirm outbound HTTPS access, DNS resolution, CA certificates, and PHP cURL support.'
+            : 'Unable to fetch update manifest through PHP cURL. Confirm outbound HTTPS access, DNS resolution, and CA certificates. allow_url_fopen is not required when PHP cURL is available.';
     }
 }

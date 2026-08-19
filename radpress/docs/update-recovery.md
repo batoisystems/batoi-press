@@ -5,6 +5,7 @@ Guided update safety supports:
 - Minimal backup of config, content, app customizations, themes, and overwritten files under `radpress/`.
 - Package checksum verification.
 - Staging before live file replacement.
+- Remote manifest checks through PHP cURL even when `allow_url_fopen` is disabled.
 - Manifest-driven live file replacement to allowed runtime paths.
 - Maintenance mode while staged files are applied.
 - Cache clearing and post-update health checks.

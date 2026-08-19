@@ -28,7 +28,12 @@ assertVersion(($invalid['ok'] ?? true) === false && ($invalid['error'] ?? '') ==
 
 $unavailable = (new VersionChecker('https://example.test/latest.json', static fn (): false => false))->check('1.7.0');
 assertVersion(($unavailable['ok'] ?? true) === false, 'An unavailable manifest should fail.');
-assertVersion(str_contains((string)($unavailable['error'] ?? ''), 'outbound HTTPS access'), 'A failed check should include actionable hosting diagnostics.');
+assertVersion(str_contains((string)($unavailable['error'] ?? ''), 'fetch update manifest'), 'A failed check should include actionable hosting diagnostics.');
+
+$source = (string)file_get_contents(dirname(__DIR__) . '/updates/VersionChecker.php');
+assertVersion(str_contains($source, 'curl_init'), 'The version checker should use PHP cURL for remote manifest checks.');
+assertVersion(str_contains($source, 'streamTransportAvailable'), 'The version checker should guard stream fallback behind allow_url_fopen availability.');
+assertVersion(str_contains($source, 'allow_url_fopen is not required when PHP cURL is available'), 'Diagnostics should state that allow_url_fopen is not required when cURL is available.');
 
 $keypair = sodium_crypto_sign_keypair();
 $secret = sodium_crypto_sign_secretkey($keypair);
