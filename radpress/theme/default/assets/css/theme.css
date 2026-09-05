@@ -12,10 +12,13 @@
     --bt-radius: 6px;
     --bt-shadow: 0 14px 35px rgba(17, 24, 39, 0.1);
     --bt-container: 1180px;
+    --bt-font-family: "proxima-nova", sans-serif;
 }
 
 html { scroll-behavior: smooth; }
-body.bp-theme-versatile { background: var(--bt-white); color: var(--bt-text); font-family: "proxima-nova", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+body.bp-theme-versatile { background: var(--bt-white); color: var(--bt-text); font-family: var(--bt-font-family), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+[data-bp-color-mode="dark"] { --bt-ink:#f9fafb;--bt-text:#e5e7eb;--bt-muted:#9ca3af;--bt-line:#374151;--bt-soft:#1f2937;--bt-white:#111827; }
+@media (prefers-color-scheme: dark) { [data-bp-color-mode="system"] { --bt-ink:#f9fafb;--bt-text:#e5e7eb;--bt-muted:#9ca3af;--bt-line:#374151;--bt-soft:#1f2937;--bt-white:#111827; } }
 .bp-theme-versatile h1, .bp-theme-versatile h2, .bp-theme-versatile h3, .bp-theme-versatile h4 { color: var(--bt-ink); font-weight: 600; letter-spacing: 0; }
 .bp-theme-versatile strong, .bp-theme-versatile b { font-weight: 600; }
 .bp-theme-versatile img { height: auto; max-width: 100%; }
@@ -27,6 +30,10 @@ body.bp-theme-versatile { background: var(--bt-white); color: var(--bt-text); fo
 .bp-theme-versatile .bp-nav { max-width: var(--bt-container); min-height: 72px; padding: 12px 24px; position: relative; }
 .bp-theme-versatile .bp-brand { color: var(--bt-ink); font-size: 1.1rem; font-weight: 600; }
 .bp-theme-versatile .bp-brand-logo { height: 46px; max-width: min(260px, 42vw); }
+.bp-brand-logo-dark { display: none; }
+[data-bp-color-mode="dark"] .bp-brand-logo-dark { display: block; }
+[data-bp-color-mode="dark"] .bp-brand-logo-default:has(+ .bp-brand-logo-dark) { display: none; }
+@media (prefers-color-scheme: dark) { [data-bp-color-mode="system"] .bp-brand-logo-dark { display:block; } [data-bp-color-mode="system"] .bp-brand-logo-default:has(+ .bp-brand-logo-dark) { display:none; } }
 .bp-theme-versatile .bp-links { align-items: center; gap: 4px; }
 .bp-theme-versatile .bp-links a { border-radius: 4px; color: var(--bt-text); font-weight: 600; padding: 9px 12px; }
 .bp-theme-versatile .bp-links a:hover, .bp-theme-versatile .bp-links a[aria-current="page"], .bp-theme-versatile .bp-links a.is-active { background: #e9f4fb; color: var(--bt-blue-dark); }
@@ -160,6 +167,18 @@ body.bp-theme-versatile { background: var(--bt-white); color: var(--bt-text); fo
 .bp-filter-chip { background: var(--bt-white); border: 1px solid var(--bt-line); border-radius: 999px; color: var(--bt-text); padding: 8px 14px; text-decoration: none; }
 .bp-filter-chip.is-active { background: var(--bt-ink); border-color: var(--bt-ink); color: var(--bt-white); }
 .bp-product-grid { display: grid; gap: 24px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 auto; max-width: var(--bt-container); padding: 36px 24px 80px; }
+.bp-pagination { align-items: center; display: flex; gap: 16px; justify-content: center; margin: 36px auto 0; }
+.bp-pagination span { color: var(--bt-muted); font-size: .92rem; }
+.bp-tag-cloud { display: flex; flex-wrap: wrap; gap: 6px; }
+.bp-tag-cloud span { background: var(--bt-soft); border: 1px solid var(--bt-line); border-radius: 999px; font-size: .82rem; padding: 4px 8px; }
+.bp-tag-cloud small { color: var(--bt-muted); }
+.bp-activity-calendar { display: grid; gap: 10px; list-style: none; padding: 0; }
+.bp-activity-calendar li { display: grid; gap: 2px; }
+.bp-activity-calendar time { color: var(--bt-muted); font-size: .78rem; }
+.bp-contact-form { display: grid; gap: 18px; margin-top: 32px; }
+.bp-contact-form label { display: grid; font-weight: 600; gap: 7px; }
+.bp-contact-form input, .bp-contact-form textarea { border: 1px solid var(--bt-line); border-radius: 3px; font: inherit; padding: 11px 12px; width: 100%; }
+.bp-honeypot { left: -10000px; position: absolute; }
 .bp-product-card { min-width: 0; }
 .bp-product-card-media { aspect-ratio: 4 / 5; background: var(--bt-soft); border: 1px solid var(--bt-line); display: block; margin-bottom: 16px; overflow: hidden; }
 .bp-product-card-media img { height: 100%; object-fit: cover; transition: transform .25s ease; width: 100%; }

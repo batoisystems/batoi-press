@@ -77,8 +77,10 @@ try {
         'about/team/index.html',
         'blog/index.html',
         'blog/first-post/index.html',
-        'blog/second-post/index.html',
+        'blog/first-post/second-post/index.html',
         'archive/index.html',
+        'shop/index.html',
+        'product/sample-product/index.html',
         '404.html',
         'sitemap.xml',
         'feed.xml',
@@ -109,6 +111,12 @@ try {
     assertTrue(str_contains((string)$zip->getFromName('index.html'), 'Latest articles'), 'Static homepage output should render the configured latest-posts section.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), 'First Post'), 'Static homepage latest-posts output should include the newest published post.');
     assertTrue(!str_contains((string)$zip->getFromName('index.html'), 'Second Post'), 'Static homepage latest-posts output should respect the configured post limit.');
+    assertTrue(str_contains((string)$zip->getFromName('index.html'), 'Selected articles') && str_contains((string)$zip->getFromName('index.html'), 'Selected products'), 'Static pages should render configured dynamic content blocks.');
+    assertTrue(str_contains((string)$zip->getFromName('index.html'), 'Sample Product'), 'Static product blocks should include published products.');
+    assertTrue(str_contains((string)$zip->getFromName('shop/index.html'), 'Sample Product'), 'Static export should include the product catalogue.');
+    assertTrue(str_contains((string)$zip->getFromName('product/sample-product/index.html'), 'Sample product description.'), 'Static export should include product detail pages.');
+    assertTrue(str_contains((string)$zip->getFromName('blog/index.html'), 'first-post/second-post'), 'Static blog links should preserve nested post routes.');
+    assertTrue(str_contains((string)$zip->getFromName('archive/index.html'), 'first-post/second-post'), 'Static archive links should preserve nested post routes.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './assets/images/site/logo.png'), 'Static HTML should render the configured brand logo.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './theme-assets/default/css/theme.css'), 'Static HTML should load declared theme styles.');
     assertTrue(str_contains((string)$zip->getFromName('index.html'), './theme-assets/default/js/theme.js'), 'Static HTML should load declared theme scripts.');
@@ -143,6 +151,7 @@ function createFixture(string $root): void
         'radpress/content/pages/team',
         'radpress/content/posts/first-post',
         'radpress/content/posts/second-post',
+        'radpress/content/products/sample-product',
         'radpress/content/menus',
         'radpress/content/widgets',
         'radpress/content/media',
@@ -174,6 +183,11 @@ function createFixture(string $root): void
         'template' => 'landing',
         'show_latest_posts' => true,
         'latest_posts_limit' => 1,
+        'blocks' => [
+            ['type' => 'html', 'title' => '', 'body' => '<h1>About</h1>', 'category' => '', 'limit' => 6, 'widget' => ''],
+            ['type' => 'posts', 'title' => 'Selected articles', 'body' => '', 'category' => '', 'limit' => 1, 'widget' => ''],
+            ['type' => 'products', 'title' => 'Selected products', 'body' => '', 'category' => '', 'limit' => 1, 'widget' => ''],
+        ],
     ], '<h1>About</h1>');
     writeContent($root . '/radpress/content/pages/team', [
         'title' => 'Team',
@@ -195,10 +209,22 @@ function createFixture(string $root): void
     writeContent($root . '/radpress/content/posts/second-post', [
         'title' => 'Second Post',
         'slug' => 'second-post',
+        'parent_slug' => 'first-post',
         'status' => 'published',
         'published_at' => '2026-07-01T10:00:00+00:00',
         'layout' => 'full',
     ], '<h1>Second Post</h1>');
+    writeContent($root . '/radpress/content/products/sample-product', [
+        'id' => 'prd_sample',
+        'type' => 'product',
+        'title' => 'Sample Product',
+        'slug' => 'sample-product',
+        'category' => 'General',
+        'status' => 'published',
+        'price' => '19.00',
+        'currency' => 'USD',
+        'inventory' => 2,
+    ], '<p>Sample product description.</p>');
     file_put_contents($root . '/radpress/content/widgets/sidebar.json', json_encode(['widgets' => [[
         'title' => 'Call to action',
         'body' => '<p>Contact our team.</p>',

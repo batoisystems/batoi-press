@@ -53,7 +53,7 @@ $renderFooterMenu = function (string $parent = '', int $depth = 0, array $trail 
 ?>
 <footer class="bp-footer">
     <div class="bp-footer-inner">
-        <div class="bp-footer-brand"><strong><?php echo bp_esc((string)($site['name'] ?? 'Batoi Press')); ?></strong><p><?php echo bp_esc((string)($site['tagline'] ?? '')); ?></p></div>
+        <div class="bp-footer-brand"><strong><?php echo bp_esc((string)($site['name'] ?? 'Batoi Press')); ?></strong><p><?php echo bp_esc((string)($site['footer_text'] ?? $site['tagline'] ?? '')); ?></p></div>
         <nav class="bp-footer-links" aria-label="Footer navigation"><?php $renderFooterMenu(); ?></nav>
         <p class="bp-footer-meta">&copy; <?php echo date('Y'); ?> <?php echo bp_esc((string)($site['name'] ?? 'Batoi Press')); ?></p>
     </div>

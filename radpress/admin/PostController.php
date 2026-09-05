@@ -65,7 +65,7 @@ final class PostController
             $slug = (string)($post['slug'] ?? '');
             $title = (string)($post['title'] ?? 'Untitled');
             $publishedAt = (string)($post['publish_at'] ?? $post['published_at'] ?? $post['updated_at'] ?? '');
-            $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>Post</small></td><td>' . $this->statusBadge((string)($post['status'] ?? 'draft')) . '</td><td>' . $this->e((string)($post['category'] ?? 'General')) . '</td><td>' . $this->formatDate($publishedAt) . '</td><td><code>' . $this->e($slug) . '</code></td><td><div class="bp-table-actions"><a href="/blog/' . rawurlencode($slug) . '">View</a><a href="/admin/posts/edit/' . rawurlencode($slug) . '">Edit</a></div></td></tr>';
+            $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>' . (!empty($post['parent_slug']) ? 'Child post' : 'Post') . '</small></td><td>' . $this->statusBadge((string)($post['status'] ?? 'draft')) . '</td><td>' . $this->e((string)($post['category'] ?? 'General')) . '</td><td>' . $this->formatDate($publishedAt) . '</td><td><code>' . $this->e($this->posts->publicPath($post)) . '</code></td><td><div class="bp-table-actions"><a href="' . $this->e($this->posts->publicPath($post)) . '">View</a><a href="/admin/posts/edit/' . rawurlencode($slug) . '">Edit</a><a href="/admin/posts/new?parent=' . rawurlencode($slug) . '">Add child</a></div></td></tr>';
         }
         $body .= '</tbody></table></div>';
         return Response::html($this->layout('Posts', $body));
@@ -114,9 +114,13 @@ final class PostController
     {
         $isEdit = $post !== null;
         $slug = (string)($post['slug'] ?? '');
+        $requestedParent = Slug::normalize((string)($post['parent_slug'] ?? $_GET['parent'] ?? ''));
+        if ($requestedParent !== '' && $this->posts->findBySlug($requestedParent) === null) {
+            $requestedParent = '';
+        }
         $actions = AdminLayout::buttonLink('Back to posts', '/admin/posts', 'back', true);
         if ($isEdit) {
-            $actions = AdminLayout::buttonLink('View post', '/blog/' . rawurlencode($slug), 'site', true) . $actions;
+            $actions = AdminLayout::buttonLink('View post', $this->posts->publicPath($post), 'site', true) . AdminLayout::buttonLink('Add child post', '/admin/posts/new?parent=' . rawurlencode($slug), 'plus', true) . $actions;
         }
 
         $body = AdminLayout::pageHeader(
@@ -130,7 +134,7 @@ final class PostController
         $body .= '<input type="hidden" name="expected_revision" value="' . $this->e($post === null ? '' : ContentRevision::for($post)) . '">';
 
         $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($post['title'] ?? ''), true, 'data-bp-slug-source') . $this->input('Slug', 'slug', $slug, true, 'data-bp-slug-target') . '<label class="bp-field-wide">Subtitle <textarea name="subtitle" rows="3" maxlength="300">' . $this->e((string)($post['subtitle'] ?? '')) . '</textarea><span class="bp-field-help">Optional short description shown below the article title.</span></label>' . $this->bodyEditor((string)($post['body'] ?? ''), 'Use clean HTML for formatted article content. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.') . '</div>';
-        $publishing = $this->select((string)($post['status'] ?? 'draft')) . $this->publishDateInput((string)($post['publish_at'] ?? $post['published_at'] ?? '')) . $this->dateTimeInput('Unpublish date', 'unpublish_at', (string)($post['unpublish_at'] ?? ''), 'Optional automatic public visibility cutoff.') . $this->input('Reviewer', 'reviewer', (string)($post['reviewer'] ?? ''), false) . '<label>Workflow note <textarea name="workflow_note" rows="3" maxlength="500"></textarea><span class="bp-field-help">Saved to workflow history; never displayed publicly.</span></label>' . $this->categoryInput((string)($post['category'] ?? 'General')) . $this->layoutSelect((string)($post['layout'] ?? 'full')) . $this->input('Tags', 'tags', implode(', ', (array)($post['tags'] ?? [])), false) . '<p class="bp-field-help">Separate tags with commas.</p>' . $this->workflowHistory($post) . $this->metaList($post);
+        $publishing = $this->select((string)($post['status'] ?? 'draft')) . $this->publishDateInput((string)($post['publish_at'] ?? $post['published_at'] ?? '')) . $this->dateTimeInput('Unpublish date', 'unpublish_at', (string)($post['unpublish_at'] ?? ''), 'Optional automatic public visibility cutoff.') . $this->input('Reviewer', 'reviewer', (string)($post['reviewer'] ?? ''), false) . '<label>Workflow note <textarea name="workflow_note" rows="3" maxlength="500"></textarea><span class="bp-field-help">Saved to workflow history; never displayed publicly.</span></label>' . $this->parentSelect($requestedParent, $slug) . $this->categoryInput((string)($post['category'] ?? 'General')) . $this->layoutSelect((string)($post['layout'] ?? 'full')) . $this->input('Tags', 'tags', implode(', ', (array)($post['tags'] ?? [])), false) . '<p class="bp-field-help">Separate tags with commas.</p>' . $this->workflowHistory($post) . $this->metaList($post);
         $media = $this->input('Featured image URL', 'featured_image', (string)($post['featured_image'] ?? ''), false) . $this->input('Featured image alt text', 'featured_image_alt', (string)($post['featured_image_alt'] ?? ''), false) . '<p class="bp-field-help">Use a public image URL from <a href="/admin/media?type=images" target="_blank" rel="noopener">Media</a>. Describe meaningful images for screen-reader users; leave alt text blank only for decorative images.</p>';
         $seo = $this->input('SEO Title', 'seo_title', (string)($post['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($post['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short article summary for search snippets and social previews.</span></label>';
 
@@ -197,6 +201,20 @@ final class PostController
             $html .= '<option value="' . $value . '"' . ($selected === $value ? ' selected' : '') . '>' . $label . '</option>';
         }
         return $html . '</select><span class="bp-field-help">Sidebar layouts show configured widgets and recent posts.</span></label>';
+    }
+
+    private function parentSelect(string $selected, string $currentSlug): string
+    {
+        $options = '<option value="">Top level</option>';
+        foreach ($this->posts->all() as $post) {
+            $slug = (string)($post['slug'] ?? '');
+            if ($slug === '' || $slug === $currentSlug) {
+                continue;
+            }
+            $label = (string)($post['title'] ?? $slug) . ' (' . $this->posts->publicPath($post) . ')';
+            $options .= '<option value="' . $this->e($slug) . '"' . ($slug === $selected ? ' selected' : '') . '>' . $this->e($label) . '</option>';
+        }
+        return '<label>Parent post <select name="parent_slug">' . $options . '</select><span class="bp-field-help">Use parent posts to group related series such as Blog, News, and Activities.</span></label>';
     }
 
     private function toolbar(array $posts, array $filters): string

@@ -331,10 +331,11 @@ final class ThemeTemplateController
             (string)$template['description'],
             AdminLayout::buttonLink('Back to templates', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . AdminLayout::buttonLink('View site', '/', 'site', true)
         );
-        $body .= '<form method="post" action="/admin/theme-templates/save" class="bp-form bp-admin-editor" autocomplete="off">';
+        $body .= '<form method="post" action="/admin/theme-templates/save" class="bp-form bp-admin-editor" autocomplete="off" data-bp-code-submit>';
         $body .= $this->csrf->field();
         $body .= '<input type="hidden" name="theme" value="' . $this->e($theme) . '">';
         $body .= '<input type="hidden" name="template" value="' . $this->e($key) . '">';
+        $body .= '<input type="hidden" name="source_encoded" value="">';
         $body .= '<div class="bp-editor-main">' . $this->editorPanel('Template code', $this->codeEditor($source, (string)$template['type']), 'Edit source carefully. PHP templates are checked before saving.') . '</div>';
         $body .= '<aside class="bp-editor-side">' . $this->editorPanel('Reference', $this->referencePanel($theme, $key, $path), 'Available context and file ownership.') . $this->editorPanel('Editing standard', $this->editingStandard(), 'Required checks before saving and previewing templates.') . '</aside>';
         $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . AdminLayout::submitButton('Save Template', 'save') . '</div></form>';
@@ -362,6 +363,14 @@ final class ThemeTemplateController
 
         $path = $this->templatePath($theme, $key);
         $source = $request->input('source');
+        $encoded = $request->input('source_encoded');
+        if ($encoded !== '') {
+            $decoded = base64_decode($encoded, true);
+            if (!is_string($decoded) || strlen($decoded) > 2097152) {
+                return Response::html($this->layout('Theme Templates', '<p class="bp-error">Encoded template source is invalid or too large.</p><p>' . AdminLayout::buttonLink('Back to editor', '/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key), 'back', true) . '</p>'), 400);
+            }
+            $source = $decoded;
+        }
         if (trim($source) === '') {
             return Response::html($this->layout('Theme Templates', '<p class="bp-error">Template source cannot be empty.</p><p>' . AdminLayout::buttonLink('Back to editor', '/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key), 'back', true) . '</p>'), 400);
         }
@@ -980,6 +989,10 @@ final class ThemeTemplateController
 
     private function starterSource(string $key): string
     {
+        $bundledContact = $this->config->paths()->themePath('default/layouts/contact.php');
+        if ($key === 'contact' && is_file($bundledContact)) {
+            return $this->files->read($bundledContact);
+        }
         return match ($key) {
             'contact' => "<?php\ndeclare(strict_types=1);\n?>\n<article class=\"bp-page bp-contact-page\">\n    <?php echo \$page['body'] ?? ''; ?>\n</article>\n",
             'theme-css' => "/* Add theme styles here. */\n",

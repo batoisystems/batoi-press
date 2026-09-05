@@ -10,6 +10,7 @@ use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
 use Batoi\Press\Security\Csrf;
+use Batoi\Press\Security\SecretStore;
 use RuntimeException;
 
 final class SettingsController
@@ -25,11 +26,12 @@ final class SettingsController
 
     public function edit(): Response
     {
-        return Response::html($this->layout('Settings', $this->form($this->config->site(), $this->config->editor())));
+        return Response::html($this->layout('Settings', $this->form($this->config->site(), $this->config->editor(), '', $this->config->integrations())));
     }
 
-    private function form(array $site, array $editor, string $error = ''): string
+    private function form(array $site, array $editor, string $error = '', ?array $integrations = null): string
     {
+        $integrations ??= $this->config->integrations();
         $body = AdminLayout::pageHeader(
             'Settings',
             'Control site identity, URLs, localization, and active theme configuration.'
@@ -42,9 +44,13 @@ final class SettingsController
         $body .= AdminLayout::section('Change guidance', $this->changeGuidance(), 'Review these notes before changing site-wide configuration.');
         $body .= $this->section('Identity', 'Public site name and supporting text.', '<div class="bp-form-grid">' . $this->input('Site Name', 'name', (string)($site['name'] ?? '')) . $this->input('Tagline', 'tagline', (string)($site['tagline'] ?? '')) . '</div>');
         $body .= $this->section('Branding', 'Control the public header identity and browser favicon.', $this->brandingField($site));
+        $body .= $this->section('Appearance', 'Set public color mode, brand colors, typography, and footer text.', $this->appearanceFields($site));
         $body .= $this->section('URLs', 'Canonical public URL used for links, feeds, and update metadata.', $this->input('Base URL', 'base_url', (string)($site['base_url'] ?? '')));
         $body .= $this->section('Localization', 'Locale and timezone used for date formatting and future language-aware features.', '<div class="bp-form-grid">' . $this->input('Locale', 'locale', (string)($site['locale'] ?? 'en')) . $this->timezoneSelect((string)($site['timezone'] ?? 'UTC')) . '</div>');
+        $body .= $this->section('Posts', 'Control the public blog listing without changing individual posts.', '<div class="bp-form-grid"><label>Posts per page <input type="number" name="posts_per_page" min="1" max="48" value="' . $this->e((string)max(1, min(48, (int)($site['posts_per_page'] ?? 12)))) . '" required><span class="bp-field-help">The blog adds Previous and Next navigation when more posts are available.</span></label></div>');
         $body .= $this->section('Editor', 'Configure the body editor used by pages and posts.', '<div class="bp-form-grid">' . $this->editorSelect((string)($editor['body_editor'] ?? 'rich_html')) . $this->input('Editor Height', 'editor_html_height', (string)($editor['html_height'] ?? '24rem')) . '<label class="bp-field-wide">HTML Toolbar <input type="text" name="editor_html_toolbar" value="' . $this->e((string)($editor['html_toolbar'] ?? 'undo redo bold italic underline strike heading quote code ul ol task link image table hr preview source')) . '" required><span class="bp-field-help">Space-separated Batoi UIF editor commands.</span></label></div>');
+        $body .= $this->section('Mail and integrations', 'Configure contact delivery, human verification, and analytics.', $this->integrationFields($integrations));
+        $body .= $this->section('Import site content', 'Import pages, posts, and base64-encoded media from a Batoi Press XML document.', '<p class="bp-field-help">The import is additive: existing slugs are skipped and no current content is deleted.</p><p>' . AdminLayout::buttonLink('Open XML Import', '/admin/import', 'upload', true) . '</p>');
         $body .= $this->section('Theme', 'Current frontend theme and shared public shell templates.', '<dl class="bp-meta-list"><div><dt>Active theme</dt><dd>' . $this->e((string)($site['theme'] ?? 'default')) . '</dd></div></dl><p>' . AdminLayout::buttonLink('Manage Themes', '/admin/themes', 'code', true) . AdminLayout::buttonLink('Edit Templates', '/admin/theme-templates', 'code', true) . '</p>');
         $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin', 'back', true) . AdminLayout::submitButton('Save Settings', 'save') . '</div></form>';
         return $body;
@@ -61,6 +67,16 @@ final class SettingsController
         foreach (['name', 'tagline', 'base_url', 'locale', 'timezone'] as $key) {
             $site[$key] = $request->input($key);
         }
+        $site['posts_per_page'] = max(1, min(48, (int)$request->input('posts_per_page', '12')));
+        $site['appearance_mode'] = in_array($request->input('appearance_mode'), ['light', 'dark', 'system'], true) ? $request->input('appearance_mode') : 'system';
+        foreach (['brand_primary_color' => '#0E68B0', 'brand_accent_color' => '#00B696'] as $field => $fallback) {
+            $candidate = strtoupper(trim($request->input($field)));
+            $site[$field] = preg_match('/^#[0-9A-F]{6}$/', $candidate) === 1 ? $candidate : $fallback;
+        }
+        $site['font_family'] = substr(trim($request->input('font_family')), 0, 120);
+        $fontUrl = trim($request->input('font_stylesheet_url'));
+        $site['font_stylesheet_url'] = $fontUrl === '' || (filter_var($fontUrl, FILTER_VALIDATE_URL) && str_starts_with(strtolower($fontUrl), 'https://')) ? $fontUrl : '';
+        $site['footer_text'] = substr(trim($request->input('footer_text')), 0, 500);
         $site['theme'] = $site['theme'] ?? 'default';
         $site['brand_display'] = in_array($request->input('brand_display'), ['text', 'logo', 'logo_with_text'], true)
             ? $request->input('brand_display')
@@ -72,12 +88,43 @@ final class SettingsController
             'html_toolbar' => trim($request->input('editor_html_toolbar')) !== '' ? trim($request->input('editor_html_toolbar')) : 'undo redo bold italic underline strike heading quote code ul ol task link image table hr preview source',
             'html_height' => trim($request->input('editor_html_height')) !== '' ? trim($request->input('editor_html_height')) : '24rem',
         ];
+        $integrations = $this->config->integrations();
+        $integrations['mail_provider'] = in_array($request->input('mail_provider'), ['disabled', 'php_mail', 'mailgun'], true) ? $request->input('mail_provider') : 'disabled';
+        $integrations['mail_from'] = trim($request->input('mail_from'));
+        $integrations['mail_to'] = trim($request->input('mail_to'));
+        $integrations['mailgun_domain'] = trim($request->input('mailgun_domain'));
+        $integrations['mailgun_region'] = $request->input('mailgun_region') === 'eu' ? 'eu' : 'us';
+        $integrations['recaptcha_site_key'] = trim($request->input('recaptcha_site_key'));
+        $measurementId = strtoupper(trim($request->input('analytics_measurement_id')));
+        $integrations['analytics_measurement_id'] = preg_match('/^G-[A-Z0-9]{4,20}$/', $measurementId) === 1 ? $measurementId : '';
 
         $branding = new BrandAssetManager($this->config->paths());
         $newFiles = [];
         try {
             if (!$this->isSupportedTimezone((string)$site['timezone'])) {
                 throw new RuntimeException('Select a timezone supported by this server.');
+            }
+            foreach (['mail_from', 'mail_to'] as $mailField) {
+                if ($integrations[$mailField] !== '' && filter_var($integrations[$mailField], FILTER_VALIDATE_EMAIL) === false) {
+                    throw new RuntimeException(ucwords(str_replace('_', ' ', $mailField)) . ' must be a valid email address.');
+                }
+            }
+            $secretStore = new SecretStore($this->config->paths());
+            if (trim($request->input('mailgun_api_key')) !== '') {
+                $integrations['mailgun_api_key'] = $secretStore->encrypt(trim($request->input('mailgun_api_key')));
+            } elseif ($request->input('remove_mailgun_api_key') === '1') {
+                unset($integrations['mailgun_api_key']);
+            }
+            if (trim($request->input('recaptcha_secret_key')) !== '') {
+                $integrations['recaptcha_secret_key'] = $secretStore->encrypt(trim($request->input('recaptcha_secret_key')));
+            } elseif ($request->input('remove_recaptcha_secret_key') === '1') {
+                unset($integrations['recaptcha_secret_key']);
+            }
+            if ($integrations['mail_provider'] === 'mailgun' && ($integrations['mailgun_domain'] === '' || empty($integrations['mailgun_api_key']))) {
+                throw new RuntimeException('Mailgun requires a domain and API key.');
+            }
+            if (($integrations['recaptcha_site_key'] === '') !== empty($integrations['recaptcha_secret_key'])) {
+                throw new RuntimeException('reCAPTCHA requires both a site key and a secret key.');
             }
 
             $logo = $branding->saveUpload((array)($_FILES['brand_logo'] ?? []), 'logo');
@@ -97,20 +144,29 @@ final class SettingsController
                 unset($site['favicon']);
             }
 
+            $darkLogo = $branding->saveUpload((array)($_FILES['brand_logo_dark'] ?? []), 'logo-dark');
+            if ($darkLogo !== null) {
+                $newFiles[] = $darkLogo;
+                $site['brand_logo_dark'] = $darkLogo;
+            } elseif ($request->input('remove_brand_logo_dark') === '1') {
+                unset($site['brand_logo_dark']);
+            }
+
             if ($site['brand_display'] !== 'text' && $branding->resolveUrl((string)($site['brand_logo'] ?? '')) === null) {
                 throw new RuntimeException('Upload a valid brand logo before selecting a logo display mode.');
             }
 
             $this->files->writeJson($this->config->paths()->configPath('editor.json'), $editor);
             $this->files->writeJson($this->config->paths()->configPath('site.json'), $site);
+            $this->files->writeJson($this->config->paths()->configPath('integrations.json'), $integrations);
         } catch (RuntimeException $exception) {
             foreach ($newFiles as $newFile) {
                 $branding->removeOwned($newFile);
             }
-            return Response::html($this->layout('Settings', $this->form($site, $editor, $exception->getMessage())), 400);
+            return Response::html($this->layout('Settings', $this->form($site, $editor, $exception->getMessage(), $integrations)), 400);
         }
 
-        foreach (['brand_logo', 'favicon'] as $key) {
+        foreach (['brand_logo', 'brand_logo_dark', 'favicon'] as $key) {
             $before = (string)($original[$key] ?? '');
             $after = (string)($site[$key] ?? '');
             if ($before !== '' && $before !== $after) {
@@ -190,6 +246,10 @@ final class SettingsController
         if ((string)($site['brand_logo'] ?? '') !== '') {
             $logoFields .= '<label class="bp-field-wide"><input type="checkbox" name="remove_brand_logo" value="1"> Remove current brand logo</label>';
         }
+        $logoFields .= '<label>Dark-mode logo <input type="file" name="brand_logo_dark" accept=".svg,.png,.jpg,.jpeg,.gif,.webp,image/svg+xml,image/png,image/jpeg,image/gif,image/webp"><span class="bp-field-help">Optional alternate logo used on dark surfaces.</span></label>';
+        if ((string)($site['brand_logo_dark'] ?? '') !== '') {
+            $logoFields .= '<label><input type="checkbox" name="remove_brand_logo_dark" value="1"> Remove dark-mode logo</label>';
+        }
 
         $favicon = (string)($site['favicon'] ?? '');
         $fallbackUrl = $this->defaultFaviconDataUri() ?: $this->assetUrl('/assets/img/batoi-press/press-color-tile-32.png');
@@ -211,6 +271,45 @@ final class SettingsController
         $rich = $value === 'rich_html' ? ' selected' : '';
         $source = $value === 'source_html' ? ' selected' : '';
         return '<label>Body Editor <select name="editor_body_editor"><option value="rich_html"' . $rich . '>Batoi UIF Rich HTML</option><option value="source_html"' . $source . '>HTML Source</option></select><span class="bp-field-help">' . $this->e(ContentEditor::storageDescription()) . '</span></label>';
+    }
+
+    private function integrationFields(array $integrations): string
+    {
+        $provider = (string)($integrations['mail_provider'] ?? 'disabled');
+        $options = '';
+        foreach (['disabled' => 'Disabled', 'php_mail' => 'Server mail()', 'mailgun' => 'Mailgun'] as $value => $label) {
+            $options .= '<option value="' . $value . '"' . ($provider === $value ? ' selected' : '') . '>' . $label . '</option>';
+        }
+        $mailgunSet = !empty($integrations['mailgun_api_key']);
+        $recaptchaSet = !empty($integrations['recaptcha_secret_key']);
+        return '<div class="bp-form-grid">'
+            . '<label>Mail provider <select name="mail_provider">' . $options . '</select></label>'
+            . '<label>Default From email <input type="email" name="mail_from" value="' . $this->e((string)($integrations['mail_from'] ?? '')) . '"></label>'
+            . '<label>Default To email <input type="email" name="mail_to" value="' . $this->e((string)($integrations['mail_to'] ?? '')) . '"></label>'
+            . '<label>Mailgun domain <input type="text" name="mailgun_domain" value="' . $this->e((string)($integrations['mailgun_domain'] ?? '')) . '"></label>'
+            . '<label>Mailgun region <select name="mailgun_region"><option value="us"' . (($integrations['mailgun_region'] ?? 'us') !== 'eu' ? ' selected' : '') . '>United States</option><option value="eu"' . (($integrations['mailgun_region'] ?? '') === 'eu' ? ' selected' : '') . '>Europe</option></select></label>'
+            . '<label>Mailgun API key <input type="password" name="mailgun_api_key" value="" autocomplete="new-password" placeholder="' . ($mailgunSet ? 'Configured — leave blank to keep' : 'Enter private API key') . '"></label>'
+            . ($mailgunSet ? '<label><input type="checkbox" name="remove_mailgun_api_key" value="1"> Remove saved Mailgun key</label>' : '')
+            . '<label>reCAPTCHA site key <input type="text" name="recaptcha_site_key" value="' . $this->e((string)($integrations['recaptcha_site_key'] ?? '')) . '"></label>'
+            . '<label>reCAPTCHA secret key <input type="password" name="recaptcha_secret_key" value="" autocomplete="new-password" placeholder="' . ($recaptchaSet ? 'Configured — leave blank to keep' : 'Enter secret key') . '"></label>'
+            . ($recaptchaSet ? '<label><input type="checkbox" name="remove_recaptcha_secret_key" value="1"> Remove saved reCAPTCHA secret</label>' : '')
+            . '<label>Google Analytics measurement ID <input type="text" name="analytics_measurement_id" value="' . $this->e((string)($integrations['analytics_measurement_id'] ?? '')) . '" placeholder="G-XXXXXXXXXX"></label>'
+            . '<p class="bp-field-wide bp-field-help">Private keys are encrypted in local data storage and are never rendered back into this form.</p></div>';
+    }
+
+    private function appearanceFields(array $site): string
+    {
+        $mode = (string)($site['appearance_mode'] ?? 'system');
+        $options = '';
+        foreach (['system' => 'Follow device', 'light' => 'Light', 'dark' => 'Dark'] as $value => $label) {
+            $options .= '<option value="' . $value . '"' . ($mode === $value ? ' selected' : '') . '>' . $label . '</option>';
+        }
+        return '<div class="bp-form-grid"><label>Color mode <select name="appearance_mode">' . $options . '</select></label>'
+            . '<label>Primary color <input type="color" name="brand_primary_color" value="' . $this->e((string)($site['brand_primary_color'] ?? '#0E68B0')) . '"></label>'
+            . '<label>Accent color <input type="color" name="brand_accent_color" value="' . $this->e((string)($site['brand_accent_color'] ?? '#00B696')) . '"></label>'
+            . '<label>Font family <input type="text" name="font_family" value="' . $this->e((string)($site['font_family'] ?? 'proxima-nova')) . '" placeholder="proxima-nova"></label>'
+            . '<label>Font stylesheet URL <input type="url" name="font_stylesheet_url" value="' . $this->e((string)($site['font_stylesheet_url'] ?? '')) . '" placeholder="https://fonts.googleapis.com/..."><span class="bp-field-help">Optional HTTPS Google Fonts or custom hosted stylesheet.</span></label>'
+            . '<label class="bp-field-wide">Footer text <textarea name="footer_text" rows="3" maxlength="500">' . $this->e((string)($site['footer_text'] ?? '')) . '</textarea></label></div>';
     }
 
     private function section(string $title, string $description, string $body): string

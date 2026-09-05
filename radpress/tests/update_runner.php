@@ -47,6 +47,17 @@ try {
     assertTrue($wrappedApply['ok'] ?? false, 'wrapped desktop ZIPs should apply files relative to their package root');
     assertSame('wrapped update', file_get_contents($root . '/README.md'), 'wrapped package contents should install');
 
+    $windowsManifestPackage = createPackage($root, 'windows-paths', [
+        'public_html/admin.php' => '<?php echo "updated";',
+    ], [
+        ['source' => 'public_html/admin.php', 'target' => 'public_html\\admin.php', 'sha256' => hash('sha256', '<?php echo "updated";')],
+    ]);
+    $windowsStage = $runner->stage($windowsManifestPackage);
+    assertTrue($windowsStage['ok'] ?? false, 'Windows manifest separators should normalize during staging');
+    $windowsApply = $runner->apply((string)$windowsStage['stage_dir']);
+    assertTrue($windowsApply['ok'] ?? false, 'Windows manifest separators should normalize during apply');
+    assertSame('<?php echo "updated";', (string)file_get_contents($root . '/public_html/admin.php'), 'normalized Windows targets should install inside the application root');
+
     $keypair = sodium_crypto_sign_keypair();
     $secretKey = sodium_crypto_sign_secretkey($keypair);
     $publicKey = base64_encode(sodium_crypto_sign_publickey($keypair));

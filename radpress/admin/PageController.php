@@ -107,6 +107,17 @@ final class PageController
                     throw new RuntimeException('The protected-layout text fields were not submitted correctly.');
                 }
                 $input['body'] = (new HtmlContent())->replaceEditableText($sourceBody, $replacements);
+                $sourceBlocks = is_array($sourcePage['blocks'] ?? null) ? array_values($sourcePage['blocks']) : [];
+                if (count($sourceBlocks) === 1 && is_array($sourceBlocks[0]) && ($sourceBlocks[0]['type'] ?? '') === 'html') {
+                    $sourceBlocks[0]['body'] = $input['body'];
+                    $input['blocks'] = $sourceBlocks;
+                }
+            } elseif (isset($input['block_type']) && is_array($input['block_type'])) {
+                $input['blocks'] = $this->submittedBlocks($input);
+                $input['body'] = implode("\n", array_map(
+                    static fn(array $block): string => in_array($block['type'], ['html', 'gallery'], true) ? (string)$block['body'] : '',
+                    $input['blocks']
+                ));
             }
             (new ContentMutationService($this->config, $this->pages, $this->posts, $this->audit, new IdempotencyStore($this->config->paths())))->saveFromAdmin(
                 'page',
@@ -148,14 +159,22 @@ final class PageController
         $htmlContent = new HtmlContent();
         $textSegments = $isEdit ? $htmlContent->editableTextSegments($bodyValue) : [];
         $requestedEditor = strtolower(trim((string)($_GET['editor'] ?? '')));
+        $storedBlocks = $page['blocks'] ?? [];
+        $supportsProtectedEditing = !is_array($storedBlocks) || $storedBlocks === [] || (count($storedBlocks) === 1 && ($storedBlocks[0]['type'] ?? '') === 'html');
         $textOnly = $isEdit
+            && $supportsProtectedEditing
             && $textSegments !== []
             && ($requestedEditor === 'text' || ($requestedEditor === '' && $htmlContent->hasComplexStructure($bodyValue)));
+        $sourceOnly = $requestedEditor === 'html';
         $editor = $textOnly
             ? ContentEditor::renderTextOnly($bodyValue, $textSegments, 'bp-page-body')
-            : $this->bodyEditor($bodyValue, 'Use clean HTML. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.');
-        $modeSwitch = $isEdit && $textSegments !== [] ? $this->editorModeSwitch($slug, $textOnly) : '';
-        $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($page['title'] ?? ''), true, 'data-bp-slug-source') . $this->input('Slug', 'slug', $slug, true, 'data-bp-slug-target') . $modeSwitch . $editor . '</div>';
+            : $this->blocksEditor($page, $bodyValue, $sourceOnly);
+        $modeSwitch = $isEdit && $supportsProtectedEditing && $textSegments !== [] ? $this->editorModeSwitch($slug, $textOnly) : '';
+        $pageAssets = '<details class="bp-field-wide bp-editor-advanced"><summary>Page CSS and JavaScript</summary><div class="bp-form-grid">'
+            . '<label class="bp-field-wide">Custom CSS <textarea name="custom_css" rows="8" spellcheck="false" placeholder=".page-class { color: #111827; }">' . $this->e((string)($page['custom_css'] ?? '')) . '</textarea><span class="bp-field-help">Loaded only on this page. Enter CSS rules without a &lt;style&gt; wrapper.</span></label>'
+            . '<label class="bp-field-wide">Custom JavaScript <textarea name="custom_js" rows="8" spellcheck="false" placeholder="document.addEventListener(\'DOMContentLoaded\', () => { });">' . $this->e((string)($page['custom_js'] ?? '')) . '</textarea><span class="bp-field-help">Loaded only on this page. Enter JavaScript without a &lt;script&gt; wrapper.</span></label>'
+            . '</div></details>';
+        $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($page['title'] ?? ''), true, 'data-bp-slug-source') . $this->input('Slug', 'slug', $slug, true, 'data-bp-slug-target') . $modeSwitch . $editor . $pageAssets . '</div>';
         $publishing = $this->select((string)($page['status'] ?? 'draft')) . $this->workflowFields($page) . $this->parentSelect($requestedParent, $slug) . $this->templateSelect((string)($page['template'] ?? 'page')) . $this->latestPostsFields($page) . $this->workflowHistory($page) . $this->metaList($page);
         $seo = $this->input('SEO Title', 'seo_title', (string)($page['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($page['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short page summary for search snippets and social previews.</span></label>';
 
@@ -170,9 +189,58 @@ final class PageController
         return '<label>' . $this->e($label) . ' <input type="text" name="' . $this->e($name) . '" value="' . $this->e($value) . '"' . $requiredAttribute . ($attributes !== '' ? ' ' . $attributes : '') . '></label>';
     }
 
-    private function bodyEditor(string $value, string $help): string
+    private function bodyEditor(string $value, string $help, bool $sourceOnly = false): string
     {
-        return ContentEditor::render($this->config, $value, $help, 'bp-page-body');
+        return ContentEditor::render($this->config, $value, $help, 'bp-page-body', $sourceOnly);
+    }
+
+    private function blocksEditor(?array $page, string $fallbackBody, bool $sourceOnly): string
+    {
+        $blocks = is_array($page['blocks'] ?? null) && $page['blocks'] !== []
+            ? array_values($page['blocks'])
+            : [['type' => 'html', 'title' => '', 'body' => $fallbackBody, 'category' => '', 'limit' => 6, 'widget' => '']];
+        $rows = '';
+        foreach ($blocks as $index => $block) {
+            if (is_array($block)) $rows .= $this->blockRow($block, $index, $sourceOnly || count($blocks) > 1);
+        }
+        $template = $this->blockRow(['type' => 'html', 'title' => '', 'body' => '', 'category' => '', 'limit' => 6, 'widget' => ''], 999, true);
+        return '<div class="bp-field-wide bp-page-blocks" data-bp-page-blocks><div class="bp-block-toolbar"><div><strong>Page content blocks</strong><p>Reorder HTML, blog posts, galleries, products, and configured widgets.</p></div><label>Add block <select data-bp-add-block-type><option value="html">HTML content</option><option value="posts">Blog posts</option><option value="gallery">Image gallery</option><option value="products">Products</option><option value="widget">Widget</option></select></label><button type="button" class="bp-button bp-button-secondary" data-bp-add-block>Add block</button></div><div class="bp-widget-rows" data-bp-reorder-list data-bp-block-list>' . $rows . '</div><template data-bp-block-template>' . $template . '</template></div>';
+    }
+
+    private function blockRow(array $block, int $index, bool $sourceOnly): string
+    {
+        $type = in_array(($block['type'] ?? ''), ['html', 'posts', 'gallery', 'products', 'widget'], true) ? (string)$block['type'] : 'html';
+        $options = '';
+        foreach (['html' => 'HTML content', 'posts' => 'Blog posts', 'gallery' => 'Image gallery', 'products' => 'Products', 'widget' => 'Widget'] as $value => $label) {
+            $options .= '<option value="' . $value . '"' . ($type === $value ? ' selected' : '') . '>' . $label . '</option>';
+        }
+        $editor = ContentEditor::render($this->config, (string)($block['body'] ?? ''), 'HTML and gallery markup is sanitized when saved.', 'bp-page-block-' . $index, $sourceOnly, 'block_body[]');
+        return '<section class="bp-reorder-row bp-block-row" data-bp-block-row><div class="bp-reorder-actions"><button type="button" data-bp-move="up" aria-label="Move block up">↑</button><button type="button" data-bp-move="down" aria-label="Move block down">↓</button><button type="button" data-bp-remove-block aria-label="Remove block">×</button></div>'
+            . '<label>Block type <select name="block_type[]" data-bp-block-type>' . $options . '</select></label>'
+            . '<label>Heading <input type="text" name="block_title[]" maxlength="160" value="' . $this->e((string)($block['title'] ?? '')) . '"></label>'
+            . '<div class="bp-field-wide" data-bp-block-field="html gallery">' . $editor . '</div>'
+            . '<label data-bp-block-field="posts products">Category filter <input type="text" name="block_category[]" maxlength="100" value="' . $this->e((string)($block['category'] ?? '')) . '"><span class="bp-field-help">Leave blank to include every category.</span></label>'
+            . '<label data-bp-block-field="posts products">Items <input type="number" name="block_limit[]" min="1" max="24" value="' . max(1, min(24, (int)($block['limit'] ?? 6))) . '"></label>'
+            . '<label data-bp-block-field="widget">Widget title <input type="text" name="block_widget[]" maxlength="160" value="' . $this->e((string)($block['widget'] ?? '')) . '"><span class="bp-field-help">Matches a widget configured in Widgets.</span></label>'
+            . '</section>';
+    }
+
+    private function submittedBlocks(array $input): array
+    {
+        $types = (array)($input['block_type'] ?? []);
+        if (count($types) > 30) {
+            throw new RuntimeException('A page supports at most 30 content blocks.');
+        }
+        $titles = (array)($input['block_title'] ?? []);
+        $bodies = (array)($input['block_body'] ?? []);
+        $categories = (array)($input['block_category'] ?? []);
+        $limits = (array)($input['block_limit'] ?? []);
+        $widgets = (array)($input['block_widget'] ?? []);
+        $blocks = [];
+        foreach (array_slice($types, 0, 30) as $index => $type) {
+            $blocks[] = ['type' => (string)$type, 'title' => (string)($titles[$index] ?? ''), 'body' => (string)($bodies[$index] ?? ''), 'category' => (string)($categories[$index] ?? ''), 'limit' => (int)($limits[$index] ?? 6), 'widget' => (string)($widgets[$index] ?? '')];
+        }
+        return $blocks;
     }
 
     private function editorModeSwitch(string $slug, bool $textOnly): string
@@ -180,7 +248,7 @@ final class PageController
         $base = '/admin/pages/edit/' . rawurlencode($slug);
         return '<div class="bp-field-wide bp-editor-mode-switch"><div><strong>Editing mode</strong><p>Use Text only for safe copy updates on custom layouts. Use HTML editor only when the page structure must change.</p></div><nav aria-label="Page body editing mode">'
             . '<a href="' . $base . '?editor=text"' . ($textOnly ? ' class="is-active" aria-current="page"' : '') . '>Text only</a>'
-            . '<a href="' . $base . '?editor=html"' . (!$textOnly ? ' class="is-active" aria-current="page"' : '') . '>HTML editor</a>'
+            . '<a href="' . $base . '?editor=html"' . (!$textOnly ? ' class="is-active" aria-current="page"' : '') . '>HTML source</a>'
             . '</nav></div>';
     }
 

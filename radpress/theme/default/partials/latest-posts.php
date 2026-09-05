@@ -12,7 +12,7 @@ if (empty($latestPosts) || !is_array($latestPosts)) {
     </header>
     <div class="bp-post-grid">
         <?php foreach ($latestPosts as $item): ?>
-            <?php $postUrl = bp_url('/blog/' . rawurlencode((string)($item['slug'] ?? ''))); ?>
+            <?php $postUrl = bp_url((string)(($postUrls ?? [])[(string)($item['slug'] ?? '')] ?? ('/blog/' . rawurlencode((string)($item['slug'] ?? ''))))); ?>
             <article class="bp-post-card">
                 <?php if (!empty($item['featured_image'])): $featuredImage = (string)$item['featured_image']; ?>
                     <a class="bp-post-card-media" href="<?php echo bp_attr($postUrl); ?>"><img src="<?php echo bp_attr(preg_match('#^https?://#i', $featuredImage) === 1 ? $featuredImage : bp_url($featuredImage)); ?>" alt="<?php echo bp_attr((string)($item['featured_image_alt'] ?? '')); ?>"></a>

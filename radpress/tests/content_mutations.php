@@ -57,6 +57,7 @@ try {
     $page = $reads->page('automation-draft');
     $updated = $mutations->updateDraft('page', 'automation-draft', ['title' => 'Reviewed Draft', 'body' => '<p>Reviewed</p>'], (string)($page['revision'] ?? ''), 'token:test', 'request-mutation-3');
     assertMutation(($updated['resource']['revision'] ?? '') !== ($page['revision'] ?? ''), 'successful updates should return a new revision');
+    assertMutation(($pages->findBySlug('automation-draft')['blocks'][0]['body'] ?? '') === '<p>Reviewed</p>', 'body-only API updates must update the block used for public rendering');
     assertMutation(($updated['change_summary']['fields'] ?? []) === ['title', 'body'], 'change summary should contain field names without content values');
 
     $staleRejected = false;

@@ -8,7 +8,8 @@ final class Response
     public function __construct(
         private readonly string $body,
         private readonly int $status = 200,
-        private readonly array $headers = []
+        private readonly array $headers = [],
+        private readonly array $inlineScriptHashes = []
     ) {
     }
 
@@ -63,7 +64,18 @@ final class Response
 
     public function withHeader(string $name, string $value): self
     {
-        return new self($this->body, $this->status, array_merge($this->headers, [$name => $value]));
+        return new self($this->body, $this->status, array_merge($this->headers, [$name => $value]), $this->inlineScriptHashes);
+    }
+
+    public function withInlineScript(string $script): self
+    {
+        $hash = "'sha256-" . base64_encode(hash('sha256', $script, true)) . "'";
+        return new self($this->body, $this->status, $this->headers, array_values(array_unique([...$this->inlineScriptHashes, $hash])));
+    }
+
+    public function inlineScriptHashes(): array
+    {
+        return $this->inlineScriptHashes;
     }
 
     public function send(): void

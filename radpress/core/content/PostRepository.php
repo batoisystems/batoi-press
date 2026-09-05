@@ -29,6 +29,21 @@ final class PostRepository
         return null;
     }
 
+    public function findByPath(string $path): ?array
+    {
+        $segments = array_values(array_filter(array_map(
+            static fn (string $segment): string => Slug::normalize(rawurldecode($segment)),
+            explode('/', trim($path, '/'))
+        ), static fn (string $segment): bool => $segment !== ''));
+        if ($segments === []) {
+            return null;
+        }
+
+        $post = $this->findBySlug((string)end($segments));
+        $publicPath = $post !== null ? preg_replace('#^/blog/?#', '', $this->publicPath($post)) : null;
+        return $post !== null && trim((string)$publicPath, '/') === implode('/', $segments) ? $post : null;
+    }
+
     public function allPublished(): array
     {
         return array_values(array_filter($this->all(), static fn (array $post): bool => PublicationState::isPublic($post)));
@@ -85,12 +100,15 @@ final class PostRepository
         $reviewer = substr(trim((string)($input['reviewer'] ?? $existing['reviewer'] ?? '')), 0, 100);
         $workflowNote = substr(trim((string)($input['workflow_note'] ?? '')), 0, 500);
         $layout = (string)($input['layout'] ?? $existing['layout'] ?? 'full');
+        $parentSlug = Slug::normalize((string)($input['parent_slug'] ?? $existing['parent_slug'] ?? ''));
+        $this->validateParent($parentSlug, $slug, $originalSlug);
         $meta = [
             'id' => (string)($existing['id'] ?? 'post_' . bin2hex(random_bytes(6))),
             'type' => 'post',
             'title' => trim((string)($input['title'] ?? 'Untitled Post')),
             'subtitle' => trim((string)($input['subtitle'] ?? '')),
             'slug' => $slug,
+            'parent_slug' => $parentSlug,
             'status' => $status,
             'publish_at' => $publishAt,
             'unpublish_at' => $unpublishAt,
@@ -114,8 +132,43 @@ final class PostRepository
         $this->snapshot($dir, $slug);
         $this->files->writeJson($dir . '/meta.json', $meta);
         $this->files->write($dir . '/body.html', $this->html->sanitize((string)($input['body'] ?? '')));
+        if ($originalSlug !== '' && $originalSlug !== $slug) {
+            $this->updateChildParentReferences($originalSlug, $slug, $now);
+        }
 
         return $meta;
+    }
+
+    public function publicPath(array|string $post): string
+    {
+        if (is_string($post)) {
+            $post = $this->findBySlug($post) ?? ['slug' => Slug::normalize($post)];
+        }
+        $posts = [];
+        foreach ($this->all() as $candidate) {
+            $candidateSlug = (string)($candidate['slug'] ?? '');
+            if ($candidateSlug !== '') {
+                $posts[$candidateSlug] = $candidate;
+            }
+        }
+
+        $segments = [];
+        $current = $post;
+        $visited = [];
+        while (is_array($current)) {
+            $slug = Slug::normalize((string)($current['slug'] ?? ''));
+            if ($slug === '' || isset($visited[$slug])) {
+                break;
+            }
+            $visited[$slug] = true;
+            array_unshift($segments, rawurlencode($slug));
+            $parent = Slug::normalize((string)($current['parent_slug'] ?? ''));
+            if ($parent === '' || !isset($posts[$parent])) {
+                break;
+            }
+            $current = $posts[$parent];
+        }
+        return '/blog/' . implode('/', $segments);
     }
 
     public function adjacentPublished(string $slug): array
@@ -145,6 +198,52 @@ final class PostRepository
             return $value;
         }
         return filter_var($value, FILTER_VALIDATE_URL) !== false && preg_match('#^https?://#i', $value) === 1 ? $value : '';
+    }
+
+    private function validateParent(string $parentSlug, string $slug, string $originalSlug): void
+    {
+        if ($parentSlug === '') {
+            return;
+        }
+        if ($parentSlug === $slug || ($originalSlug !== '' && $parentSlug === $originalSlug)) {
+            throw new RuntimeException('A post cannot be its own parent.');
+        }
+        $parent = $this->findBySlug($parentSlug);
+        if ($parent === null) {
+            throw new RuntimeException('Selected parent post was not found.');
+        }
+        $visited = [];
+        while ($parent !== null) {
+            $candidate = Slug::normalize((string)($parent['slug'] ?? ''));
+            if ($candidate === $slug || ($originalSlug !== '' && $candidate === $originalSlug)) {
+                throw new RuntimeException('Post hierarchy cannot contain a cycle.');
+            }
+            if ($candidate === '' || isset($visited[$candidate])) {
+                throw new RuntimeException('Existing post hierarchy contains a cycle.');
+            }
+            $visited[$candidate] = true;
+            $next = Slug::normalize((string)($parent['parent_slug'] ?? ''));
+            $parent = $next !== '' ? $this->findBySlug($next) : null;
+        }
+    }
+
+    private function updateChildParentReferences(string $oldSlug, string $newSlug, string $updatedAt): void
+    {
+        foreach (glob($this->paths->contentPath('posts/*'), GLOB_ONLYDIR) ?: [] as $dir) {
+            $metaFile = $dir . '/meta.json';
+            if (!is_file($metaFile)) {
+                continue;
+            }
+            $meta = $this->files->readJson($metaFile);
+            if (Slug::normalize((string)($meta['parent_slug'] ?? '')) !== $oldSlug) {
+                continue;
+            }
+            $childSlug = Slug::normalize((string)($meta['slug'] ?? basename($dir)));
+            $this->snapshot($dir, $childSlug);
+            $meta['parent_slug'] = $newSlug;
+            $meta['updated_at'] = $updatedAt;
+            $this->files->writeJson($metaFile, $meta);
+        }
     }
 
     private function targetDir(string $originalSlug, string $slug): string

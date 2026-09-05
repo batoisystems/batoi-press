@@ -11,6 +11,7 @@ final class Config
     private array $update;
     private array $aif;
     private array $editor;
+    private array $integrations;
 
     private function __construct(
         private readonly Paths $paths,
@@ -22,6 +23,7 @@ final class Config
         $this->update = $this->readOptionalJson('update.json', []);
         $this->aif = $this->readOptionalJson('aif.json', []);
         $this->editor = $this->readOptionalJson('editor.json', []);
+        $this->integrations = $this->readOptionalJson('integrations.json', []);
     }
 
     public static function load(string $root): self
@@ -66,6 +68,11 @@ final class Config
     public function editor(): array
     {
         return $this->editor;
+    }
+
+    public function integrations(): array
+    {
+        return $this->integrations;
     }
 
     private function readOptionalJson(string $file, array $default): array

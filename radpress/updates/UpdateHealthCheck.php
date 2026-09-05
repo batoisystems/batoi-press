@@ -40,8 +40,8 @@ final class UpdateHealthCheck
             if (!is_array($file)) {
                 continue;
             }
-            $targetRelative = trim((string)($file['target'] ?? $file['path'] ?? ''), '/');
-            if ($targetRelative === '' || str_contains($targetRelative, '..')) {
+            $targetRelative = trim(str_replace('\\', '/', (string)($file['target'] ?? $file['path'] ?? '')), '/');
+            if ($targetRelative === '' || in_array('..', explode('/', $targetRelative), true)) {
                 $errors[] = 'Invalid manifest target during health check.';
                 continue;
             }

@@ -67,6 +67,14 @@ try {
     assertEditor(str_contains($html, 'data-bp-editor-insert="display-math"'), 'editor assistance should provide a display LaTeX action');
     assertEditor(str_contains($html, 'data-bp-editor-insert="code-block"'), 'editor assistance should provide a semantic code-block action');
 
+    $sourceHtml = ContentEditor::render(Config::load($root), '<div style="color:red"><iframe src="https://example.com/embed"></iframe></div>', 'Advanced HTML.', 'bp-source-body', true);
+    assertEditor(str_contains($sourceHtml, 'Body HTML source'), 'explicit source mode should be labelled clearly');
+    assertEditor(!str_contains($sourceHtml, 'data-uif="editor"'), 'explicit source mode should not round-trip markup through the visual editor');
+    assertEditor(!str_contains($sourceHtml, 'data-bp-editor-enhance="true"'), 'explicit source mode should not be replaced by a client-side editor');
+    assertEditor(str_contains($sourceHtml, '&lt;iframe src=&quot;https://example.com/embed&quot;&gt;'), 'explicit source mode should retain supported embed markup in the textarea');
+    $blockHtml = ContentEditor::render(Config::load($root), '<p>Block</p>', 'Block HTML.', 'bp-block-body', true, 'block_body[]');
+    assertEditor(str_contains($blockHtml, 'name="block_body[]"'), 'the content editor should support aligned page-block field names');
+
     $textOnlyHtml = ContentEditor::renderTextOnly($protectedHtml, $segments, 'bp-protected-body');
     assertEditor(str_contains($textOnlyHtml, 'name="body_edit_mode" value="text_only"'), 'protected editor should identify its save mode');
     assertEditor(str_contains($textOnlyHtml, 'name="body_source_hash"'), 'protected editor should carry a source revision hash');
@@ -87,6 +95,7 @@ try {
     assertEditor(str_contains($app, 'enhancePublicCodeBlocks'), 'public JavaScript should enhance semantic code blocks');
     assertEditor(str_contains($app, "event.key !== 'Escape'"), 'Escape should close focus mode');
     assertEditor(str_contains($app, '[data-bp-reorder-list]') && str_contains($app, '[data-bp-move]'), 'admin JavaScript should support saved menu and widget ordering');
+    assertEditor(str_contains($app, '[data-bp-page-blocks]') && str_contains($app, '[data-bp-add-block]'), 'admin JavaScript should add and manage sortable page content blocks');
     assertEditor(str_contains($css, 'position: sticky'), 'admin styles should support a sticky editor toolbar');
     assertEditor(str_contains($css, '.bp-editor-focus-open'), 'admin styles should lock background scrolling in focus mode');
     assertEditor(str_contains($css, '.bp-editor-assistance'), 'admin styles should present image guidance consistently');

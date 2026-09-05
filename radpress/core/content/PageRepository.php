@@ -94,6 +94,19 @@ final class PageRepository
         $parentSlug = Slug::normalize((string)($input['parent_slug'] ?? $existing['parent_slug'] ?? ''));
         $this->validateParent($parentSlug, $slug, $originalSlug);
         $latestPostsLimit = max(1, min(12, (int)($input['latest_posts_limit'] ?? $existing['latest_posts_limit'] ?? 3)));
+        $customCss = (string)($input['custom_css'] ?? $existing['custom_css'] ?? '');
+        $customJs = (string)($input['custom_js'] ?? $existing['custom_js'] ?? '');
+        $this->validatePageAssets($customCss, $customJs);
+        $body = (string)($input['body'] ?? $existing['body'] ?? '');
+        $blockInput = $input['blocks'] ?? $existing['blocks'] ?? [];
+        if (!array_key_exists('blocks', $input) && array_key_exists('body', $input) && $body !== (string)($existing['body'] ?? '') && is_array($blockInput) && $blockInput !== []) {
+            if (count($blockInput) !== 1 || ($blockInput[0]['type'] ?? '') !== 'html') {
+                throw new RuntimeException('This page contains multiple or dynamic blocks. Submit the blocks explicitly when changing its body.');
+            }
+            $blockInput[0]['body'] = $body;
+        }
+        $blocks = $this->normalizeBlocks($blockInput, $body);
+        $body = implode("\n", array_map(static fn(array $block): string => in_array($block['type'], ['html', 'gallery'], true) ? $block['body'] : '', $blocks));
         $meta = [
             'id' => (string)($existing['id'] ?? 'pg_' . bin2hex(random_bytes(6))),
             'type' => 'page',
@@ -113,17 +126,63 @@ final class PageRepository
             'seo_description' => trim((string)($input['seo_description'] ?? '')),
             'show_latest_posts' => (string)($input['show_latest_posts'] ?? '0') === '1',
             'latest_posts_limit' => $latestPostsLimit,
+            'custom_css' => $customCss,
+            'custom_js' => $customJs,
+            'blocks' => $blocks,
         ];
 
         $dir = $this->targetDir($originalSlug, $slug);
         $this->snapshot($dir, $slug);
         $this->files->writeJson($dir . '/meta.json', $meta);
-        $this->files->write($dir . '/body.html', $this->html->sanitize((string)($input['body'] ?? '')));
+        $this->files->write($dir . '/body.html', $body);
         if ($originalSlug !== '' && $originalSlug !== $slug) {
             $this->updateChildParentReferences($originalSlug, $slug, $now);
         }
 
         return $meta;
+    }
+
+    private function validatePageAssets(string $css, string $js): void
+    {
+        if (strlen($css) > 102400 || strlen($js) > 102400) {
+            throw new RuntimeException('Custom CSS and JavaScript are limited to 100 KiB each.');
+        }
+        if (preg_match('#</style(?=[\s/>])#i', $css) === 1) {
+            throw new RuntimeException('Custom CSS cannot contain a closing style tag.');
+        }
+        if (preg_match('#</script(?=[\s/>])#i', $js) === 1) {
+            throw new RuntimeException('Custom JavaScript cannot contain a closing script tag.');
+        }
+    }
+
+    private function normalizeBlocks(mixed $value, string $fallbackBody): array
+    {
+        $allowed = ['html', 'posts', 'gallery', 'products', 'widget'];
+        if (!is_array($value) || count($value) > 30) {
+            throw new RuntimeException('Page blocks must be an array of at most 30 items.');
+        }
+        $encoded = json_encode($value);
+        if ($encoded === false || strlen($encoded) > 1048576 || strlen($fallbackBody) > 1048576) {
+            throw new RuntimeException('Page content exceeds the 1 MiB content limit.');
+        }
+        $blocks = [];
+        foreach (is_array($value) ? array_slice($value, 0, 30) : [] as $block) {
+            if (!is_array($block)) continue;
+            $type = in_array(($block['type'] ?? ''), $allowed, true) ? (string)$block['type'] : 'html';
+            $body = in_array($type, ['html', 'gallery'], true) ? $this->html->sanitize((string)($block['body'] ?? '')) : '';
+            $blocks[] = [
+                'type' => $type,
+                'title' => substr(trim((string)($block['title'] ?? '')), 0, 160),
+                'body' => $body,
+                'category' => substr(trim((string)($block['category'] ?? '')), 0, 100),
+                'limit' => max(1, min(24, (int)($block['limit'] ?? 6))),
+                'widget' => substr(trim((string)($block['widget'] ?? '')), 0, 160),
+            ];
+        }
+        if ($blocks === []) {
+            $blocks[] = ['type' => 'html', 'title' => '', 'body' => $this->html->sanitize($fallbackBody), 'category' => '', 'limit' => 6, 'widget' => ''];
+        }
+        return $blocks;
     }
 
     public function publicPath(array|string $page): string

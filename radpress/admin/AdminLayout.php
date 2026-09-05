@@ -137,6 +137,7 @@ final class AdminLayout
             'Publish' => [
                 ['label' => 'Pages', 'href' => '/admin/pages', 'icon' => 'file'],
                 ['label' => 'Posts', 'href' => '/admin/posts', 'icon' => 'edit'],
+                ['label' => 'Products', 'href' => '/admin/products', 'icon' => 'database'],
                 ['label' => 'Media', 'href' => '/admin/media', 'icon' => 'image'],
                 ['label' => 'Menus', 'href' => '/admin/menus', 'icon' => 'menu'],
                 ['label' => 'Widgets', 'href' => '/admin/widgets', 'icon' => 'dashboard'],

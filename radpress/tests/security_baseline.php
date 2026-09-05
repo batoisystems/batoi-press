@@ -61,6 +61,11 @@ try {
 }
 
 $headerConfig = Config::load($root);
+$scriptResponse = Response::html('<script>untrusted()</script><script>approved()</script>')->withInlineScript('approved()');
+$scriptResponse = SecurityHeaders::apply($scriptResponse, new Request('GET', '/', [], [], []), $headerConfig);
+$scriptPolicy = (string)($scriptResponse->headers()['Content-Security-Policy-Report-Only'] ?? '');
+assertTrue(str_contains($scriptPolicy, base64_encode(hash('sha256', 'approved()', true))), 'explicitly registered inline scripts must be allowed');
+assertTrue(!str_contains($scriptPolicy, base64_encode(hash('sha256', 'untrusted()', true))), 'arbitrary response scripts must not automatically receive CSP authorization');
 $secured = SecurityHeaders::apply(Response::html('ok'), new Request('GET', '/', [], [], ['HTTPS' => 'on']), $headerConfig);
 assertSame('nosniff', (string)($secured->headers()['X-Content-Type-Options'] ?? ''), 'responses should prevent MIME sniffing');
 assertSame('DENY', (string)($secured->headers()['X-Frame-Options'] ?? ''), 'responses should deny framing');

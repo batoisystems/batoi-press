@@ -42,10 +42,29 @@ try {
         'parent_slug' => 'parent',
         'status' => 'published',
         'body' => '<h1>Team page</h1>',
+        'blocks' => [
+            ['type' => 'html', 'title' => '', 'body' => '<h1>Team page</h1>'],
+            ['type' => 'gallery', 'title' => 'Team gallery', 'body' => '<figure><img src="/media/team.jpg" alt="Team"></figure>'],
+        ],
+        'custom_css' => '.team-page{color:#0E68B0}',
+        'custom_js' => 'window.teamPageReady=true;',
     ], 'owner');
     assertHierarchy(($child['slug'] ?? '') === 'team', 'blank page slugs should be generated from the title');
     assertHierarchy($pages->publicPath($child) === '/parent/team', 'child pages should use a nested public path');
     assertHierarchy(($pages->findByPath('/parent/team')['slug'] ?? '') === 'team', 'nested public paths should resolve the intended child page');
+    assertHierarchy(($child['custom_css'] ?? '') === '.team-page{color:#0E68B0}' && ($child['custom_js'] ?? '') === 'window.teamPageReady=true;', 'page CSS and JavaScript should persist');
+    assertHierarchy(($child['blocks'][0]['type'] ?? '') === 'html' && str_contains((string)($child['blocks'][0]['body'] ?? ''), 'Team page'), 'HTML content blocks should persist with page metadata');
+    assertHierarchy(($child['blocks'][1]['type'] ?? '') === 'gallery', 'sortable gallery blocks should persist with page metadata');
+    foreach (['</script/x><script>alert(1)</script>', '</script ignored>'] as $payload) {
+        $rejected = false;
+        try { $pages->save(['title'=>'Unsafe','slug'=>'unsafe','body'=>'safe','custom_js'=>$payload], 'owner'); }
+        catch (RuntimeException) { $rejected = true; }
+        assertHierarchy($rejected && $pages->findBySlug('unsafe') === null, 'alternate HTML script closing syntax must be rejected before writing');
+    }
+    $rejected = false;
+    try { $pages->save(['title'=>'Team','slug'=>'team','body'=>'Replacement'], 'owner'); }
+    catch (RuntimeException) { $rejected = true; }
+    assertHierarchy($rejected && count($pages->findBySlug('team')['blocks']) === 2, 'body-only writes must not silently erase or ignore complex block content');
 
     $renamed = $pages->save([
         'title' => 'Company',
@@ -88,6 +107,9 @@ try {
 
     $publicChild = (new App($root))->handle(new Request('GET', '/company/team', [], [], []));
     assertHierarchy($publicChild->status() === 200 && str_contains($publicChild->content(), 'Team page'), 'published child pages should render at their nested route');
+    assertHierarchy(str_contains($publicChild->content(), 'Team gallery') && str_contains($publicChild->content(), 'bp-content-gallery'), 'gallery blocks should render in saved order');
+    assertHierarchy(str_contains($publicChild->content(), '<style data-bp-page-css>.team-page{color:#0E68B0}</style>'), 'page CSS should render only in the page head');
+    assertHierarchy(str_contains($publicChild->content(), '<script data-bp-page-js>window.teamPageReady=true;</script>'), 'page JavaScript should render only before the page body closes');
     $draftPage = (new App($root))->handle(new Request('GET', '/draft-page', [], [], []));
     assertHierarchy($draftPage->status() === 404 && !str_contains($draftPage->content(), 'Private draft page'), 'draft pages should not render publicly');
     $draftPost = (new App($root))->handle(new Request('GET', '/blog/draft-post', [], [], []));

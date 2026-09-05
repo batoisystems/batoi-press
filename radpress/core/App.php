@@ -5,6 +5,7 @@ namespace Batoi\Press\Core;
 
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
+use Batoi\Press\Content\ProductRepository;
 use Batoi\Press\Security\SecurityHeaders;
 
 final class App
@@ -26,7 +27,8 @@ final class App
         $theme = new Theme($config->paths(), $config->site());
         $pages = new PageRepository($config->paths(), $files, $html);
         $posts = new PostRepository($config->paths(), $files, $html);
+        $products = new ProductRepository($config->paths(), $files, $html);
 
-        return SecurityHeaders::apply((new Router($theme, $pages, $posts, $config))->dispatch($request), $request, $config);
+        return SecurityHeaders::apply((new Router($theme, $pages, $posts, $config, $products))->dispatch($request), $request, $config);
     }
 }

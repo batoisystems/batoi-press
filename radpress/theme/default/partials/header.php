@@ -4,6 +4,7 @@ declare(strict_types=1);
 use Batoi\Press\Content\MenuRepository;
 use Batoi\Press\Core\Config;
 use Batoi\Press\Core\FileStore;
+use Batoi\Press\Core\BrandAssetManager;
 
 $pressRoot = dirname(__DIR__, 4);
 $menu = (new MenuRepository(Config::load($pressRoot)->paths(), new FileStore()))->load();
@@ -131,10 +132,11 @@ $renderMenu = function (string $parent = '', int $depth = 0, array $trail = [], 
         $brandDisplay = (string)($branding['display'] ?? 'text');
         $brandName = (string)($branding['site_name'] ?? ($site['name'] ?? 'Batoi Press'));
         $brandLogo = (string)($branding['logo_url'] ?? '');
+        $darkBrandLogo = (new BrandAssetManager(Config::load($pressRoot)->paths()))->resolveUrl((string)($site['brand_logo_dark'] ?? ''));
         ?>
         <a class="bp-brand bp-brand-mode-<?php echo bp_attr($brandDisplay); ?>" href="<?php echo bp_attr(bp_url('/')); ?>" aria-label="<?php echo bp_attr($brandName); ?>">
             <?php if ($brandLogo !== '' && in_array($brandDisplay, ['logo', 'logo_with_text'], true)): ?>
-            <img class="bp-brand-logo" src="<?php echo bp_attr(bp_url($brandLogo)); ?>" alt="<?php echo bp_attr((string)($branding['logo_alt'] ?? $brandName)); ?>">
+            <img class="bp-brand-logo bp-brand-logo-default" src="<?php echo bp_attr(bp_url($brandLogo)); ?>" alt="<?php echo bp_attr((string)($branding['logo_alt'] ?? $brandName)); ?>"><?php if ($darkBrandLogo !== null): ?><img class="bp-brand-logo bp-brand-logo-dark" src="<?php echo bp_attr(bp_url($darkBrandLogo)); ?>" alt="<?php echo bp_attr((string)($branding['logo_alt'] ?? $brandName)); ?>"><?php endif; ?>
             <?php endif; ?>
             <?php if ($brandDisplay !== 'logo'): ?>
             <span class="bp-brand-name"><?php echo bp_esc($brandName); ?></span>

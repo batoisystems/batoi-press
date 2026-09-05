@@ -62,8 +62,18 @@ final class PackageVerifier
         }
 
         for ($i = 0; $i < $zip->numFiles; $i++) {
-            $name = (string)$zip->getNameIndex($i);
-            if ($name === '' || str_starts_with($name, '/') || str_contains($name, '..')) {
+            $name = str_replace('\\', '/', (string)$zip->getNameIndex($i));
+            $trimmed = rtrim($name, '/');
+            $segments = explode('/', $trimmed);
+            if (
+                $trimmed === ''
+                || str_starts_with($name, '/')
+                || preg_match('/^[A-Za-z]:\//', $name) === 1
+                || preg_match('/[\x00-\x1F\x7F]/', $name) === 1
+                || in_array('', $segments, true)
+                || in_array('.', $segments, true)
+                || in_array('..', $segments, true)
+            ) {
                 $zip->close();
                 return false;
             }

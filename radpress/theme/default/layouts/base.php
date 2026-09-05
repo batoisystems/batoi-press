@@ -21,9 +21,16 @@ $faviconTypes = [
     'webp' => 'image/webp',
 ];
 $faviconType = $faviconHref !== '' ? ($faviconTypes[strtolower((string)pathinfo($favicon, PATHINFO_EXTENSION))] ?? 'image/x-icon') : '';
+$requestedAppearanceMode = (string)($site['appearance_mode'] ?? 'system');
+$appearanceMode = in_array($requestedAppearanceMode, ['light', 'dark', 'system'], true) ? $requestedAppearanceMode : 'system';
+$primaryColor = preg_match('/^#[0-9A-F]{6}$/i', (string)($site['brand_primary_color'] ?? '')) === 1 ? (string)$site['brand_primary_color'] : '#0E68B0';
+$accentColor = preg_match('/^#[0-9A-F]{6}$/i', (string)($site['brand_accent_color'] ?? '')) === 1 ? (string)$site['brand_accent_color'] : '#00B696';
+$fontFamily = preg_replace('/[^A-Za-z0-9 _-]/', '', (string)($site['font_family'] ?? 'proxima-nova')) ?: 'proxima-nova';
+$fontStylesheet = (string)($site['font_stylesheet_url'] ?? '');
+$fontStylesheet = filter_var($fontStylesheet, FILTER_VALIDATE_URL) && str_starts_with(strtolower($fontStylesheet), 'https://') ? $fontStylesheet : '';
 ?>
 <!doctype html>
-<html lang="en">
+<html lang="en" data-bp-color-mode="<?php echo bp_attr($appearanceMode); ?>" style="--bt-blue:<?php echo bp_attr($primaryColor); ?>;--bt-green:<?php echo bp_attr($accentColor); ?>;--bt-font-family:'<?php echo bp_attr($fontFamily); ?>',sans-serif">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -37,6 +44,7 @@ $faviconType = $faviconHref !== '' ? ($faviconTypes[strtolower((string)pathinfo(
     <?php if ($faviconHref !== ''): ?>
     <link rel="icon" type="<?php echo bp_attr($faviconType); ?>" href="<?php echo bp_attr($faviconHref); ?>">
     <?php endif; ?>
+    <?php if ($fontStylesheet !== ''): ?><link rel="stylesheet" href="<?php echo bp_attr($fontStylesheet); ?>"><?php endif; ?>
     <link rel="stylesheet" href="<?php echo bp_attr(bp_url('/assets/uif/uif.css')); ?>">
     <link rel="stylesheet" href="<?php echo bp_attr(bp_url('/assets/css/style.css')); ?>">
     <script src="<?php echo bp_attr(bp_url('/assets/uif/uif.iife.js')); ?>" defer></script>

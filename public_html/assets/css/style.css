@@ -797,6 +797,41 @@ p {
     padding: 12px;
 }
 
+.bp-page-blocks {
+    display: grid;
+    gap: 12px;
+}
+
+.bp-block-toolbar {
+    align-items: end;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+}
+
+.bp-block-toolbar p {
+    color: var(--bp-muted);
+    font-size: 0.82rem;
+    margin: 3px 0 0;
+}
+
+.bp-block-toolbar label {
+    margin-left: auto;
+}
+
+.bp-block-row {
+    grid-template-columns: auto minmax(150px, 0.35fr) minmax(220px, 1fr);
+}
+
+.bp-block-row > .bp-field-wide,
+.bp-block-row > [data-bp-block-field="html gallery"] {
+    grid-column: 1 / -1;
+}
+
+.bp-block-row [hidden] {
+    display: none !important;
+}
+
 .bp-command-hero {
     align-items: end;
     background: var(--bp-panel);

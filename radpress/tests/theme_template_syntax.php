@@ -48,6 +48,8 @@ assertTrue(str_contains($templateIndex, 'Contact Layout'), 'Theme owners should 
 $themesIndex = $controller->themes()->content();
 assertTrue(str_contains($themesIndex, 'is-active-theme') && str_contains($themesIndex, 'aria-label="Active theme"'), 'The active theme should have a prominent semantic and visual state.');
 assertTrue(str_contains($themesIndex, 'Inspect and Upload') && str_contains($themesIndex, 'Platform conversion'), 'Theme upload should explain inspection and governed conversion before installation.');
+$templateEditor = $controller->edit('default/theme-js')->content();
+assertTrue(str_contains($templateEditor, 'data-bp-code-submit') && str_contains($templateEditor, 'name="source_encoded"'), 'Theme source should use the WAF-safe encoded submission transport.');
 
 $reportMethod = new ReflectionMethod($controller, 'compatibilityReport');
 $reportMethod->setAccessible(true);
@@ -100,6 +102,8 @@ assertTrue(!$binaryNameMethod->invoke($controller, 'php8.5.2.fcgi'), 'FastCGI la
 
 $adminHtml = AdminLayout::render('Theme Template Test', '<main>Body</main>');
 assertTrue(str_contains($adminHtml, '/assets/js/app.js'), 'Admin pages should load the app script that resets editable source fields.');
+$adminScript = (string)file_get_contents(dirname(__DIR__, 2) . '/public_html/assets/js/app.js');
+assertTrue(str_contains($adminScript, 'new TextEncoder()') && str_contains($adminScript, 'window.btoa(binary)'), 'Theme source submission should encode UTF-8 before crossing shared-hosting WAF rules.');
 
 $snapshotDir = $config->paths()->dataPath('versions/theme/default/page');
 if (!is_dir($snapshotDir)) {

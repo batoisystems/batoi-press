@@ -5,6 +5,7 @@ namespace Batoi\Press\Core;
 
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
+use Batoi\Press\Content\ProductRepository;
 use ZipArchive;
 
 final class StaticExporter
@@ -13,7 +14,8 @@ final class StaticExporter
         private readonly Paths $paths,
         private readonly PageRepository $pages,
         private readonly PostRepository $posts,
-        private readonly array $site
+        private readonly array $site,
+        private readonly ?ProductRepository $productRepository = null
     ) {
     }
 
@@ -155,28 +157,44 @@ final class StaticExporter
             $theme = new Theme($this->paths, $this->site);
             $layout = $theme->pageLayout((string)($page['template'] ?? 'page'));
             $latestPostsLimit = max(1, min(12, (int)($page['latest_posts_limit'] ?? 3)));
+            if (is_array($page['blocks'] ?? null) && $page['blocks'] !== []) {
+                $page['body'] = (new PageBlockRenderer($this->paths, $this->posts, $this->products()))->render($page['blocks']);
+            }
             $this->writeHtml($workDir, $target, $this->renderTheme($layout, [
                 'page' => $page,
+                'postUrls' => $this->postUrls($publishedPosts),
                 'title' => (string)($page['title'] ?? ''),
                 'latestPosts' => !empty($page['show_latest_posts']) ? array_slice($publishedPosts, 0, $latestPostsLimit) : [],
             ], '/' . ($slug === $homepage ? '' : $pagePath . '/')));
         }
 
         $posts = $publishedPosts;
+        $postUrls = $this->postUrls($posts);
         foreach ($posts as $post) {
             $slug = (string)($post['slug'] ?? '');
+            $postPath = trim($this->posts->publicPath($post), '/');
             $adjacent = $this->posts->adjacentPublished($slug);
-            $this->writeHtml($workDir, 'blog/' . $slug . '/index.html', $this->renderTheme('post', [
+            $this->writeHtml($workDir, $postPath . '/index.html', $this->renderTheme('post', [
                 'post' => $post,
                 'title' => (string)($post['title'] ?? ''),
                 'widgets' => $this->sidebarWidgets(),
                 'recentPosts' => $posts,
+                'postUrls' => $postUrls,
                 'previousPost' => $adjacent['previous'],
                 'nextPost' => $adjacent['next'],
-            ], '/blog/' . $slug . '/'));
+            ], '/' . $postPath . '/'));
         }
-        $this->writeHtml($workDir, 'blog/index.html', $this->renderTheme('blog', ['posts' => $posts, 'title' => 'Blog'], '/blog/'));
-        $this->writeHtml($workDir, 'archive/index.html', $this->renderTheme('archive', ['posts' => $posts, 'title' => 'Archive'], '/archive/'));
+        $this->writeHtml($workDir, 'blog/index.html', $this->renderTheme('blog', ['posts' => $posts, 'postUrls' => $postUrls, 'title' => 'Blog'], '/blog/'));
+        $this->writeHtml($workDir, 'archive/index.html', $this->renderTheme('archive', ['posts' => $posts, 'postUrls' => $postUrls, 'title' => 'Archive'], '/archive/'));
+        $products = $this->products()->published();
+        $this->writeHtml($workDir, 'shop/index.html', $this->renderTheme('shop', ['products' => $products, 'title' => 'Shop'], '/shop/'));
+        foreach ($products as $product) {
+            $slug = (string)($product['slug'] ?? '');
+            $this->writeHtml($workDir, 'product/' . $slug . '/index.html', $this->renderTheme('product', [
+                'product' => $product,
+                'title' => (string)($product['title'] ?? ''),
+            ], '/product/' . $slug . '/'));
+        }
         $this->writeHtml($workDir, '404.html', $this->renderTheme('404', ['title' => 'Page Not Found'], '/404.html', 404));
         $this->write($workDir . '/sitemap.xml', $this->sitemap());
         $this->write($workDir . '/feed.xml', $this->feed());
@@ -198,6 +216,23 @@ final class StaticExporter
         }
         array_unshift($widgets, ['type' => 'recent_posts', 'title' => 'Recent posts']);
         return $widgets;
+    }
+
+    private function products(): ProductRepository
+    {
+        return $this->productRepository ?? new ProductRepository($this->paths, new FileStore(), new HtmlContent());
+    }
+
+    private function postUrls(array $posts): array
+    {
+        $urls = [];
+        foreach ($posts as $post) {
+            $slug = (string)($post['slug'] ?? '');
+            if ($slug !== '') {
+                $urls[$slug] = $this->posts->publicPath($post);
+            }
+        }
+        return $urls;
     }
 
     private function renderTheme(string $layout, array $data, string $requestUri, int $status = 200): string
@@ -232,7 +267,11 @@ final class StaticExporter
             $urls[] = $baseUrl . ($slug === $homepage ? '/' : $this->pages->publicPath($page) . '/');
         }
         foreach ($this->posts->allPublished() as $post) {
-            $urls[] = $baseUrl . '/blog/' . (string)($post['slug'] ?? '') . '/';
+            $urls[] = $baseUrl . $this->posts->publicPath($post) . '/';
+        }
+        $urls[] = $baseUrl . '/shop/';
+        foreach ($this->products()->published() as $product) {
+            $urls[] = $baseUrl . '/product/' . rawurlencode((string)($product['slug'] ?? '')) . '/';
         }
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n" . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
@@ -250,7 +289,7 @@ final class StaticExporter
         $xml .= '<link>' . htmlspecialchars($baseUrl . '/blog/', ENT_XML1) . '</link>';
         foreach ($this->posts->allPublished() as $post) {
             $xml .= '<item><title>' . htmlspecialchars((string)($post['title'] ?? ''), ENT_XML1) . '</title>';
-            $xml .= '<link>' . htmlspecialchars($baseUrl . '/blog/' . (string)($post['slug'] ?? '') . '/', ENT_XML1) . '</link></item>';
+            $xml .= '<link>' . htmlspecialchars($baseUrl . $this->posts->publicPath($post) . '/', ENT_XML1) . '</link></item>';
         }
         return $xml . '</channel></rss>';
     }
@@ -307,14 +346,17 @@ final class StaticExporter
 
     private function expectedEntries(): array
     {
-        $entries = ['blog/index.html', 'archive/index.html', '404.html', 'sitemap.xml', 'feed.xml'];
+        $entries = ['blog/index.html', 'archive/index.html', 'shop/index.html', '404.html', 'sitemap.xml', 'feed.xml'];
         $homepage = Slug::normalize((string)($this->site['homepage'] ?? 'home'));
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
             $entries[] = $slug === $homepage ? 'index.html' : trim($this->pages->publicPath($page), '/') . '/index.html';
         }
         foreach ($this->posts->allPublished() as $post) {
-            $entries[] = 'blog/' . (string)($post['slug'] ?? '') . '/index.html';
+            $entries[] = trim($this->posts->publicPath($post), '/') . '/index.html';
+        }
+        foreach ($this->products()->published() as $product) {
+            $entries[] = 'product/' . (string)($product['slug'] ?? '') . '/index.html';
         }
         foreach ($this->mediaFiles() as $file) {
             $entries[] = 'media/' . basename($file);

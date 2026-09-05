@@ -30,6 +30,16 @@ try {
     assertPost(($saved['featured_image'] ?? '') === '/assets/images/featured.webp', 'featured image URL should persist');
     assertPost(($saved['featured_image_alt'] ?? '') === 'Team presenting the new product', 'featured image alt text should persist');
     assertPost(($saved['layout'] ?? '') === 'sidebar-right', 'selected post layout should persist');
+    $child = $posts->save([
+        'title' => 'Child Post',
+        'slug' => 'child-post',
+        'parent_slug' => 'featured-post',
+        'status' => 'draft',
+        'body' => '<p>Child</p>',
+    ], 'owner');
+    assertPost(($child['parent_slug'] ?? '') === 'featured-post', 'post parent should persist');
+    assertPost($posts->publicPath($child) === '/blog/featured-post/child-post', 'child posts should receive nested public paths');
+    assertPost(($posts->findByPath('featured-post/child-post')['slug'] ?? '') === 'child-post', 'nested post paths should resolve to the child post');
     $unsafe = $posts->save([
         'title' => 'Unsafe Image',
         'slug' => 'unsafe-image',

@@ -54,6 +54,27 @@ final class Theme
         $libraries = new AssetLibraryManager($this->paths);
         $head = $themeHead . $libraries->tags('head', $localizedAssets);
         $body = $themeBody . $libraries->tags('body', $localizedAssets);
+        $integrationsPath = $this->paths->configPath('integrations.json');
+        $integrations = is_file($integrationsPath) ? (new FileStore())->readJson($integrationsPath) : [];
+        $measurementId = strtoupper((string)($integrations['analytics_measurement_id'] ?? ''));
+        $inlineScripts = [];
+        if (preg_match('/^G-[A-Z0-9]{4,20}$/', $measurementId) === 1) {
+            $encodedId = rawurlencode($measurementId);
+            $jsonId = json_encode($measurementId, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+            $analyticsScript = 'window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date());gtag("config",' . $jsonId . ');';
+            $inlineScripts[] = $analyticsScript;
+            $head .= '<script async src="https://www.googletagmanager.com/gtag/js?id=' . $encodedId . '"></script><script>' . $analyticsScript . '</script>';
+        }
+        $page = is_array($data['page'] ?? null) ? $data['page'] : [];
+        $pageCss = (string)($page['custom_css'] ?? '');
+        $pageJs = (string)($page['custom_js'] ?? '');
+        if ($pageCss !== '' && preg_match('#</style(?=[\s/>])#i', $pageCss) !== 1) {
+            $head .= '<style data-bp-page-css>' . $pageCss . '</style>';
+        }
+        if ($pageJs !== '' && preg_match('#</script(?=[\s/>])#i', $pageJs) !== 1) {
+            $body .= '<script data-bp-page-js>' . $pageJs . '</script>';
+            $inlineScripts[] = $pageJs;
+        }
         if ($head !== '') {
             $html = str_contains($html, '</head>') ? str_replace('</head>', $head . '</head>', $html) : $head . $html;
         }
@@ -64,7 +85,11 @@ final class Theme
         if ($previewBanner !== '') {
             $html = preg_replace('/<body\b([^>]*)>/i', '<body$1>' . $previewBanner, $html, 1) ?? $html;
         }
-        return Response::html($html, $status);
+        $response = Response::html($html, $status);
+        foreach ($inlineScripts as $script) {
+            $response = $response->withInlineScript($script);
+        }
+        return $response;
     }
 
     public function pageLayout(string $template): string

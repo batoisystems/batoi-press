@@ -655,6 +655,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    document.querySelectorAll('form[data-bp-code-submit]').forEach((form) => {
+        form.addEventListener('submit', () => {
+            const source = form.querySelector('textarea[name="source"]');
+            const encoded = form.querySelector('input[name="source_encoded"]');
+            if (!(source instanceof HTMLTextAreaElement) || !(encoded instanceof HTMLInputElement)) return;
+            const bytes = new TextEncoder().encode(source.value);
+            let binary = '';
+            for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+                binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+            }
+            encoded.value = window.btoa(binary);
+            source.disabled = true;
+        });
+    });
+
     document.querySelectorAll('[data-bp-reorder-list]').forEach((list) => {
         list.addEventListener('click', (event) => {
             const button = event.target.closest('[data-bp-move]');
@@ -673,6 +688,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 list.insertBefore(sibling, row);
             }
             row.querySelector('input, textarea')?.focus();
+        });
+    });
+
+    document.querySelectorAll('[data-bp-page-blocks]').forEach((builder) => {
+        const list = builder.querySelector('[data-bp-block-list]');
+        const template = builder.querySelector('[data-bp-block-template]');
+        const addType = builder.querySelector('[data-bp-add-block-type]');
+        const refresh = (row) => {
+            const type = row.querySelector('[data-bp-block-type]')?.value || 'html';
+            row.querySelectorAll('[data-bp-block-field]').forEach((field) => {
+                field.hidden = !(field.getAttribute('data-bp-block-field') || '').split(' ').includes(type);
+            });
+        };
+        if (!(list instanceof HTMLElement) || !(template instanceof HTMLTemplateElement)) return;
+        list.querySelectorAll('[data-bp-block-row]').forEach((row) => refresh(row));
+        list.addEventListener('change', (event) => {
+            const select = event.target.closest('[data-bp-block-type]');
+            if (select) refresh(select.closest('[data-bp-block-row]'));
+        });
+        list.addEventListener('click', (event) => {
+            const remove = event.target.closest('[data-bp-remove-block]');
+            const row = remove?.closest('[data-bp-block-row]');
+            if (!remove || !row || list.querySelectorAll('[data-bp-block-row]').length === 1) return;
+            row.remove();
+        });
+        builder.querySelector('[data-bp-add-block]')?.addEventListener('click', () => {
+            const fragment = template.content.cloneNode(true);
+            const row = fragment.querySelector('[data-bp-block-row]');
+            if (!row) return;
+            const suffix = `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+            row.querySelectorAll('[id]').forEach((element) => {
+                const previousId = element.id;
+                const nextId = `${previousId}-${suffix}`;
+                row.querySelectorAll('[for]').forEach((label) => { if (label.getAttribute('for') === previousId) label.setAttribute('for', nextId); });
+                element.id = nextId;
+            });
+            const select = row.querySelector('[data-bp-block-type]');
+            if (select && addType) select.value = addType.value;
+            refresh(row);
+            list.append(row);
+            row.querySelector('input, textarea, select')?.focus();
         });
     });
 

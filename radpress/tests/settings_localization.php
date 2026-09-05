@@ -40,6 +40,13 @@ $unsupportedHtml = (string)$timezoneSelect->invoke($controller, '<script>alert(1
 assertSettings(!str_contains($unsupportedHtml, '<script>'), 'Unsupported configured timezone values should be escaped.');
 assertSettings(str_contains($unsupportedHtml, '&lt;script&gt;alert(1)&lt;/script&gt;'), 'Unsupported configured timezone should remain visible for correction.');
 
+$form = new ReflectionMethod($controller, 'form');
+$formHtml = (string)$form->invoke($controller, array_merge($config->site(), ['posts_per_page' => 18]), $config->editor());
+assertSettings(str_contains($formHtml, 'name="posts_per_page"') && str_contains($formHtml, 'value="18"'), 'Settings should expose the configured public blog page size.');
+assertSettings(str_contains($formHtml, 'name="appearance_mode"') && str_contains($formHtml, 'name="brand_primary_color"'), 'Settings should expose public light, dark, and brand color controls.');
+assertSettings(str_contains($formHtml, 'name="mail_provider"') && str_contains($formHtml, 'name="analytics_measurement_id"'), 'Settings should expose mail and analytics integrations.');
+assertSettings(str_contains($formHtml, '/admin/import'), 'Settings should expose the XML site-content import workflow.');
+
 echo "Settings localization checks passed\n";
 
 function assertSettings(bool $condition, string $message): void

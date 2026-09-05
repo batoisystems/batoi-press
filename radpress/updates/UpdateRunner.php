@@ -238,17 +238,22 @@ final class UpdateRunner
 
     private function joinRelative(string $root, string $relative): ?string
     {
-        $relative = trim($relative, '/');
-        if ($relative === '' || str_contains($relative, '..') || str_starts_with($relative, '/')) {
+        $relative = str_replace('\\', '/', trim($relative));
+        if ($relative === '' || str_starts_with($relative, '/') || preg_match('/^[A-Za-z]:\//', $relative) === 1 || preg_match('/[\x00-\x1F\x7F]/', $relative) === 1) {
             return null;
         }
 
-        return rtrim($root, '/') . '/' . $relative;
+        $segments = explode('/', rtrim($relative, '/'));
+        if ($segments === [] || in_array('', $segments, true) || in_array('.', $segments, true) || in_array('..', $segments, true)) {
+            return null;
+        }
+
+        return rtrim(str_replace('\\', '/', $root), '/') . '/' . implode('/', $segments);
     }
 
     private function isAllowedTarget(string $relative): bool
     {
-        $relative = trim($relative, '/');
+        $relative = trim(str_replace('\\', '/', $relative), '/');
         foreach ($this->allowedTargetPrefixes() as $prefix) {
             if ($relative === rtrim($prefix, '/') || str_starts_with($relative, $prefix)) {
                 return true;
@@ -260,7 +265,7 @@ final class UpdateRunner
 
     private function preserveExistingTarget(string $relative): bool
     {
-        return in_array(trim($relative, '/'), ['radpress/config/aif.json', 'radpress/config/paths.json'], true);
+        return in_array(trim(str_replace('\\', '/', $relative), '/'), ['radpress/config/aif.json', 'radpress/config/paths.json'], true);
     }
 
     private function allowedTargetPrefixes(): array
@@ -297,7 +302,18 @@ final class UpdateRunner
     {
         $realPath = realpath($path);
         $realRoot = realpath($root);
-        return $realPath !== false && $realRoot !== false && str_starts_with($realPath, rtrim($realRoot, '/') . '/');
+        if ($realPath === false || $realRoot === false) {
+            return false;
+        }
+
+        $normalizedPath = rtrim(str_replace('\\', '/', $realPath), '/');
+        $normalizedRoot = rtrim(str_replace('\\', '/', $realRoot), '/');
+        if (preg_match('/^[A-Za-z]:\//', $normalizedRoot) === 1) {
+            $normalizedPath = strtolower($normalizedPath);
+            $normalizedRoot = strtolower($normalizedRoot);
+        }
+
+        return $normalizedPath !== $normalizedRoot && str_starts_with($normalizedPath, $normalizedRoot . '/');
     }
 
     private function failAndRollback(string $error, string $backupPath, MaintenanceMode $maintenance, array $installedTargets = []): array

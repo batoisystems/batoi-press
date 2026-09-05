@@ -12,19 +12,23 @@ use Batoi\Press\Admin\CacheController;
 use Batoi\Press\Admin\ConnectionController;
 use Batoi\Press\Admin\ExportController;
 use Batoi\Press\Admin\MediaController;
+use Batoi\Press\Admin\ImportController;
 use Batoi\Press\Admin\MenuController;
 use Batoi\Press\Admin\PageController;
 use Batoi\Press\Admin\PostController;
+use Batoi\Press\Admin\ProductController;
 use Batoi\Press\Admin\SecurityController;
 use Batoi\Press\Admin\SettingsController;
 use Batoi\Press\Admin\ThemeTemplateController;
 use Batoi\Press\Admin\UpdateController;
 use Batoi\Press\Admin\UserController;
 use Batoi\Press\Admin\WidgetController;
+use Batoi\Press\Application\ContactController;
 use Batoi\Press\Api\ApiController;
 use Batoi\Press\Api\OAuthMetadataController;
 use Batoi\Press\Content\PageRepository;
 use Batoi\Press\Content\PostRepository;
+use Batoi\Press\Content\ProductRepository;
 use Batoi\Press\Content\PublicationState;
 use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\FileStore;
@@ -43,7 +47,8 @@ final class Router
         private readonly Theme $theme,
         private readonly PageRepository $pages,
         private readonly PostRepository $posts,
-        private readonly Config $config
+        private readonly Config $config,
+        private readonly ?ProductRepository $productRepository = null
     ) {
     }
 
@@ -69,6 +74,10 @@ final class Router
             return Response::xml($this->feed());
         }
 
+        if ($request->path === '/contact/submit' && $request->method === 'POST') {
+            return (new ContactController($this->config))->submit($request);
+        }
+
         if (str_starts_with($request->path, '/media/')) {
             return $this->media(rawurldecode(substr($request->path, 7)));
         }
@@ -82,11 +91,35 @@ final class Router
         }
 
         if ($request->path === '/blog') {
-            return $this->theme->render('blog', ['posts' => $this->posts->allPublished(), 'title' => 'Blog']);
+            $publishedPosts = $this->posts->allPublished();
+            $perPage = max(1, min(48, (int)($this->config->site()['posts_per_page'] ?? 12)));
+            $pageNumber = max(1, (int)($request->query['page'] ?? 1));
+            $pageCount = max(1, (int)ceil(count($publishedPosts) / $perPage));
+            if ($pageNumber > $pageCount) {
+                return $this->notFound();
+            }
+            return $this->theme->render('blog', [
+                'posts' => array_slice($publishedPosts, ($pageNumber - 1) * $perPage, $perPage),
+                'postUrls' => $this->postUrls($publishedPosts),
+                'pageNumber' => $pageNumber,
+                'pageCount' => $pageCount,
+                'title' => 'Blog',
+            ]);
+        }
+
+        if ($request->path === '/shop') {
+            return $this->theme->render('shop', ['products' => $this->products()->published(), 'title' => 'Shop']);
+        }
+
+        if (str_starts_with($request->path, '/product/')) {
+            $product = $this->products()->findBySlug(Slug::normalize(rawurldecode(substr($request->path, 9))));
+            return $product !== null && ($product['status'] ?? '') === 'published'
+                ? $this->theme->render('product', ['product' => $product, 'title' => (string)$product['title']])
+                : $this->notFound();
         }
 
         if (str_starts_with($request->path, '/blog/')) {
-            $post = $this->posts->findBySlug(substr($request->path, 6));
+            $post = $this->posts->findByPath(substr($request->path, 6));
             if ($post === null || !PublicationState::isPublic($post)) {
                 return $this->notFound();
             }
@@ -96,6 +129,7 @@ final class Router
                 'title' => (string)$post['title'],
                 'widgets' => $this->sidebarWidgets(),
                 'recentPosts' => $this->posts->allPublished(),
+                'postUrls' => $this->postUrls($this->posts->allPublished()),
                 'previousPost' => $adjacent['previous'],
                 'nextPost' => $adjacent['next'],
             ]);
@@ -117,12 +151,21 @@ final class Router
     private function pageData(array $page): array
     {
         $limit = max(1, min(12, (int)($page['latest_posts_limit'] ?? 3)));
+        $integrations = $this->config->integrations();
+        if (is_array($page['blocks'] ?? null) && $page['blocks'] !== []) {
+            $page['body'] = (new PageBlockRenderer($this->config->paths(), $this->posts, $this->products()))->render($page['blocks']);
+        }
         return [
             'page' => $page,
             'title' => (string)($page['title'] ?? ''),
+            'postUrls' => $this->postUrls($this->posts->allPublished()),
             'latestPosts' => !empty($page['show_latest_posts'])
                 ? array_slice($this->posts->allPublished(), 0, $limit)
                 : [],
+            'contact' => [
+                'status' => (string)($_GET['contact'] ?? ''),
+                'recaptcha_site_key' => (string)($integrations['recaptcha_site_key'] ?? ''),
+            ],
         ];
     }
 
@@ -229,6 +272,19 @@ final class Router
             return (new PostController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->save($request);
         }
 
+        if ($request->path === '/admin/products') {
+            return (new ProductController($this->config, $this->products(), $csrf, $audit, $user))->index();
+        }
+        if ($request->path === '/admin/products/new') {
+            return (new ProductController($this->config, $this->products(), $csrf, $audit, $user))->edit();
+        }
+        if (str_starts_with($request->path, '/admin/products/edit/')) {
+            return (new ProductController($this->config, $this->products(), $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 21)));
+        }
+        if ($request->path === '/admin/products/save' && $request->method === 'POST') {
+            return (new ProductController($this->config, $this->products(), $csrf, $audit, $user))->save($request);
+        }
+
         if ($request->path === '/admin/media') {
             return (new MediaController($this->config, $csrf, $audit, $user))->index();
         }
@@ -287,6 +343,15 @@ final class Router
 
         if ($request->path === '/admin/settings/save' && $request->method === 'POST') {
             return (new SettingsController($this->config, $files, $csrf, $audit, $user))->save($request);
+        }
+
+        if ($request->path === '/admin/import') {
+            $body = AdminLayout::pageHeader('XML Import', 'Import Batoi Press site content without replacing existing slugs.', AdminLayout::buttonLink('Back to Settings', '/admin/settings', 'back', true));
+            $body .= AdminLayout::section('Upload site content', '<form method="post" action="/admin/import/xml" enctype="multipart/form-data" class="bp-form">' . $csrf->field() . '<label>XML file <input type="file" name="site_xml" accept=".xml,application/xml,text/xml" required><span class="bp-field-help">Maximum 10 MiB. Root element: &lt;batoi-press&gt;.</span></label>' . AdminLayout::submitButton('Import XML', 'upload') . '</form>', 'Pages and posts with existing slugs are skipped.');
+            return Response::html(AdminLayout::render('XML Import', $body));
+        }
+        if ($request->path === '/admin/import/xml' && $request->method === 'POST') {
+            return (new ImportController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->xml();
         }
 
         if ($request->path === '/admin/themes') {
@@ -390,16 +455,16 @@ final class Router
         }
 
         if ($request->path === '/admin/export-static') {
-            return (new ExportController(new StaticExporter($this->config->paths(), $this->pages, $this->posts, $this->config->site()), $csrf, $audit, $user))->index();
+            return (new ExportController(new StaticExporter($this->config->paths(), $this->pages, $this->posts, $this->config->site(), $this->products()), $csrf, $audit, $user))->index();
         }
 
         if (str_starts_with($request->path, '/admin/export-static/download/')) {
             $name = rawurldecode(substr($request->path, strlen('/admin/export-static/download/')));
-            return (new ExportController(new StaticExporter($this->config->paths(), $this->pages, $this->posts, $this->config->site()), $csrf, $audit, $user))->download($name);
+            return (new ExportController(new StaticExporter($this->config->paths(), $this->pages, $this->posts, $this->config->site(), $this->products()), $csrf, $audit, $user))->download($name);
         }
 
         if ($request->path === '/admin/export-static/run' && $request->method === 'POST') {
-            return (new ExportController(new StaticExporter($this->config->paths(), $this->pages, $this->posts, $this->config->site()), $csrf, $audit, $user))->run($request->input('csrf_token'));
+            return (new ExportController(new StaticExporter($this->config->paths(), $this->pages, $this->posts, $this->config->site(), $this->products()), $csrf, $audit, $user))->run($request->input('csrf_token'));
         }
 
         if ($request->path === '/admin/aif') {
@@ -460,6 +525,23 @@ final class Router
         }
         array_unshift($widgets, ['type' => 'recent_posts', 'title' => 'Recent posts']);
         return $widgets;
+    }
+
+    private function postUrls(array $posts): array
+    {
+        $urls = [];
+        foreach ($posts as $post) {
+            $slug = (string)($post['slug'] ?? '');
+            if ($slug !== '') {
+                $urls[$slug] = $this->posts->publicPath($post);
+            }
+        }
+        return $urls;
+    }
+
+    private function products(): ProductRepository
+    {
+        return $this->productRepository ?? new ProductRepository($this->config->paths(), new FileStore(), new HtmlContent());
     }
 
     private function notFound(): Response
@@ -524,11 +606,18 @@ final class Router
         $urls = [];
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
-            $urls[] = $baseUrl . ($slug === 'home' ? '/' : '/' . $slug);
+            $urls[] = $baseUrl . ($slug === Slug::normalize((string)($site['homepage'] ?? 'home')) ? '/' : $this->pages->publicPath($page));
         }
         $urls[] = $baseUrl . '/blog';
         foreach ($this->posts->allPublished() as $post) {
-            $urls[] = $baseUrl . '/blog/' . (string)($post['slug'] ?? '');
+            $urls[] = $baseUrl . $this->posts->publicPath($post);
+        }
+        $publishedProducts = $this->products()->published();
+        if ($publishedProducts !== []) {
+            $urls[] = $baseUrl . '/shop';
+        }
+        foreach ($publishedProducts as $product) {
+            $urls[] = $baseUrl . '/product/' . rawurlencode((string)($product['slug'] ?? ''));
         }
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
@@ -550,7 +639,7 @@ final class Router
         foreach ($this->posts->allPublished() as $post) {
             $xml .= '<item>';
             $xml .= '<title>' . htmlspecialchars((string)($post['title'] ?? ''), ENT_XML1) . '</title>';
-            $xml .= '<link>' . htmlspecialchars($baseUrl . '/blog/' . (string)($post['slug'] ?? ''), ENT_XML1) . '</link>';
+            $xml .= '<link>' . htmlspecialchars($baseUrl . $this->posts->publicPath($post), ENT_XML1) . '</link>';
             $xml .= '<pubDate>' . date(DATE_RSS, strtotime((string)($post['published_at'] ?? 'now'))) . '</pubDate>';
             $xml .= '</item>';
         }

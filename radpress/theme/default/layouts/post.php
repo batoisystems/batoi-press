@@ -9,15 +9,20 @@ declare(strict_types=1);
     <div class="bp-post-content"><?php echo $post['body'] ?? ''; ?></div>
     <?php if (is_array($previousPost ?? null) || is_array($nextPost ?? null)): ?>
     <nav class="bp-post-navigation" aria-label="Article navigation">
-        <?php if (is_array($previousPost ?? null)): ?><a class="bp-button bp-button-secondary" rel="prev" href="<?php echo bp_attr(bp_url('/blog/' . rawurlencode((string)($previousPost['slug'] ?? '')))); ?>"><span>Previous Article</span><strong><?php echo bp_esc((string)($previousPost['title'] ?? 'Untitled')); ?></strong></a><?php endif; ?>
-        <?php if (is_array($nextPost ?? null)): ?><a class="bp-button bp-button-secondary bp-post-navigation-next" rel="next" href="<?php echo bp_attr(bp_url('/blog/' . rawurlencode((string)($nextPost['slug'] ?? '')))); ?>"><span>Next Article</span><strong><?php echo bp_esc((string)($nextPost['title'] ?? 'Untitled')); ?></strong></a><?php endif; ?>
+        <?php if (is_array($previousPost ?? null)): $previousSlug = (string)($previousPost['slug'] ?? ''); ?><a class="bp-button bp-button-secondary" rel="prev" href="<?php echo bp_attr(bp_url((string)(($postUrls ?? [])[$previousSlug] ?? ('/blog/' . rawurlencode($previousSlug))))); ?>"><span>Previous Article</span><strong><?php echo bp_esc((string)($previousPost['title'] ?? 'Untitled')); ?></strong></a><?php endif; ?>
+        <?php if (is_array($nextPost ?? null)): $nextSlug = (string)($nextPost['slug'] ?? ''); ?><a class="bp-button bp-button-secondary bp-post-navigation-next" rel="next" href="<?php echo bp_attr(bp_url((string)(($postUrls ?? [])[$nextSlug] ?? ('/blog/' . rawurlencode($nextSlug))))); ?>"><span>Next Article</span><strong><?php echo bp_esc((string)($nextPost['title'] ?? 'Untitled')); ?></strong></a><?php endif; ?>
     </nav>
     <?php endif; ?>
 </article>
 <?php if ($postLayout !== 'full'): ?><aside class="bp-post-sidebar" aria-label="Post sidebar">
     <?php foreach ((array)($widgets ?? []) as $widget): ?>
+        <?php $widgetTarget = (string)($widget['target'] ?? 'all_sidebars'); if (($widgetTarget === 'left_sidebar' && $postLayout !== 'sidebar-left') || ($widgetTarget === 'right_sidebar' && $postLayout !== 'sidebar-right')) continue; ?>
         <?php if (($widget['type'] ?? '') === 'recent_posts'): ?>
-        <section class="bp-sidebar-widget"><h2>Recent posts</h2><ol><?php foreach (array_slice(array_values(array_filter((array)($recentPosts ?? []), static fn (array $recent): bool => ($recent['slug'] ?? '') !== ($post['slug'] ?? ''))), 0, 5) as $recent): ?><li><a href="<?php echo bp_attr(bp_url('/blog/' . rawurlencode((string)($recent['slug'] ?? '')))); ?>"><?php echo bp_esc((string)($recent['title'] ?? 'Untitled')); ?></a></li><?php endforeach; ?></ol></section>
+        <section class="bp-sidebar-widget"><h2><?php echo bp_esc((string)($widget['title'] ?? 'Recent posts')); ?></h2><ol><?php foreach (array_slice(array_values(array_filter((array)($recentPosts ?? []), static fn (array $recent): bool => ($recent['slug'] ?? '') !== ($post['slug'] ?? ''))), 0, 5) as $recent): $recentSlug = (string)($recent['slug'] ?? ''); ?><li><a href="<?php echo bp_attr(bp_url((string)(($postUrls ?? [])[$recentSlug] ?? ('/blog/' . rawurlencode($recentSlug))))); ?>"><?php echo bp_esc((string)($recent['title'] ?? 'Untitled')); ?></a></li><?php endforeach; ?></ol></section>
+        <?php elseif (($widget['type'] ?? '') === 'tag_cloud'): $tagCounts = []; foreach ((array)($recentPosts ?? []) as $recent) { foreach ((array)($recent['tags'] ?? []) as $tag) { $tagCounts[(string)$tag] = ($tagCounts[(string)$tag] ?? 0) + 1; } } ksort($tagCounts, SORT_NATURAL | SORT_FLAG_CASE); ?>
+        <section class="bp-sidebar-widget"><h2><?php echo bp_esc((string)($widget['title'] ?? 'Tags')); ?></h2><div class="bp-tag-cloud"><?php foreach ($tagCounts as $tag => $count): ?><span><?php echo bp_esc($tag); ?> <small><?php echo (int)$count; ?></small></span><?php endforeach; ?></div></section>
+        <?php elseif (($widget['type'] ?? '') === 'activity_calendar'): ?>
+        <section class="bp-sidebar-widget"><h2><?php echo bp_esc((string)($widget['title'] ?? 'Activity')); ?></h2><ol class="bp-activity-calendar"><?php foreach (array_slice((array)($recentPosts ?? []), 0, 8) as $recent): ?><li><time datetime="<?php echo bp_attr((string)($recent['published_at'] ?? '')); ?>"><?php echo bp_esc(bp_date((string)($recent['published_at'] ?? ''))); ?></time><span><?php echo bp_esc((string)($recent['title'] ?? 'Untitled')); ?></span></li><?php endforeach; ?></ol></section>
         <?php else: ?>
         <section class="bp-sidebar-widget"><h2><?php echo bp_esc((string)($widget['title'] ?? '')); ?></h2><div><?php echo $widget['body'] ?? ''; ?></div></section>
         <?php endif; ?>

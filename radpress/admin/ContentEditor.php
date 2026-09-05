@@ -7,17 +7,25 @@ use Batoi\Press\Core\Config;
 
 final class ContentEditor
 {
-    public static function render(Config $config, string $value, string $help, string $id): string
+    public static function render(Config $config, string $value, string $help, string $id, bool $sourceOnly = false, string $name = 'body'): string
     {
         $editor = $config->editor();
         $mode = (string)($editor['body_editor'] ?? 'rich_html');
         $toolbar = self::e((string)($editor['html_toolbar'] ?? 'undo redo bold italic underline strike heading quote code ul ol task link image table hr preview source'));
         $height = self::e((string)($editor['html_height'] ?? '24rem'));
         $fieldId = self::e($id);
-        $attributes = 'id="' . $fieldId . '" class="bp-editor-textarea" name="body" rows="18" data-bp-editor-enhance="true"';
-        if ($mode === 'rich_html') {
+        $attributes = 'id="' . $fieldId . '" class="bp-editor-textarea" name="' . self::e($name) . '" rows="18"';
+        if (!$sourceOnly) {
+            $attributes .= ' data-bp-editor-enhance="true"';
+        }
+        if (!$sourceOnly && $mode === 'rich_html') {
             $attributes .= ' data-uif="editor" data-uif-mode="html" data-uif-preview="manual" data-uif-editor-layout="source" data-uif-editor-height="' . $height . '" data-uif-editor-status="true" data-uif-required="true" data-uif-toolbar="' . $toolbar . '"';
         }
+
+        $label = $sourceOnly ? 'Body HTML source' : 'Body HTML';
+        $sourceNotice = $sourceOnly
+            ? '<div class="bp-text-only-notice"><strong>HTML source editing</strong><p>The source is submitted directly to Batoi Press so supported embeds, inline styles, and structured markup are not altered by the visual editor. Unsafe scripts, event handlers, and URLs are still removed when saving.</p></div>'
+            : '';
 
         $guide = '<div class="bp-editor-assistance" aria-labelledby="' . $fieldId . '-image-help"><div><strong id="' . $fieldId . '-image-help">Insert an image</strong><p>Use the Image tool with the stable public URL shown in Media, or paste the copied HTML snippet in Source mode.</p></div>'
             . '<ol><li>Upload or locate an image in Media.</li><li>Copy its URL or HTML snippet.</li><li>Add meaningful alt text and preview before saving.</li></ol>'
@@ -26,7 +34,7 @@ final class ContentEditor
             . '<p>Inline math uses <code>\( … \)</code>; display math uses <code>\[ … \]</code>. Code blocks use <code>&lt;pre&gt;&lt;code&gt;</code> and receive public copy controls automatically.</p>'
             . '<div class="bp-editor-helper-actions"><button type="button" class="bp-button bp-button-secondary" data-bp-editor-insert="inline-math">Inline math</button><button type="button" class="bp-button bp-button-secondary" data-bp-editor-insert="display-math">Display math</button><button type="button" class="bp-button bp-button-secondary" data-bp-editor-insert="code-block">Code block</button></div></div>';
 
-        return '<div class="bp-field-wide bp-content-editor" data-bp-content-editor><label for="' . $fieldId . '">Body HTML</label><textarea ' . $attributes . '>' . self::e($value) . '</textarea><span class="bp-field-help">' . self::e($help) . '</span>' . $guide . '</div>';
+        return '<div class="bp-field-wide bp-content-editor" data-bp-content-editor>' . $sourceNotice . '<label for="' . $fieldId . '">' . $label . '</label><textarea ' . $attributes . '>' . self::e($value) . '</textarea><span class="bp-field-help">' . self::e($help) . '</span>' . $guide . '</div>';
     }
 
     /**
