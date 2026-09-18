@@ -42,7 +42,10 @@ final class UpdateController
         $cards .= AdminLayout::statCard('Stable manifest', 'latest.json', $manifest);
         if ($result !== null) {
             if ($result['ok'] ?? false) {
-                $cards .= AdminLayout::statCard('Latest version', (string)$result['latest_version'], ($result['update_available'] ?? false) ? 'Update available.' : 'This installation is current.');
+                $status = ($result['manifest_behind'] ?? false)
+                    ? 'The stable manifest is older than this installation. Verify release publication; do not downgrade.'
+                    : (($result['update_available'] ?? false) ? 'Update available.' : 'This installation matches the stable manifest.');
+                $cards .= AdminLayout::statCard('Stable manifest version', (string)$result['latest_version'], $status);
             } else {
                 $cards .= AdminLayout::statCard('Latest version', 'Check failed', (string)($result['error'] ?? 'Update check failed.'));
             }

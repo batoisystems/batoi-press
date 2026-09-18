@@ -19,9 +19,14 @@ final class VersionChecker
 
     public function check(string $currentVersion): array
     {
-        $raw = $this->fetcher !== null
-            ? ($this->fetcher)($this->manifestUrl)
-            : $this->fetchManifest();
+        try {
+            $raw = $this->fetcher !== null
+                ? ($this->fetcher)($this->manifestUrl)
+                : $this->fetchManifest();
+        } catch (\Throwable) {
+            // Transport diagnostics must not disclose credentials or internal exception details.
+            $raw = false;
+        }
         if (!is_string($raw) || trim($raw) === '') {
             return [
                 'ok' => false,
@@ -31,7 +36,7 @@ final class VersionChecker
         }
 
         $manifest = json_decode($raw, true);
-        if (!is_array($manifest) || empty($manifest['version'])) {
+        if (!is_array($manifest) || !is_string($manifest['version'] ?? null) || !preg_match('/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/D', $manifest['version'])) {
             return [
                 'ok' => false,
                 'error' => 'Update manifest is invalid.',
@@ -53,6 +58,7 @@ final class VersionChecker
             'current_version' => $currentVersion,
             'latest_version' => $latest,
             'update_available' => version_compare($latest, $currentVersion, '>'),
+            'manifest_behind' => version_compare($latest, $currentVersion, '<'),
             'manifest' => $manifest,
             'manifest_url' => $this->manifestUrl,
         ];
@@ -74,7 +80,7 @@ final class VersionChecker
                 ]);
                 $raw = curl_exec($handle);
                 $status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
-                curl_close($handle);
+                unset($handle); // PHP 8+ releases the handle automatically; curl_close is deprecated in 8.5.
                 if (is_string($raw) && trim($raw) !== '' && $status >= 200 && $status < 300) {
                     return $raw;
                 }

@@ -80,6 +80,49 @@ Page layouts also receive `$latestPosts`. It is an empty array unless the page e
 
 The Admin Themes preview supports home, standard, landing, ecommerce, post, blog, archive, and 404 layouts without activating the candidate theme. Static export uses the same page-template resolver and copies active-theme assets to matching public paths.
 
+## Integrating the 2.3 Appearance and Widget Features
+
+The bundled default theme (Batoi Versatile 3.2.0) implements these features.
+Saving their Settings values does not automatically change a custom theme.
+Integrate them into the theme's existing shell and declared assets; do not load
+a second copy of the default shell or overwrite a site-owned theme.
+
+| Feature | Custom-theme integration contract |
+| --- | --- |
+| Palette | Emit `Batoi\Press\Core\Appearance::css($site)` in a style element and consume its validated CSS variables in the theme stylesheet. Tokens are `--bp-body-bg`, `--bp-header-bg`, `--bp-footer-bg`, `--bp-link-hover`, `--bp-header-text`, `--bp-body-text`, `--bp-primary-button`, `--bp-secondary-button`, `--bp-primary-hover`, and `--bp-secondary-hover`. |
+| Appearance mode | Validate `appearance_mode` against `light`, `dark`, and `system`, then set `data-bp-color-mode` on the root element. Respect system preference for `system`. |
+| Visitor switch | Honor `show_theme_toggle`. Adapt the default script's `data-bp-mode-toggle` handler, pressed state, and optional `bp-color-mode` local-storage preference. Keep the control hidden until JavaScript initializes. |
+| Footer | Read `footer_top_columns` and `footer_bottom_columns` as integers clamped to 1–4; retain responsive stacking. Escape `footer_text` and `footer_bottom_text`. Parse `footer_icon_links` with `Appearance::footerLinks()`, escape labels/icons, and localize URLs with `bp_url()`. Icons are text, not trusted HTML. |
+| Load More | Honor `posts_load_more`. The default script expects a `data-bp-load-more` container, `.bp-post-grid > .bp-post-card`, and `.bp-pagination a[rel="next"]`. Preserve ordinary pagination without JavaScript and after a failed fetch. Use the supplied `archivePath`, not a hard-coded `/blog` path. |
+| Scroll to top | Adapt `data-bp-scroll-top` behavior from the default script: hide on non-scrollable pages, honor reduced motion, and provide keyboard focus handling. |
+| Widgets | Use `WidgetRenderer::render($widget, $publishedPosts, $postUrls)` for gallery, current-month calendar, and provider signup. Supply published records only and URLs keyed by slug. Recent-post and tag-count rendering remain separate; see the default post layout and `PageBlockRenderer`. |
+
+Reference implementations: `theme/default/layouts/base.php`,
+`theme/default/layouts/blog.php`, `theme/default/layouts/post.php`,
+`theme/default/partials/footer.php`, and `theme/default/assets/` under
+`radpress/`. Declare adapted CSS/JavaScript in the custom manifest so the
+renderer loads each asset once. Render text with `bp_esc()`, attributes with
+`bp_attr()`, and local links/assets through the URL helpers. Do not print raw
+Settings values as CSS or executable markup.
+
+### Custom-theme acceptance checklist
+
+- Preview all supplied layouts before activation, including custom post-type
+  archives and nested details. Do not assume compatibility inspection tests
+  feature behavior or visual accessibility.
+- Check light, dark, and system modes, saved visitor preference, keyboard
+  controls, narrow screens, and contrast with configured palette values.
+- Verify footer links/grids, gallery alt text, calendar links, provider signup,
+  and Load More completion/error/no-JavaScript behavior.
+- Test a subdirectory installation and static export. Confirm links/assets
+  retain the correct base path and do not assume the site lives at `/`.
+- Round-trip UTF-8 header, CSS, and JavaScript through the encoded admin save
+  form; verify redirects, snapshots, and rejection of invalid CSRF/source.
+  `tests/theme_page_templates.php` covers these controller-level saves with
+  an isolated custom theme. It does not emulate an affected host's WAF.
+- Retain host-specific reports until the exact deployment has been retested.
+  Never bypass signing, authentication, or hosting protections to pass a test.
+
 ## Upload Compatibility And Conversion
 
 `/admin/themes` inspects every uploaded ZIP before installation without

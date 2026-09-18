@@ -2,6 +2,23 @@
 
 Batoi Press uses release-based updates.
 
+## Current release behavior
+
+Official 2.x packages and release indexes use Ed25519 signatures. The default
+configuration requires signed packages and trusts the configured release public
+keys. PHP Sodium is required for signature verification; it must not be bypassed.
+The older optional-trust examples below are historical, not the current policy.
+
+The update result distinguishes a newer stable release, a matching release,
+and a stable manifest older than the installed version. An older manifest is
+not an update or a reason to downgrade: check whether the distribution endpoint
+has been deployed. GitHub publication alone does not update that endpoint.
+Recoverable transport exceptions return setup guidance without disclosing raw
+exception details. A web-server/worker crash still requires hosting logs; an
+application-level error handler cannot recover a terminated PHP process.
+
+## Update workflow and historical implementation notes
+
 Repository releases must increment `radpress/config/update.json` before package build and manifest publication. See `radpress/docs/release-management.md` for the version policy, release checklist, and stable `1.0.0` readiness checklist.
 
 The default stable manifest is:

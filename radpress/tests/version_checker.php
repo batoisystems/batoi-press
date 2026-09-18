@@ -22,6 +22,17 @@ assertVersion(($available['update_available'] ?? false) === true, 'A newer manif
 
 $current = (new VersionChecker('https://example.test/latest.json', static fn (): string => (string)$manifest))->check('1.8.0');
 assertVersion(($current['update_available'] ?? true) === false, 'The current release should not report an update.');
+assertVersion(($current['manifest_behind'] ?? true) === false, 'An equal release must not be labelled an older manifest.');
+$ahead = (new VersionChecker('https://example.test/latest.json', static fn (): string => (string)$manifest))->check('2.3.0');
+assertVersion(($ahead['manifest_behind'] ?? false) === true && $ahead['update_available'] === false, 'An older stable manifest must be distinguished from an equal release and never offered as an update.');
+foreach ([['not'=>'a version'], 123, 'invalid', '1.2'] as $version) {
+    $badVersion = (new VersionChecker('https://example.test/latest.json', static fn (): string => (string)json_encode(['version'=>$version])))->check('2.3.0');
+    assertVersion($badVersion['ok'] === false && $badVersion['error'] === 'Update manifest is invalid.', 'Malformed version values should fail without PHP warnings.');
+}
+foreach ([new RuntimeException('private transport detail'), new ValueError('private transport detail')] as $failure) {
+    $failed = (new VersionChecker('https://example.test/latest.json', static function () use ($failure): never { throw $failure; }))->check('2.3.0');
+    assertVersion($failed['ok'] === false && !str_contains(json_encode($failed), 'private transport detail'), 'Transport exceptions should become safe actionable failures.');
+}
 
 $invalid = (new VersionChecker('https://example.test/latest.json', static fn (): string => '<html>not json</html>'))->check('1.7.0');
 assertVersion(($invalid['ok'] ?? true) === false && ($invalid['error'] ?? '') === 'Update manifest is invalid.', 'Invalid manifest content should fail clearly.');

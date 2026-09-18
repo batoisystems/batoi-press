@@ -20,15 +20,14 @@ if (strlen($password) < 12) {
 }
 $config = json_decode((string)file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
 $found = false;
-foreach ($config['users'] ?? [] as &$user) {
+foreach (($config['users'] ?? []) as $index => $user) {
     if ((string)($user['username'] ?? '') === $username) {
-        $user['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
-        $user['updated_at'] = date(DATE_ATOM);
+        $config['users'][$index]['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
+        $config['users'][$index]['updated_at'] = date(DATE_ATOM);
         $found = true;
         break;
     }
 }
-unset($user);
 if (!$found) {
     fwrite(STDERR, "User not found.\n");
     exit(1);

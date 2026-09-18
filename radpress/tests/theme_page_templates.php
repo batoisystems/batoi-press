@@ -61,6 +61,41 @@ try {
     $response = $theme->render($theme->pageLayout('shop'), ['page' => $saved, 'title' => 'Store']);
     assertTemplate(str_contains($response->content(), 'data-layout="shop"'), 'selected page template should render through the theme');
 
+    // Exercise real encoded saves against an isolated custom theme, never site-owned templates.
+    $files = new FileStore();
+    $files->writeJson($root . '/radpress/config/paths.json', ['config'=>'radpress/config', 'theme'=>'radpress/theme', 'data'=>'radpress/data', 'content'=>'radpress/content']);
+    $config = \Batoi\Press\Core\Config::load($root);
+    $csrf = new \Batoi\Press\Security\Csrf(new \Batoi\Press\Security\Session('press_custom_theme_test', $config->paths()->dataPath('sessions')));
+    $controller = new \Batoi\Press\Admin\ThemeTemplateController($config, $files, $csrf, new \Batoi\Press\Core\AuditLog($config->paths(), $files), ['username'=>'owner', 'role'=>'owner']);
+    $serverBefore = $_SERVER;
+    try {
+        $_SERVER['DOCUMENT_ROOT'] = $root;
+        $_SERVER['SCRIPT_FILENAME'] = $root . '/testsite/public_html/index.php';
+        foreach ([
+            'header' => ['partials/header.php', '<?php echo "Header – café"; ?>'],
+            'theme-css' => ['assets/css/theme.css', '.custom-header { color: #0e68b0; }'],
+            'theme-js' => ['assets/js/theme.js', 'const preview = document.createElement("div"); preview.innerHTML = "<strong>café</strong>";'],
+        ] as $key => [$relative, $source]) {
+            $target = $root . '/radpress/theme/demo/' . $relative;
+            $files->write($target, '/* original fixture */');
+            $input = ['csrf_token'=>$csrf->token(), 'theme'=>'demo', 'template'=>$key, 'source_encoded'=>base64_encode($source)];
+            $savedResponse = $controller->save(new \Batoi\Press\Core\Request('POST', '/admin/theme-templates/save', [], $input, []));
+            assertTemplate($savedResponse->status() === 302, 'custom theme encoded save should succeed: ' . $key);
+            assertTemplate(($savedResponse->headers()['Location'] ?? '') === '/testsite/public_html/admin/theme-templates/edit/demo/' . $key, 'editor redirects should retain the installation subdirectory');
+            assertTemplate(file_get_contents($target) === $source, 'encoded source should round-trip without UTF-8 loss');
+            assertTemplate(count(glob($root . '/radpress/data/versions/theme/demo/' . $key . '/*') ?: []) === 1, 'saving should snapshot the original custom template');
+            $input['source_encoded'] = 'invalid!base64';
+            assertTemplate($controller->save(new \Batoi\Press\Core\Request('POST', '/admin/theme-templates/save', [], $input, []))->status() === 400, 'invalid encoded source should be rejected');
+            $input['csrf_token'] = 'invalid-token';
+            $input['source_encoded'] = base64_encode('replacement');
+            assertTemplate($controller->save(new \Batoi\Press\Core\Request('POST', '/admin/theme-templates/save', [], $input, []))->status() === 400, 'invalid CSRF should be rejected');
+            assertTemplate(file_get_contents($target) === $source, 'rejected saves must preserve the custom template');
+        }
+    } finally {
+        $_SERVER = $serverBefore;
+        if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+    }
+
     echo "Theme page-template checks passed\n";
 } finally {
     removeTemplateFixture($root);
