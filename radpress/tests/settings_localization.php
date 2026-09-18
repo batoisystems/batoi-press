@@ -46,6 +46,14 @@ assertSettings(str_contains($formHtml, 'name="posts_per_page"') && str_contains(
 assertSettings(str_contains($formHtml, 'name="appearance_mode"') && str_contains($formHtml, 'name="brand_primary_color"'), 'Settings should expose public light, dark, and brand color controls.');
 assertSettings(str_contains($formHtml, 'name="mail_provider"') && str_contains($formHtml, 'name="analytics_measurement_id"'), 'Settings should expose mail and analytics integrations.');
 assertSettings(str_contains($formHtml, '/admin/import'), 'Settings should expose the XML site-content import workflow.');
+foreach (['show_theme_toggle','posts_load_more','footer_top_columns','footer_bottom_columns','footer_bottom_text','footer_icon_links'] as $field) assertSettings(str_contains($formHtml, 'name="' . $field . '"'), 'Missing setting: ' . $field);
+foreach (['light','dark'] as $mode) {
+    foreach (\Batoi\Press\Core\Appearance::LABELS as $key=>$label) assertSettings(str_contains($formHtml,'name="palette_' . $mode . '_' . $key . '"'), 'Missing palette setting');
+}
+$safePalette = \Batoi\Press\Core\Appearance::css(['palette_dark'=>['body_bg'=>'</style><script>bad</script>','body_text'=>'#ABCDEF']]);
+assertSettings(!str_contains($safePalette, '<') && str_contains($safePalette,'--bp-body-text:#ABCDEF'), 'Palette must validate values before rendering CSS.');
+$footerLinks = \Batoi\Press\Core\Appearance::footerLinks("Good | https://example.com | ↗\nBad | javascript:alert(1) | X\nBad | //evil.test | X");
+assertSettings(count($footerLinks) === 1, 'Footer links must reject executable and protocol-relative URLs.');
 
 echo "Settings localization checks passed\n";
 

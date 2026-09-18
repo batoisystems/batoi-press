@@ -184,7 +184,10 @@ final class StaticExporter
                 'nextPost' => $adjacent['next'],
             ], '/' . $postPath . '/'));
         }
-        $this->writeHtml($workDir, 'blog/index.html', $this->renderTheme('blog', ['posts' => $posts, 'postUrls' => $postUrls, 'title' => 'Blog'], '/blog/'));
+        foreach ($this->posts->types() as $postType) {
+            $typePosts = array_values(array_filter($posts, static fn(array $post): bool => ($post['post_type'] ?? 'blog') === $postType));
+            $this->writeHtml($workDir, $postType . '/index.html', $this->renderTheme('blog', ['posts' => $typePosts, 'postUrls' => $postUrls, 'title' => ucwords(str_replace('-', ' ', $postType)), 'archivePath' => '/' . $postType], '/' . $postType . '/'));
+        }
         $this->writeHtml($workDir, 'archive/index.html', $this->renderTheme('archive', ['posts' => $posts, 'postUrls' => $postUrls, 'title' => 'Archive'], '/archive/'));
         $products = $this->products()->published();
         $this->writeHtml($workDir, 'shop/index.html', $this->renderTheme('shop', ['products' => $products, 'title' => 'Shop'], '/shop/'));
@@ -347,6 +350,7 @@ final class StaticExporter
     private function expectedEntries(): array
     {
         $entries = ['blog/index.html', 'archive/index.html', 'shop/index.html', '404.html', 'sitemap.xml', 'feed.xml'];
+        foreach ($this->posts->types() as $type) $entries[] = $type . '/index.html';
         $homepage = Slug::normalize((string)($this->site['homepage'] ?? 'home'));
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');

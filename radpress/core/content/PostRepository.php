@@ -29,7 +29,7 @@ final class PostRepository
         return null;
     }
 
-    public function findByPath(string $path): ?array
+    public function findByPath(string $path, string $postType = 'blog'): ?array
     {
         $segments = array_values(array_filter(array_map(
             static fn (string $segment): string => Slug::normalize(rawurldecode($segment)),
@@ -40,8 +40,7 @@ final class PostRepository
         }
 
         $post = $this->findBySlug((string)end($segments));
-        $publicPath = $post !== null ? preg_replace('#^/blog/?#', '', $this->publicPath($post)) : null;
-        return $post !== null && trim((string)$publicPath, '/') === implode('/', $segments) ? $post : null;
+        return $post !== null && $this->publicPath($post) === '/' . $postType . '/' . implode('/', $segments) ? $post : null;
     }
 
     public function allPublished(): array
@@ -102,9 +101,25 @@ final class PostRepository
         $layout = (string)($input['layout'] ?? $existing['layout'] ?? 'full');
         $parentSlug = Slug::normalize((string)($input['parent_slug'] ?? $existing['parent_slug'] ?? ''));
         $this->validateParent($parentSlug, $slug, $originalSlug);
+        $parent = $parentSlug !== '' ? $this->findBySlug($parentSlug) : null;
+        $postType = trim((string)($input['post_type'] ?? $existing['post_type'] ?? $parent['post_type'] ?? 'blog'));
+        if (!preg_match('/^[a-z][a-z0-9-]{0,59}$/D', $postType) || in_array($postType, ['admin','api','mcp','media','assets','theme-assets','shop','product','contact','archive','setup','install','oauth','.well-known'], true) || str_starts_with($postType, 'admin')) {
+            throw new RuntimeException('Choose a lowercase post type path that is not a reserved application route.');
+        }
+        foreach ((new PageRepository($this->paths, $this->files, $this->html))->all() as $page) {
+            if ($postType !== 'blog' && empty($page['parent_slug']) && ($page['slug'] ?? '') === $postType) throw new RuntimeException('This post type path is already used by a page.');
+        }
+        if ($postType !== 'blog' && file_exists($this->paths->publicPath($postType))) throw new RuntimeException('This post type path is already used by a public file or directory.');
+        if ($parent !== null && ($parent['post_type'] ?? 'blog') !== $postType) throw new RuntimeException('Parent and child posts must use the same post type.');
+        if ($existing !== null && ($existing['post_type'] ?? 'blog') !== $postType) {
+            foreach ($this->all() as $child) {
+                if (($child['parent_slug'] ?? '') === ($existing['slug'] ?? '')) throw new RuntimeException('Move child posts out of this hierarchy before changing its post type.');
+            }
+        }
         $meta = [
             'id' => (string)($existing['id'] ?? 'post_' . bin2hex(random_bytes(6))),
             'type' => 'post',
+            'post_type' => $postType,
             'title' => trim((string)($input['title'] ?? 'Untitled Post')),
             'subtitle' => trim((string)($input['subtitle'] ?? '')),
             'slug' => $slug,
@@ -168,7 +183,17 @@ final class PostRepository
             }
             $current = $posts[$parent];
         }
-        return '/blog/' . implode('/', $segments);
+        return '/' . rawurlencode((string)($post['post_type'] ?? 'blog')) . '/' . implode('/', $segments);
+    }
+
+    public function types(): array
+    {
+        $types = ['blog'];
+        foreach ($this->all() as $post) {
+            $type = (string)($post['post_type'] ?? 'blog');
+            if (preg_match('/^[a-z][a-z0-9-]{0,59}$/D', $type)) $types[] = $type;
+        }
+        return array_values(array_unique($types));
     }
 
     public function adjacentPublished(string $slug): array

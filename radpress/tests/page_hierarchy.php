@@ -115,6 +115,26 @@ try {
     $draftPost = (new App($root))->handle(new Request('GET', '/blog/draft-post', [], [], []));
     assertHierarchy($draftPost->status() === 404 && !str_contains($draftPost->content(), 'Private draft post'), 'draft posts should not render publicly');
 
+    $news = $posts->save(['title'=>'News parent','slug'=>'news-parent','post_type'=>'news','status'=>'published','body'=>'News parent body'], 'owner');
+    $newsChild = $posts->save(['title'=>'News child','slug'=>'news-child','parent_slug'=>'news-parent','status'=>'published','body'=>'News child body'], 'owner');
+    assertHierarchy($posts->publicPath($newsChild) === '/news/news-parent/news-child', 'children must inherit their parent post type');
+    assertHierarchy((new App($root))->handle(new Request('GET','/news/news-parent/news-child',[],[],[]))->status() === 200, 'custom post detail route should render');
+    assertHierarchy((new App($root))->handle(new Request('GET','/blog/news-parent/news-child',[],[],[]))->status() === 404, 'custom posts must not leak into legacy blog routes');
+    assertHierarchy((new App($root))->handle(new Request('GET','/news',[],[],[]))->status() === 200, 'custom archive route should render');
+    foreach ([['post_type'=>'admin'], ['post_type'=>'company'], ['post_type'=>'blog','parent_slug'=>'news-parent']] as $invalid) {
+        $rejected = false;
+        try { $posts->save($invalid + ['title'=>'Bad type','slug'=>'bad-type','body'=>''], 'owner'); } catch (RuntimeException) { $rejected = true; }
+        assertHierarchy($rejected, 'reserved paths, page collisions, and cross-type parents must be rejected');
+    }
+    $rejected = false;
+    try { $pages->save(['title'=>'News page','slug'=>'news','body'=>''], 'owner'); } catch (RuntimeException) { $rejected = true; }
+    assertHierarchy($rejected, 'pages must not hide existing post archives');
+    $cards = new \Batoi\Press\Core\PageBlockRenderer($paths, $posts, new \Batoi\Press\Content\ProductRepository($paths,$files,$html));
+    $cardPage = $pages->save(['title'=>'Cards','slug'=>'cards','blocks'=>[['type'=>'posts','show_date'=>true,'show_read_more'=>true,'show_image'=>false]]], 'owner');
+    $cardHtml = $cards->render($cardPage['blocks']);
+    assertHierarchy(str_contains($cardHtml, '<time ') && str_contains($cardHtml, 'Read more') && !str_contains($cardHtml,'<img'), 'post card settings must survive persistence and affect rendering');
+    $legacyHtml = $cards->render([['type'=>'posts']]);
+    assertHierarchy(!str_contains($legacyHtml, '<time ') && !str_contains($legacyHtml, 'Read more'), 'legacy post blocks should retain their existing appearance');
     echo "Page hierarchy and draft visibility checks passed\n";
 } finally {
     removeHierarchyFixture($root);

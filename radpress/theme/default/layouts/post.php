@@ -22,9 +22,9 @@ declare(strict_types=1);
         <?php elseif (($widget['type'] ?? '') === 'tag_cloud'): $tagCounts = []; foreach ((array)($recentPosts ?? []) as $recent) { foreach ((array)($recent['tags'] ?? []) as $tag) { $tagCounts[(string)$tag] = ($tagCounts[(string)$tag] ?? 0) + 1; } } ksort($tagCounts, SORT_NATURAL | SORT_FLAG_CASE); ?>
         <section class="bp-sidebar-widget"><h2><?php echo bp_esc((string)($widget['title'] ?? 'Tags')); ?></h2><div class="bp-tag-cloud"><?php foreach ($tagCounts as $tag => $count): ?><span><?php echo bp_esc($tag); ?> <small><?php echo (int)$count; ?></small></span><?php endforeach; ?></div></section>
         <?php elseif (($widget['type'] ?? '') === 'activity_calendar'): ?>
-        <section class="bp-sidebar-widget"><h2><?php echo bp_esc((string)($widget['title'] ?? 'Activity')); ?></h2><ol class="bp-activity-calendar"><?php foreach (array_slice((array)($recentPosts ?? []), 0, 8) as $recent): ?><li><time datetime="<?php echo bp_attr((string)($recent['published_at'] ?? '')); ?>"><?php echo bp_esc(bp_date((string)($recent['published_at'] ?? ''))); ?></time><span><?php echo bp_esc((string)($recent['title'] ?? 'Untitled')); ?></span></li><?php endforeach; ?></ol></section>
+        <section class="bp-sidebar-widget"><h2><?php echo bp_esc((string)($widget['title'] ?? 'Activity')); ?></h2><?php echo \Batoi\Press\Core\WidgetRenderer::render($widget, (array)($recentPosts ?? []), (array)($postUrls ?? [])); ?></section>
         <?php else: ?>
-        <section class="bp-sidebar-widget"><h2><?php echo bp_esc((string)($widget['title'] ?? '')); ?></h2><div><?php echo $widget['body'] ?? ''; ?></div></section>
+        <section class="bp-sidebar-widget"><h2><?php echo bp_esc((string)($widget['title'] ?? '')); ?></h2><div><?php echo \Batoi\Press\Core\WidgetRenderer::render($widget, (array)($recentPosts ?? []), (array)($postUrls ?? [])); ?></div></section>
         <?php endif; ?>
     <?php endforeach; ?>
 </aside><?php endif; ?>

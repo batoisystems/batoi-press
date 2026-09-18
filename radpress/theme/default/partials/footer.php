@@ -51,10 +51,15 @@ $renderFooterMenu = function (string $parent = '', int $depth = 0, array $trail 
     echo '</ul>';
 };
 ?>
-<footer class="bp-footer">
+<footer class="bp-footer" style="--bp-footer-top-columns:<?php echo max(1,min(4,(int)($site['footer_top_columns'] ?? 2))); ?>;--bp-footer-bottom-columns:<?php echo max(1,min(4,(int)($site['footer_bottom_columns'] ?? 2))); ?>">
     <div class="bp-footer-inner">
         <div class="bp-footer-brand"><strong><?php echo bp_esc((string)($site['name'] ?? 'Batoi Press')); ?></strong><p><?php echo bp_esc((string)($site['footer_text'] ?? $site['tagline'] ?? '')); ?></p></div>
         <nav class="bp-footer-links" aria-label="Footer navigation"><?php $renderFooterMenu(); ?></nav>
-        <p class="bp-footer-meta">&copy; <?php echo date('Y'); ?> <?php echo bp_esc((string)($site['name'] ?? 'Batoi Press')); ?></p>
+        <div class="bp-footer-bottom">
+            <p class="bp-footer-meta"><?php if (!empty($site['footer_bottom_text'])): echo bp_esc((string)$site['footer_bottom_text']); else: ?>&copy; <?php echo date('Y'); ?> <?php echo bp_esc((string)($site['name'] ?? 'Batoi Press')); endif; ?></p>
+            <?php foreach (\Batoi\Press\Core\Appearance::footerLinks((string)($site['footer_icon_links'] ?? '')) as $link): ?>
+            <a href="<?php echo bp_attr(bp_url($link['url'])); ?>"><span aria-hidden="true"><?php echo bp_esc($link['icon']); ?></span> <?php echo bp_esc($link['label']); ?></a>
+            <?php endforeach; ?>
+        </div>
     </div>
 </footer>

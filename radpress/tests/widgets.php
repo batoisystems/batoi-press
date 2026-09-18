@@ -50,6 +50,12 @@ try {
     $blocks = $renderer->render([['type'=>'widget','widget'=>'Recent posts'], ['type'=>'widget','widget'=>'Topics']]);
     assertWidgets(str_contains($blocks, 'Widget article') && str_contains($blocks, '/blog/widget-article') && str_contains($blocks, 'Testing'), 'page widget blocks must render dynamic recent posts and tag counts');
 
+    $gallery = \Batoi\Press\Core\WidgetRenderer::render(['type'=>'image_gallery','gallery_images'=>"/media/a.jpg | A & B\njavascript:alert(1) | Bad"], [], []);
+    assertWidgets(substr_count($gallery, '<img ') === 1 && str_contains($gallery, 'A &amp; B'), 'gallery should escape alt text and reject executable URLs');
+    $calendar = \Batoi\Press\Core\WidgetRenderer::render(['type'=>'activity_calendar'], [['title'=>'Today <event>','slug'=>'today','published_at'=>date(DATE_ATOM)]], ['today'=>'/news/today']);
+    assertWidgets(str_contains($calendar, '<caption>' . date('F Y')) && substr_count($calendar, '<th scope=') === 7 && str_contains($calendar,'Today &lt;event&gt;'), 'calendar should render a real month grid with escaped dated post links');
+    $signup = \Batoi\Press\Core\WidgetRenderer::render(['type'=>'subscribe','subscribe_url'=>'https://example.org/subscribe'], [], []);
+    assertWidgets(str_contains($signup,'Subscribe to newsletter') && !str_contains($signup,'<form'), 'newsletter widget must link to configured signup without collecting personal data');
     echo "Widget checks passed\n";
 } finally {
     removeWidgetFixture($root);

@@ -69,6 +69,14 @@ final class SettingsController
         }
         $site['posts_per_page'] = max(1, min(48, (int)$request->input('posts_per_page', '12')));
         $site['appearance_mode'] = in_array($request->input('appearance_mode'), ['light', 'dark', 'system'], true) ? $request->input('appearance_mode') : 'system';
+        $site['show_theme_toggle'] = $request->input('show_theme_toggle') === '1';
+        $site['posts_load_more'] = $request->input('posts_load_more') === '1';
+        foreach (['light', 'dark'] as $mode) {
+            foreach (\Batoi\Press\Core\Appearance::palette($site, $mode) as $key => $fallback) {
+                $value = $request->input('palette_' . $mode . '_' . $key, $fallback);
+                $site['palette_' . $mode][$key] = preg_match('/^#[0-9a-f]{6}$/iD', $value) ? strtoupper($value) : $fallback;
+            }
+        }
         foreach (['brand_primary_color' => '#0E68B0', 'brand_accent_color' => '#00B696'] as $field => $fallback) {
             $candidate = strtoupper(trim($request->input($field)));
             $site[$field] = preg_match('/^#[0-9A-F]{6}$/', $candidate) === 1 ? $candidate : $fallback;
@@ -77,6 +85,9 @@ final class SettingsController
         $fontUrl = trim($request->input('font_stylesheet_url'));
         $site['font_stylesheet_url'] = $fontUrl === '' || (filter_var($fontUrl, FILTER_VALIDATE_URL) && str_starts_with(strtolower($fontUrl), 'https://')) ? $fontUrl : '';
         $site['footer_text'] = substr(trim($request->input('footer_text')), 0, 500);
+        $site['footer_bottom_text'] = substr(trim($request->input('footer_bottom_text')), 0, 500);
+        $site['footer_icon_links'] = substr(trim($request->input('footer_icon_links')), 0, 4000);
+        foreach (['footer_top_columns', 'footer_bottom_columns'] as $field) $site[$field] = max(1, min(4, (int)$request->input($field, '2')));
         $site['theme'] = $site['theme'] ?? 'default';
         $site['brand_display'] = in_array($request->input('brand_display'), ['text', 'logo', 'logo_with_text'], true)
             ? $request->input('brand_display')
@@ -304,11 +315,25 @@ final class SettingsController
         foreach (['system' => 'Follow device', 'light' => 'Light', 'dark' => 'Dark'] as $value => $label) {
             $options .= '<option value="' . $value . '"' . ($mode === $value ? ' selected' : '') . '>' . $label . '</option>';
         }
+        $paletteFields = '';
+        foreach (['light', 'dark'] as $paletteMode) {
+            $paletteFields .= '<details class="bp-field-wide"><summary>' . ucfirst($paletteMode) . ' theme colors (default theme)</summary><div class="bp-form-grid">';
+            foreach (\Batoi\Press\Core\Appearance::palette($site, $paletteMode) as $key => $color) {
+                $paletteFields .= '<label>' . \Batoi\Press\Core\Appearance::LABELS[$key] . ' <input type="color" name="palette_' . $paletteMode . '_' . $key . '" value="' . $this->e($color) . '"></label>';
+            }
+            $paletteFields .= '</div></details>';
+        }
         return '<div class="bp-form-grid"><label>Color mode <select name="appearance_mode">' . $options . '</select></label>'
+            . '<label><input type="checkbox" name="show_theme_toggle" value="1"' . (!empty($site['show_theme_toggle']) ? ' checked' : '') . '> Show visitor light/dark switch</label>'
+            . '<label><input type="checkbox" name="posts_load_more" value="1"' . (!empty($site['posts_load_more']) ? ' checked' : '') . '> Enable Load More on post archives (default theme)</label>' . $paletteFields
             . '<label>Primary color <input type="color" name="brand_primary_color" value="' . $this->e((string)($site['brand_primary_color'] ?? '#0E68B0')) . '"></label>'
             . '<label>Accent color <input type="color" name="brand_accent_color" value="' . $this->e((string)($site['brand_accent_color'] ?? '#00B696')) . '"></label>'
             . '<label>Font family <input type="text" name="font_family" value="' . $this->e((string)($site['font_family'] ?? 'proxima-nova')) . '" placeholder="proxima-nova"></label>'
             . '<label>Font stylesheet URL <input type="url" name="font_stylesheet_url" value="' . $this->e((string)($site['font_stylesheet_url'] ?? '')) . '" placeholder="https://fonts.googleapis.com/..."><span class="bp-field-help">Optional HTTPS Google Fonts or custom hosted stylesheet.</span></label>'
+            . '<label>Top footer columns <input type="number" name="footer_top_columns" min="1" max="4" value="' . max(1,min(4,(int)($site['footer_top_columns'] ?? 2))) . '"><span class="bp-field-help">Arrange top-level Footer menu groups. Mobile layouts stack.</span></label>'
+            . '<label>Bottom footer columns <input type="number" name="footer_bottom_columns" min="1" max="4" value="' . max(1,min(4,(int)($site['footer_bottom_columns'] ?? 2))) . '"></label>'
+            . '<label class="bp-field-wide">Bottom footer text <textarea name="footer_bottom_text" rows="2" maxlength="500">' . $this->e((string)($site['footer_bottom_text'] ?? '')) . '</textarea></label>'
+            . '<label class="bp-field-wide">Bottom footer icon links <textarea name="footer_icon_links" rows="4" maxlength="4000">' . $this->e((string)($site['footer_icon_links'] ?? '')) . '</textarea><span class="bp-field-help">One link per line: label | HTTPS URL or /local-path | icon symbol. Example: RSS | /feed.xml | ↗. Labels stay visible for accessibility. Up to 12 links.</span></label>'
             . '<label class="bp-field-wide">Footer text <textarea name="footer_text" rows="3" maxlength="500">' . $this->e((string)($site['footer_text'] ?? '')) . '</textarea></label></div>';
     }
 

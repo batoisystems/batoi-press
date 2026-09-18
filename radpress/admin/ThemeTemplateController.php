@@ -332,6 +332,7 @@ final class ThemeTemplateController
             AdminLayout::buttonLink('Back to templates', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . AdminLayout::buttonLink('View site', '/', 'site', true)
         );
         $body .= '<form method="post" action="/admin/theme-templates/save" class="bp-form bp-admin-editor" autocomplete="off" data-bp-code-submit>';
+        $body .= '<p class="bp-field-help">Changes are applied only after Save Template succeeds. If your hosting firewall returns 404, keep a local copy and ask the host to inspect the blocked request; do not disable site security.</p>';
         $body .= $this->csrf->field();
         $body .= '<input type="hidden" name="theme" value="' . $this->e($theme) . '">';
         $body .= '<input type="hidden" name="template" value="' . $this->e($key) . '">';

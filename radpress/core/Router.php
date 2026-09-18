@@ -90,8 +90,10 @@ final class Router
             return $this->themeAsset(rawurldecode(substr($request->path, 14)));
         }
 
-        if ($request->path === '/blog') {
-            $publishedPosts = $this->posts->allPublished();
+        $postType = explode('/', trim($request->path, '/'))[0];
+        $isPostType = in_array($postType, $this->posts->types(), true);
+        if ($isPostType && $request->path === '/' . $postType) {
+            $publishedPosts = array_values(array_filter($this->posts->allPublished(), static fn(array $post): bool => ($post['post_type'] ?? 'blog') === $postType));
             $perPage = max(1, min(48, (int)($this->config->site()['posts_per_page'] ?? 12)));
             $pageNumber = max(1, (int)($request->query['page'] ?? 1));
             $pageCount = max(1, (int)ceil(count($publishedPosts) / $perPage));
@@ -103,7 +105,8 @@ final class Router
                 'postUrls' => $this->postUrls($publishedPosts),
                 'pageNumber' => $pageNumber,
                 'pageCount' => $pageCount,
-                'title' => 'Blog',
+                'title' => ucwords(str_replace('-', ' ', $postType)),
+                'archivePath' => '/' . $postType,
             ]);
         }
 
@@ -118,8 +121,8 @@ final class Router
                 : $this->notFound();
         }
 
-        if (str_starts_with($request->path, '/blog/')) {
-            $post = $this->posts->findByPath(substr($request->path, 6));
+        if ($isPostType && str_starts_with($request->path, '/' . $postType . '/')) {
+            $post = $this->posts->findByPath(substr($request->path, strlen($postType) + 2), $postType);
             if ($post === null || !PublicationState::isPublic($post)) {
                 return $this->notFound();
             }
@@ -348,6 +351,8 @@ final class Router
         if ($request->path === '/admin/import') {
             $body = AdminLayout::pageHeader('XML Import', 'Import Batoi Press site content without replacing existing slugs.', AdminLayout::buttonLink('Back to Settings', '/admin/settings', 'back', true));
             $body .= AdminLayout::section('Upload site content', '<form method="post" action="/admin/import/xml" enctype="multipart/form-data" class="bp-form">' . $csrf->field() . '<label>XML file <input type="file" name="site_xml" accept=".xml,application/xml,text/xml" required><span class="bp-field-help">Maximum 10 MiB. Root element: &lt;batoi-press&gt;.</span></label>' . AdminLayout::submitButton('Import XML', 'upload') . '</form>', 'Pages and posts with existing slugs are skipped.');
+            $example = '<batoi-press><pages><page><title>About</title><slug>about</slug><status>draft</status><body><![CDATA[<p>About us</p>]]></body></page></pages><posts><post><title>First news</title><slug>first-news</slug><post_type>news</post_type><status>draft</status><body><![CDATA[<p>News content</p>]]></body></post></posts></batoi-press>';
+            $body .= AdminLayout::section('Supported XML format', '<p>This importer accepts Batoi Press content XML, not a sitemap or WordPress export. Import a backup on a test site first. Media must be embedded as base64 in <code>media/file</code> with <code>name</code>, <code>encoding="base64"</code>, and an optional <code>source</code> URL matching content references. Remote media is never downloaded.</p><pre>' . htmlspecialchars($example, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</pre>', 'Imports are additive, not transactional. A storage failure can leave earlier records imported. Back up before importing.');
             return Response::html(AdminLayout::render('XML Import', $body));
         }
         if ($request->path === '/admin/import/xml' && $request->method === 'POST') {

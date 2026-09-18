@@ -115,6 +115,7 @@ final class PostController
         $isEdit = $post !== null;
         $slug = (string)($post['slug'] ?? '');
         $requestedParent = Slug::normalize((string)($post['parent_slug'] ?? $_GET['parent'] ?? ''));
+        $postType = (string)($post['post_type'] ?? $this->posts->findBySlug($requestedParent)['post_type'] ?? 'blog');
         if ($requestedParent !== '' && $this->posts->findBySlug($requestedParent) === null) {
             $requestedParent = '';
         }
@@ -138,7 +139,8 @@ final class PostController
         $media = $this->input('Featured image URL', 'featured_image', (string)($post['featured_image'] ?? ''), false) . $this->input('Featured image alt text', 'featured_image_alt', (string)($post['featured_image_alt'] ?? ''), false) . '<p class="bp-field-help">Use a public image URL from <a href="/admin/media?type=images" target="_blank" rel="noopener">Media</a>. Describe meaningful images for screen-reader users; leave alt text blank only for decorative images.</p>';
         $seo = $this->input('SEO Title', 'seo_title', (string)($post['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($post['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short article summary for search snippets and social previews.</span></label>';
 
-        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible article content.') . '</div><aside class="bp-editor-side">' . AifEditorPanel::render($this->config, 'post') . $this->editorPanel('Publishing', $publishing, 'Set status, category, layout, and tags.') . $this->editorPanel('Featured image', $media, 'Choose the primary image used by public post views.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->postChecklist(), 'Review before publishing or changing a live post.') . '</aside>';
+        $typeField = '<label>Post type / URL prefix <input name="post_type" value="' . $this->e($postType) . '" pattern="[a-z][a-z0-9-]{0,59}" maxlength="60" required><span class="bp-field-help">For example blog, news, or activities. Changing this changes the public URL; categories remain independent.</span></label>';
+        $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible article content.') . '</div><aside class="bp-editor-side">' . AifEditorPanel::render($this->config, 'post') . $this->editorPanel('Publishing', $typeField . $publishing, 'Set status, category, layout, and tags.') . $this->editorPanel('Featured image', $media, 'Choose the primary image used by public post views.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->postChecklist(), 'Review before publishing or changing a live post.') . '</aside>';
         $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/posts', 'back', true) . AdminLayout::submitButton('Save Post', 'save') . '</div></form>';
         return $body;
     }

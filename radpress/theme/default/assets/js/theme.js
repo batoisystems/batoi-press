@@ -1,4 +1,65 @@
 (() => {
+    const modeButton = document.querySelector('[data-bp-mode-toggle]');
+    if (modeButton) {
+        const root = document.documentElement;
+        const system = window.matchMedia('(prefers-color-scheme: dark)');
+        const isDark = () => root.dataset.bpColorMode === 'dark' || (root.dataset.bpColorMode === 'system' && system.matches);
+        const updateLabel = () => modeButton.setAttribute('aria-pressed', String(isDark()));
+        try {
+            const saved = localStorage.getItem('bp-color-mode');
+            if (saved === 'light' || saved === 'dark') root.dataset.bpColorMode = saved;
+        } catch (_) { /* Storage is optional. */ }
+        updateLabel();
+        modeButton.hidden = false;
+        system.addEventListener('change', updateLabel);
+        modeButton.addEventListener('click', () => {
+            root.dataset.bpColorMode = isDark() ? 'light' : 'dark';
+            try { localStorage.setItem('bp-color-mode', root.dataset.bpColorMode); } catch (_) { /* Storage is optional. */ }
+            updateLabel();
+        });
+    }
+    const scrollTop = document.querySelector('[data-bp-scroll-top]');
+    if (scrollTop) {
+        const update = () => { scrollTop.hidden = document.documentElement.scrollHeight <= window.innerHeight + 1; };
+        update();
+        window.addEventListener('resize', update);
+        window.addEventListener('load', update);
+        if ('ResizeObserver' in window) new ResizeObserver(update).observe(document.body);
+        scrollTop.addEventListener('click', () => {
+            window.scrollTo({top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+            document.querySelector('.bp-skip-link')?.focus({preventScroll:true});
+        });
+    }
+    document.querySelectorAll('[data-bp-load-more]').forEach((listing) => {
+        const grid = listing.querySelector('.bp-post-grid');
+        let next = listing.querySelector('.bp-pagination a[rel="next"]');
+        if (!grid || !next) return;
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'bp-button bp-button-secondary'; button.textContent = 'Load more';
+        const status = document.createElement('p'); status.setAttribute('role', 'status');
+        listing.append(button, status);
+        button.addEventListener('click', async () => {
+            button.disabled = true; status.textContent = 'Loading posts…';
+            try {
+                const url = new URL(next.href, location.href);
+                if (url.origin !== location.origin) throw new Error('Invalid archive URL');
+                const response = await fetch(url, {headers:{Accept:'text/html'}});
+                if (!response.ok) throw new Error('Request failed');
+                const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+                const incoming = doc.querySelector('[data-bp-load-more]');
+                const cards = incoming?.querySelectorAll('.bp-post-grid > .bp-post-card');
+                if (!cards?.length) throw new Error('No archive results');
+                cards.forEach((card) => grid.append(document.importNode(card, true)));
+                next = incoming.querySelector('.bp-pagination a[rel="next"]');
+                const nav = listing.querySelector('.bp-pagination');
+                const incomingNav = incoming.querySelector('.bp-pagination');
+                if (nav && incomingNav) nav.replaceWith(document.importNode(incomingNav, true));
+                button.hidden = !next;
+                status.textContent = cards.length + ' more posts loaded.';
+            } catch (_) { status.textContent = 'Could not load posts. Use the page navigation links to continue.'; }
+            finally { button.disabled = false; }
+        });
+    });
     const navigation = document.querySelector('[data-bp-primary-navigation]');
     const toggle = document.querySelector('.bp-nav-toggle');
     const links = document.getElementById('bp-primary-links');

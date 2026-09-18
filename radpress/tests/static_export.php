@@ -32,6 +32,7 @@ try {
 
     $files = new FileStore();
     $html = new HtmlContent();
+    (new PostRepository($paths,$files,$html))->save(['title'=>'News export','slug'=>'news-export','post_type'=>'news','status'=>'published','published_at'=>'2000-01-01T00:00:00+00:00','body'=>'<p>News export</p>'], 'owner');
     $exporter = new StaticExporter(
         $paths,
         new PageRepository($paths, $files, $html),
@@ -76,6 +77,8 @@ try {
         'home/index.html',
         'about/team/index.html',
         'blog/index.html',
+        'news/index.html',
+        'news/news-export/index.html',
         'blog/first-post/index.html',
         'blog/first-post/second-post/index.html',
         'archive/index.html',

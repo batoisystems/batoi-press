@@ -33,6 +33,13 @@ try {
     $hierarchy = '<batoi-press><pages><page><title>Child</title><slug>child</slug><parent_slug>parent</parent_slug><body>Child</body></page><page><title>Parent</title><slug>parent</slug><body>Parent</body></page><page><title>Orphan</title><slug>orphan</slug><parent_slug>missing</parent_slug><body>Orphan</body></page></pages></batoi-press>';
     $ordered = $method->invoke($controller, $hierarchy);
     assertImport($ordered['pages'] === 2 && $ordered['skipped'] === 1 && $pages->publicPath('child') === '/parent/child', 'imports must resolve children listed before parents and skip unresolved parents');
+    $mediaXml = '<batoi-press><media><file name="guide.txt" source="/old/guide.txt" encoding="base64">' . base64_encode('A plain text guide') . '</file></media><pages><page><title>Media import</title><slug>media-import</slug><body><![CDATA[<a href="/old/guide.txt">Guide</a>]]></body></page></pages></batoi-press>';
+    $mediaCounts = $method->invoke($controller, $mediaXml);
+    $mediaBody = $pages->findBySlug('media-import')['body'];
+    assertImport($mediaCounts['media'] === 1 && str_contains($mediaBody, '/assets/documents/') && !str_contains($mediaBody, '/old/guide.txt'), 'embedded media references should point to the imported asset');
+    $unsupported = false;
+    try { $method->invoke($controller, '<urlset><url><loc>https://example.com/</loc></url></urlset>'); } catch (RuntimeException $e) { $unsupported = str_contains($e->getMessage(), 'Unsupported XML format'); }
+    assertImport($unsupported, 'unsupported XML should explain the format requirement');
     echo "XML import checks passed\n";
 } finally { removeImport($root); }
 function assertImport(bool $condition,string $message):void{if(!$condition)throw new RuntimeException($message);}

@@ -37,6 +37,7 @@ $fontStylesheet = filter_var($fontStylesheet, FILTER_VALIDATE_URL) && str_starts
     <title><?php echo bp_esc((string)$pageTitle); ?></title>
     <meta name="description" content="<?php echo bp_attr((string)$description); ?>">
     <meta name="theme-color" content="#0e68b0">
+    <style><?php echo \Batoi\Press\Core\Appearance::css($site); ?></style>
     <meta property="og:title" content="<?php echo bp_attr((string)$pageTitle); ?>">
     <meta property="og:description" content="<?php echo bp_attr((string)$description); ?>">
     <meta property="og:type" content="<?php echo isset($post) ? 'article' : 'website'; ?>">
@@ -59,6 +60,8 @@ $fontStylesheet = filter_var($fontStylesheet, FILTER_VALIDATE_URL) && str_starts
         <?php echo $content; ?>
     </main>
     <?php require __DIR__ . '/../partials/footer.php'; ?>
+    <?php if (!empty($site['show_theme_toggle'])): ?><button type="button" class="bp-mode-toggle bp-button bp-button-secondary" data-bp-mode-toggle aria-pressed="false" hidden>Dark mode</button><?php endif; ?>
+    <button type="button" class="bp-scroll-top bp-button" data-bp-scroll-top hidden aria-label="Scroll to top">↑</button>
 </div>
 </body>
 </html>

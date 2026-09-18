@@ -51,15 +51,28 @@ final class ImportController
         $loaded = $document->loadXML($xml, LIBXML_NONET | LIBXML_NOBLANKS | LIBXML_COMPACT);
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
-        if (!$loaded || $document->documentElement?->tagName !== 'batoi-press') throw new RuntimeException('This is not a valid Batoi Press site-content XML document.');
+        if (!$loaded) throw new RuntimeException('The XML file is malformed. Export it again and retry.');
         if ($document->doctype !== null) throw new RuntimeException('XML document type declarations are not allowed.');
+        if ($document->documentElement?->tagName !== 'batoi-press') throw new RuntimeException('Unsupported XML format. Use Batoi Press site-content XML with a <batoi-press> root, pages/page, posts/post, and optional media/file records. WordPress exports and sitemap XML are not Batoi Press backups.');
         $xpath = new DOMXPath($document);
         $counts = ['pages' => 0, 'posts' => 0, 'media' => 0, 'skipped' => 0];
+        $mediaMap = $this->importMedia($xpath, $counts);
         foreach (['page' => $this->pages, 'post' => $this->posts] as $type => $repository) {
             $pending = [];
             foreach ($xpath->query('/batoi-press/' . $type . 's/' . $type) ?: [] as $node) {
                 if (!$node instanceof DOMElement) continue;
                 $data = $this->contentData($node, $type);
+                $replacements = [];
+                foreach ($mediaMap as $old => $new) {
+                    foreach (['src', 'href', 'poster'] as $attribute) {
+                        foreach (['"', "'"] as $quote) {
+                            $replacements[$attribute . '=' . $quote . htmlspecialchars($old, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . $quote] = $attribute . '=' . $quote . $new . $quote;
+                            $replacements[$attribute . '=' . $quote . $old . $quote] = $attribute . '=' . $quote . $new . $quote;
+                        }
+                    }
+                }
+                $data['body'] = strtr($data['body'], $replacements);
+                if (isset($data['featured_image'], $mediaMap[$data['featured_image']])) $data['featured_image'] = $mediaMap[$data['featured_image']];
                 if ($data['slug'] === '' || $data['title'] === '' || isset($pending[$data['slug']]) || $repository->findBySlug($data['slug']) !== null) { $counts['skipped']++; continue; }
                 $pending[$data['slug']] = $data;
             }
@@ -76,6 +89,12 @@ final class ImportController
             } while ($progress && $pending !== []);
             $counts['skipped'] += count($pending);
         }
+        return $counts;
+    }
+
+    private function importMedia(DOMXPath $xpath, array &$counts): array
+    {
+        $mapping = [];
         foreach ($xpath->query('/batoi-press/media/file') ?: [] as $node) {
             if (!$node instanceof DOMElement || $node->getAttribute('encoding') !== 'base64') { $counts['skipped']++; continue; }
             $bytes = base64_decode(trim($node->textContent), true);
@@ -94,9 +113,11 @@ final class ImportController
             $relative = $manager->relativeUploadPath($name);
             $target = $manager->prepareTarget($relative);
             if (file_put_contents($target, $bytes, LOCK_EX) === false) throw new RuntimeException('Unable to write imported media.');
+            $source = $node->getAttribute('source') ?: $node->getAttribute('name');
+            if ($source !== '') $mapping[$source] = '/assets/' . $relative;
             $counts['media']++;
         }
-        return $counts;
+        return $mapping;
     }
 
     private function contentData(DOMElement $node, string $type): array
@@ -107,6 +128,12 @@ final class ImportController
         };
         $data = ['title'=>$value($node,'title'),'slug'=>Slug::normalize($value($node,'slug')),'status'=>$value($node,'status') ?: 'draft','body'=>$value($node,'body'),'parent_slug'=>Slug::normalize($value($node,'parent_slug')),'category'=>$value($node,'category'),'tags'=>$value($node,'tags'),'seo_title'=>$value($node,'seo_title'),'seo_description'=>$value($node,'seo_description')];
         if ($type === 'page') $data['template'] = $value($node, 'template') ?: 'page';
+        if ($type === 'post') {
+            $data['featured_image'] = $value($node, 'featured_image');
+            $data['featured_image_alt'] = $value($node, 'featured_image_alt');
+            if ($value($node, 'post_type') !== '') $data['post_type'] = $value($node, 'post_type');
+            if ($value($node, 'published_at') !== '') $data['published_at'] = $value($node, 'published_at');
+        }
         return $data;
     }
 }

@@ -47,6 +47,8 @@ final class WidgetController
             }
             $rows .= '</select></label><label>Target section <select name="widget_target[]"><option value="all_sidebars"' . ($target === 'all_sidebars' ? ' selected' : '') . '>All post sidebars</option><option value="left_sidebar"' . ($target === 'left_sidebar' ? ' selected' : '') . '>Left sidebar</option><option value="right_sidebar"' . ($target === 'right_sidebar' ? ' selected' : '') . '>Right sidebar</option></select></label>';
             $rows .= '<label>Title <input type="text" name="widget_title[]" value="' . $this->e((string)($widget['title'] ?? ($type === 'recent_posts' ? 'Recent posts' : ''))) . '"></label><label>Widget content <textarea name="widget_body[]" rows="5">' . $this->e((string)($widget['body'] ?? '')) . '</textarea><span class="bp-field-help">Used by Custom HTML, Image Gallery, and Subscribe widgets. Enter sanitized HTML.</span></label>';
+            $rows .= '<label>Gallery images <textarea name="widget_gallery_images[]" rows="3" maxlength="8000">' . $this->e((string)($widget['gallery_images'] ?? '')) . '</textarea><span class="bp-field-help">For Image Gallery: one Media URL | alternative text per line, up to 24 images. Copy URLs from Media. Replaces legacy HTML when supplied.</span></label>';
+            $rows .= '<label>Newsletter subscription page <input type="url" name="widget_subscribe_url[]" value="' . $this->e((string)($widget['subscribe_url'] ?? '')) . '"><span class="bp-field-help">For Subscribe: an HTTPS signup page from your newsletter provider. Press does not collect email addresses or send campaigns.</span></label>';
             $rows .= '</section>';
         }
         $rows .= '</div><p class="bp-field-help">Built-in widgets include Recent Posts, Tag Cloud, Image Gallery, Activity Calendar, and Subscribe. Leave unused custom widgets blank; saved widgets appear in this order in their target section.</p>';
@@ -66,6 +68,8 @@ final class WidgetController
         $targets = isset($request->post['widget_target']) && is_array($request->post['widget_target']) ? $request->post['widget_target'] : [];
         $titles = isset($request->post['widget_title']) && is_array($request->post['widget_title']) ? $request->post['widget_title'] : [];
         $bodies = isset($request->post['widget_body']) && is_array($request->post['widget_body']) ? $request->post['widget_body'] : [];
+        $galleries = (array)($request->post['widget_gallery_images'] ?? []);
+        $subscriptions = (array)($request->post['widget_subscribe_url'] ?? []);
         $html = new HtmlContent();
         $widgets = [];
         foreach ($titles as $index => $title) {
@@ -79,9 +83,15 @@ final class WidgetController
             }
             $title = trim((string)$title);
             $body = $html->sanitize((string)($bodies[$index] ?? ''));
+            $gallery = substr(trim((string)($galleries[$index] ?? '')), 0, 8000);
+            $subscribe = trim((string)($subscriptions[$index] ?? ''));
+            if ($subscribe !== '' && (!\Batoi\Press\Core\WidgetRenderer::safeUrl($subscribe) || !str_starts_with(strtolower($subscribe), 'https://'))) {
+                return Response::html(AdminLayout::message('Widgets', 'Newsletter signup URLs must be valid HTTPS URLs.', true), 422);
+            }
             $needsBody = in_array($type, ['html', 'image_gallery', 'subscribe'], true);
+            if (($type === 'image_gallery' && \Batoi\Press\Core\WidgetRenderer::galleryImages($gallery) !== []) || ($type === 'subscribe' && $subscribe !== '')) $needsBody = false;
             if ($title !== '' && (!$needsBody || $body !== '')) {
-                $widgets[] = ['type' => $type, 'title' => $title, 'body' => $body, 'target' => $target];
+                $widgets[] = ['type' => $type, 'title' => $title, 'body' => $body, 'target' => $target, 'gallery_images'=>$gallery, 'subscribe_url'=>$subscribe];
             }
         }
         if (!array_filter($widgets, static fn (array $widget): bool => ($widget['type'] ?? '') === 'recent_posts')) {

@@ -40,7 +40,19 @@ final class PageBlockRenderer
                 $html .= '<section class="bp-content-block">' . $heading . '<div class="bp-post-grid">';
                 foreach ($this->filterItems($posts, (string)($block['category'] ?? ''), (int)($block['limit'] ?? 6)) as $item) {
                     $url = $this->posts->publicPath($item);
-                    $html .= '<article class="bp-post-card"><h3><a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars((string)($item['title'] ?? 'Untitled'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</a></h3><p>' . htmlspecialchars((string)($item['seo_description'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p></article>';
+                    $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                    $html .= '<article class="bp-post-card">';
+                    $image = (string)($item['featured_image'] ?? '');
+                    if (!empty($block['show_image']) && $image !== '' && (preg_match('#^https?://#i', $image) || (str_starts_with($image, '/') && !str_starts_with($image, '//')))) {
+                        $html .= '<a class="bp-post-card-media" href="' . $escape($url) . '"><img loading="lazy" src="' . $escape($image) . '" alt="' . $escape((string)($item['featured_image_alt'] ?? '')) . '"></a>';
+                    }
+                    if (!empty($block['show_date']) && !empty($item['published_at'])) {
+                        $date = (string)$item['published_at'];
+                        $html .= '<p class="bp-meta"><time datetime="' . $escape($date) . '">' . $escape(function_exists('bp_date') ? \bp_date($date) : substr($date, 0, 10)) . '</time></p>';
+                    }
+                    $html .= '<h3><a href="' . $escape($url) . '">' . $escape((string)($item['title'] ?? 'Untitled')) . '</a></h3><p>' . $escape((string)($item['seo_description'] ?? '')) . '</p>';
+                    if (!empty($block['show_read_more'])) $html .= '<a class="bp-text-link" href="' . $escape($url) . '">Read more <span aria-hidden="true">&rarr;</span></a>';
+                    $html .= '</article>';
                 }
                 $html .= '</div></section>';
                 continue;
@@ -92,7 +104,7 @@ final class PageBlockRenderer
             foreach ($tags as $tag => $count) $body .= '<span>' . $escape((string)$tag) . ' <small>' . $count . '</small></span>';
             return $body . '</div>';
         }
-        if ($type === 'recent_posts' || $type === 'activity_calendar') {
+        if ($type === 'recent_posts') {
             $body = '<ol' . ($type === 'activity_calendar' ? ' class="bp-activity-calendar"' : '') . '>';
             foreach (array_slice($posts, 0, $type === 'recent_posts' ? 5 : 8) as $post) {
                 $body .= '<li>';
@@ -104,6 +116,8 @@ final class PageBlockRenderer
             }
             return $body . '</ol>';
         }
-        return (new HtmlContent())->sanitize((string)($widget['body'] ?? ''));
+        $urls = [];
+        foreach ($posts as $post) $urls[(string)$post['slug']] = $this->posts->publicPath($post);
+        return WidgetRenderer::render($widget, $posts, $urls);
     }
 }

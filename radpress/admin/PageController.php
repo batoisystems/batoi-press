@@ -215,12 +215,17 @@ final class PageController
             $options .= '<option value="' . $value . '"' . ($type === $value ? ' selected' : '') . '>' . $label . '</option>';
         }
         $editor = ContentEditor::render($this->config, (string)($block['body'] ?? ''), 'HTML and gallery markup is sanitized when saved.', 'bp-page-block-' . $index, $sourceOnly, 'block_body[]');
+        $postOptions = '';
+        foreach (['show_image' => 'Featured image', 'show_date' => 'Publication date', 'show_read_more' => 'Read more link'] as $field => $label) {
+            $postOptions .= '<label data-bp-block-field="posts">' . $label . ' <select name="block_' . $field . '[]"><option value="0">Hide</option><option value="1"' . (!empty($block[$field]) ? ' selected' : '') . '>Show</option></select></label>';
+        }
         return '<section class="bp-reorder-row bp-block-row" data-bp-block-row><div class="bp-reorder-actions"><button type="button" data-bp-move="up" aria-label="Move block up">↑</button><button type="button" data-bp-move="down" aria-label="Move block down">↓</button><button type="button" data-bp-remove-block aria-label="Remove block">×</button></div>'
             . '<label>Block type <select name="block_type[]" data-bp-block-type>' . $options . '</select></label>'
             . '<label>Heading <input type="text" name="block_title[]" maxlength="160" value="' . $this->e((string)($block['title'] ?? '')) . '"></label>'
             . '<div class="bp-field-wide" data-bp-block-field="html gallery">' . $editor . '</div>'
             . '<label data-bp-block-field="posts products">Category filter <input type="text" name="block_category[]" maxlength="100" value="' . $this->e((string)($block['category'] ?? '')) . '"><span class="bp-field-help">Leave blank to include every category.</span></label>'
             . '<label data-bp-block-field="posts products">Items <input type="number" name="block_limit[]" min="1" max="24" value="' . max(1, min(24, (int)($block['limit'] ?? 6))) . '"></label>'
+            . $postOptions
             . '<label data-bp-block-field="widget">Widget title <input type="text" name="block_widget[]" maxlength="160" value="' . $this->e((string)($block['widget'] ?? '')) . '"><span class="bp-field-help">Matches a widget configured in Widgets.</span></label>'
             . '</section>';
     }
@@ -239,6 +244,9 @@ final class PageController
         $blocks = [];
         foreach (array_slice($types, 0, 30) as $index => $type) {
             $blocks[] = ['type' => (string)$type, 'title' => (string)($titles[$index] ?? ''), 'body' => (string)($bodies[$index] ?? ''), 'category' => (string)($categories[$index] ?? ''), 'limit' => (int)($limits[$index] ?? 6), 'widget' => (string)($widgets[$index] ?? '')];
+            foreach (['show_image', 'show_date', 'show_read_more'] as $field) {
+                $blocks[array_key_last($blocks)][$field] = ((array)($input['block_' . $field] ?? []))[$index] ?? '0';
+            }
         }
         return $blocks;
     }

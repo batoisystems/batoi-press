@@ -119,7 +119,7 @@ final class ContentMutationService
     {
         $allowed = $type === 'page'
             ? ['title', 'slug', 'parent_slug', 'body', 'blocks', 'custom_css', 'custom_js', 'template', 'seo_title', 'seo_description', 'show_latest_posts', 'latest_posts_limit', 'publish_at', 'unpublish_at', 'reviewer', 'workflow_note']
-            : ['title', 'subtitle', 'slug', 'parent_slug', 'body', 'category', 'tags', 'featured_image', 'featured_image_alt', 'layout', 'seo_title', 'seo_description', 'published_at', 'publish_at', 'unpublish_at', 'reviewer', 'workflow_note'];
+            : ['title', 'subtitle', 'slug', 'parent_slug', 'post_type', 'body', 'category', 'tags', 'featured_image', 'featured_image_alt', 'layout', 'seo_title', 'seo_description', 'published_at', 'publish_at', 'unpublish_at', 'reviewer', 'workflow_note'];
         $base = $existing === null ? [] : $this->repositoryInput($type, $existing);
         if ($type === 'page' && array_key_exists('body', $input) && !array_key_exists('blocks', $input)) {
             unset($base['blocks']);
@@ -156,7 +156,7 @@ final class ContentMutationService
     {
         $fields = $type === 'page'
             ? ['title', 'slug', 'parent_slug', 'body', 'blocks', 'custom_css', 'custom_js', 'status', 'template', 'seo_title', 'seo_description', 'show_latest_posts', 'latest_posts_limit', 'publish_at', 'unpublish_at', 'reviewer']
-            : ['title', 'subtitle', 'slug', 'parent_slug', 'body', 'status', 'published_at', 'publish_at', 'unpublish_at', 'reviewer', 'category', 'featured_image', 'featured_image_alt', 'layout', 'seo_title', 'seo_description'];
+            : ['title', 'subtitle', 'slug', 'parent_slug', 'post_type', 'body', 'status', 'published_at', 'publish_at', 'unpublish_at', 'reviewer', 'category', 'featured_image', 'featured_image_alt', 'layout', 'seo_title', 'seo_description'];
         $input = [];
         foreach ($fields as $field) {
             if (array_key_exists($field, $record)) {

@@ -92,6 +92,10 @@ final class PageRepository
             $template = 'page';
         }
         $parentSlug = Slug::normalize((string)($input['parent_slug'] ?? $existing['parent_slug'] ?? ''));
+        $retainsExistingPath = $existing !== null && ($existing['slug'] ?? '') === $slug && empty($existing['parent_slug']);
+        if (!$retainsExistingPath && $parentSlug === '' && in_array($slug, (new PostRepository($this->paths, $this->files, $this->html))->types(), true)) {
+            throw new RuntimeException('This page path is reserved for a post archive.');
+        }
         $this->validateParent($parentSlug, $slug, $originalSlug);
         $latestPostsLimit = max(1, min(12, (int)($input['latest_posts_limit'] ?? $existing['latest_posts_limit'] ?? 3)));
         $customCss = (string)($input['custom_css'] ?? $existing['custom_css'] ?? '');
@@ -177,6 +181,9 @@ final class PageRepository
                 'category' => substr(trim((string)($block['category'] ?? '')), 0, 100),
                 'limit' => max(1, min(24, (int)($block['limit'] ?? 6))),
                 'widget' => substr(trim((string)($block['widget'] ?? '')), 0, 160),
+                'show_image' => filter_var($block['show_image'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'show_date' => filter_var($block['show_date'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'show_read_more' => filter_var($block['show_read_more'] ?? false, FILTER_VALIDATE_BOOLEAN),
             ];
         }
         if ($blocks === []) {

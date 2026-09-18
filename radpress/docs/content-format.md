@@ -45,3 +45,30 @@ Use the **Code block** action for multi-line samples. It inserts semantic markup
 ```
 
 Public pages separate inline-code styling from block-code styling and add a language label plus Copy action to each `pre > code` block.
+
+## Post types and page blocks
+
+Posts use `post_type` as their URL prefix: `blog` (the default for existing records), `news`, `activities`, or another lowercase slug. Categories remain independent labels. Parents and children must share a type. Reserved routes, existing top-level pages, and public files/directories cannot be used as type prefixes. Changing a type changes its URLs; update incoming links deliberately. Parent types cannot be changed while children remain attached.
+
+Post page blocks accept boolean `show_image`, `show_date`, and `show_read_more` options. Missing options default to false to preserve old blocks. Default-theme archives support `posts_per_page` and opt-in `posts_load_more`; Previous/Next links work without JavaScript. Static exports contain complete type archives rather than client-side pagination.
+
+## XML import
+
+The additive native format uses a `<batoi-press>` root with `pages/page`, `posts/post`, and optional `media/file` children. Content fields include `title`, `slug`, `status`, `body` (HTML in CDATA), `parent_slug`, category, tags and SEO fields. Posts also accept `post_type`, `published_at`, `featured_image`, and `featured_image_alt`. Unknown XML formats, including WordPress exports and sitemap XML, require conversion; they are not accepted as backups.
+
+```xml
+<batoi-press>
+  <pages><page><title>About</title><slug>about</slug><status>draft</status>
+    <body><![CDATA[<p>About us</p>]]></body>
+  </page></pages>
+  <media><file name="guide.txt" source="/old/guide.txt" encoding="base64">R3VpZGU=</file></media>
+</batoi-press>
+```
+
+Embedded media is validated using normal upload restrictions and stored with safe generated names. Exact quoted `src`, `href`, and `poster` references matching `source` (or `name` when source is omitted) are rewritten, as are featured-image URLs. CSS URLs, srcset, and remote attachments are not imported automatically. No remote media is fetched. Imports are limited to 10 MiB, reject DTD/entities, skip existing content slugs, and resolve parents before children. Imports are not transactional; make a backup and test first.
+
+## Default-theme appearance and widgets
+
+Settings expose opt-in visitor light/dark switching, per-mode validated color tokens, top/bottom footer columns, bottom text, and labelled icon links. Custom themes must opt into these settings. Theme switching stores only a local browser preference. Scroll-to-top appears only when a page is scrollable.
+
+Gallery widgets accept up to 24 lines of `Media URL | alternative text`; configured URLs replace legacy gallery HTML. Activity Calendar shows the current month with published-post links. Subscribe uses a configured HTTPS signup page, not a local subscriber database or campaign sender. Legacy sanitized widget HTML remains supported.
