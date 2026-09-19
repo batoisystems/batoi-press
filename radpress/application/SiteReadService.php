@@ -34,7 +34,8 @@ final class SiteReadService
             'version' => (string)($update['current_version'] ?? 'unknown'),
             'api_version' => 'v2',
             'mcp_protocol_version' => '2025-11-25',
-            'capabilities' => ['site_read', 'content_read', 'taxonomy_read', 'menu_read', 'search', 'fetch'],
+            'capabilities' => ['site_read', 'content_read', 'taxonomy_read', 'menu_read', 'media_read', 'search', 'fetch', 'draft_write', 'content_proposals', 'navigation_proposals', 'widget_proposals', 'public_settings_proposals', 'media_upload_proposals', 'media_metadata_proposals', 'activity_read'],
+            'capability_policy' => 'Installation features, not permission grants. Tools and operations require current connection scopes; public changes require review in Press.',
         ];
     }
 
@@ -125,8 +126,13 @@ final class SiteReadService
     public function media(string $id): ?array
     {
         foreach ((new AssetManager($this->config->paths()))->all() as $asset) {
-            $record = $this->mediaRecord($asset);
-            if ($record['id'] === $id) return $record;
+            if (\Batoi\Press\Content\MediaRepository::assetId($asset) === $id) {
+                if ($asset['size'] <= AssetManager::DEFAULT_MAX_BYTES) {
+                    $details = (new \Batoi\Press\Content\MediaRepository($this->config->paths()))->load($id);
+                    return $this->mediaRecord($details['asset'], $details['metadata']) + ['revision' => $details['revision']];
+                }
+                return $this->mediaRecord($asset);
+            }
         }
         return null;
     }
@@ -185,7 +191,7 @@ final class SiteReadService
             }
             $menu = $this->menus->load($name);
             unset($menu['updated_by']);
-            return $menu;
+            return $menu + ['key' => $name];
         }
         return null;
     }
@@ -319,12 +325,15 @@ final class SiteReadService
         return trim($value, '-');
     }
 
-    private function mediaRecord(array $asset): array
+    private function mediaRecord(array $asset, ?array $metadata = null): array
     {
         $storage = (string)($asset['storage'] ?? 'assets');
         $relative = (string)($asset['relative'] ?? '');
+        $id = \Batoi\Press\Content\MediaRepository::assetId($asset);
         return [
-            'id' => 'asset_' . substr(hash('sha256', $storage . ':' . $relative), 0, 24),
+            'id' => $id,
+            'metadata' => $metadata ?? (new \Batoi\Press\Content\MediaRepository($this->config->paths()))->metadata($id),
+            'metadata_editable' => !in_array($asset['type'] ?? '', ['styles', 'scripts'], true) && $asset['size'] <= AssetManager::DEFAULT_MAX_BYTES,
             'name' => (string)($asset['name'] ?? basename($relative)),
             'storage' => $storage,
             'relative' => $relative,

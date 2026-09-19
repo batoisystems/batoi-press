@@ -32,6 +32,11 @@ try {
 
     $parentId = (string)$legacy['items'][0]['id'];
     $childId = (string)$legacy['items'][1]['id'];
+    $originalBytes = $files->read($legacyPath);
+    $preview = $repository->prepareSave(['name' => 'Preview only', 'items' => $legacy['items']], 'owner', 0);
+    assertMenu($preview['name'] === 'Preview only' && $preview['revision'] === 1, 'preview uses the shared save normalization');
+    assertMenu($files->read($legacyPath) === $originalBytes && (glob($paths->dataPath('versions/menus/main/*.json')) ?: []) === [], 'preview changes neither the live menu nor snapshots');
+    assertThrowsMenu(static fn () => $repository->prepareSave(['items' => []], 'owner', 1), MenuConflictException::class, 'preview rejects stale revisions');
     $saved = $repository->save([
         'id' => 'menu_main',
         'name' => 'Primary navigation',

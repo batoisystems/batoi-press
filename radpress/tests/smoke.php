@@ -18,6 +18,25 @@ use Batoi\Press\Security\Password;
 use Batoi\Press\Security\Session;
 
 $root = dirname(__DIR__, 2);
+// Exercise send(), not just status(): PHP infers statuses from special headers.
+foreach ([
+    [403, ['WWW-Authenticate' => 'Bearer error="insufficient_scope"']],
+    [401, ['WWW-Authenticate' => 'Bearer error="invalid_token"']],
+    [201, ['Location' => '/created-fixture']],
+    [307, ['Location' => '/redirect-fixture']],
+    [200, ['Location' => '/informational-fixture']],
+    [204, []],
+] as [$expectedStatus, $headers]) {
+    ob_start();
+    try {
+        (new Batoi\Press\Core\Response('', $expectedStatus, $headers))->send();
+        if (http_response_code() !== $expectedStatus) throw new RuntimeException('Response emission changed explicit HTTP status ' . $expectedStatus);
+    } finally {
+        ob_end_clean();
+        header_remove();
+        http_response_code(200);
+    }
+}
 $paths = ['/', '/about', '/blog', '/blog/first-blog-post', '/sitemap.xml', '/feed.xml', '/admin', '/admin/login', '/admin/forgot-password', '/admin/pages', '/admin/posts', '/admin/media', '/admin/menus', '/admin/widgets', '/admin/settings', '/admin/themes', '/admin/theme-templates', '/admin/users', '/admin/audit', '/admin/cache', '/admin/export-static', '/admin/aif', '/admin/updates'];
 $mediaFile = $root . '/radpress/content/media/smoke-test.txt';
 $mediaCssFile = $root . '/radpress/content/media/smoke-test.css';

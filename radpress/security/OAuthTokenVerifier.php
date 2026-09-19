@@ -21,11 +21,11 @@ final class OAuthTokenVerifier
 
     public function verify(string $token): ?array
     {
-        if (($this->configuration['enabled'] ?? false) !== true || substr_count($token, '.') !== 2) {
+        if (($this->configuration['enabled'] ?? false) !== true || strlen($token) > 16384 || substr_count($token, '.') !== 2) {
             return null;
         }
-        $issuer = rtrim((string)($this->configuration['issuer'] ?? ''), '/');
-        $resource = rtrim((string)($this->configuration['resource'] ?? ''), '/');
+        $issuer = (string)($this->configuration['issuer'] ?? '');
+        $resource = (string)($this->configuration['resource'] ?? '');
         if ($issuer === '' || $resource === '') {
             return null;
         }
@@ -36,11 +36,10 @@ final class OAuthTokenVerifier
         } catch (Throwable) {
             return null;
         }
-        if (!isset($claims['iss']) || !is_string($claims['iss']) || !hash_equals($issuer, rtrim($claims['iss'], '/'))) {
+        if (!isset($claims['iss']) || !is_string($claims['iss']) || !hash_equals($issuer, $claims['iss'])) {
             return null;
         }
         $audiences = is_array($claims['aud'] ?? null) ? $claims['aud'] : [(string)($claims['aud'] ?? '')];
-        $audiences = array_map(static fn (mixed $audience): string => rtrim((string)$audience, '/'), $audiences);
         if (!in_array($resource, $audiences, true)) {
             return null;
         }
@@ -49,7 +48,14 @@ final class OAuthTokenVerifier
         if ($scopes === []) {
             return null;
         }
-        $subject = (string)($claims['sub'] ?? 'anonymous');
+        if (!is_string($claims['sub'] ?? null) || trim($claims['sub']) === ''
+            || !is_int($claims['exp'] ?? null) || $claims['exp'] <= time()) {
+            return null;
+        }
+        $subject = $claims['sub'];
+        $client = $claims['client_id'] ?? $claims['azp'] ?? null;
+        if (!is_string($client) || trim($client) === '' || strlen($client) > 200
+            || (isset($claims['client_id'], $claims['azp']) && $claims['client_id'] !== $claims['azp'])) return null;
         return [
             'id' => 'oauth_' . substr(hash('sha256', $issuer . '|' . $subject), 0, 24),
             'name' => 'OAuth connection',
@@ -60,6 +66,9 @@ final class OAuthTokenVerifier
             'revoked_at' => null,
             'active' => true,
             'oauth' => true,
+            'issuer' => $issuer,
+            'subject' => $subject,
+            'client_id' => $client,
         ];
     }
 
@@ -103,8 +112,8 @@ final class OAuthTokenVerifier
             throw new RuntimeException('Unable to initialize OAuth JWKS request.');
         }
         curl_setopt_array($handle, [
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS => 2,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_MAXREDIRS => 0,
             CURLOPT_CONNECTTIMEOUT => 3,
             CURLOPT_TIMEOUT => 6,
             CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,

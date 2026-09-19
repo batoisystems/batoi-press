@@ -136,6 +136,7 @@ final class AdminLayout
             ],
             'Publish' => [
                 ['label' => 'Pages', 'href' => '/admin/pages', 'icon' => 'file'],
+                ['label' => 'Proposed changes', 'href' => '/admin/proposals', 'icon' => 'edit'],
                 ['label' => 'Posts', 'href' => '/admin/posts', 'icon' => 'edit'],
                 ['label' => 'Products', 'href' => '/admin/products', 'icon' => 'database'],
                 ['label' => 'Media', 'href' => '/admin/media', 'icon' => 'image'],

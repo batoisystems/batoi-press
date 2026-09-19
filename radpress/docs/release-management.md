@@ -16,6 +16,8 @@ From `1.0.0` onward, public content files, theme templates, installer behavior, 
 
 ## Release Checklist
 
+Prerelease versions (for example `3.0.0-rc.1`) use a signed `candidate.json` and `candidate.json.sig`, and a GitHub prerelease. Do not replace the stable `latest.json` pair until production acceptance is complete. Candidate installation uses the signed ZIP through Admin → Updates.
+
 - [ ] Decide the next version number from the version policy.
 - [ ] Update `radpress/config/update.json`.
 - [ ] Update user-facing documentation when behavior changes.
@@ -27,6 +29,7 @@ From `1.0.0` onward, public content files, theme templates, installer behavior, 
 - [ ] Confirm the offline Ed25519 signing key is available only in private release storage.
 - [ ] Generate the public manifest from the verified package.
 - [ ] Verify package structure, version, checksum, and excluded runtime state.
+- [ ] Confirm regression scripts/fixtures under `radpress/tests/`, integration credentials/proposals, storage locks and offline keys are excluded by both the builder and artifact verifier.
 - [ ] Verify `dist/batoi-press-{version}.zip` excludes generated runtime state.
 - [ ] Verify `dist/latest.json` uses the same version and correct SHA-256 checksum.
 - [ ] Commit the release changes.

@@ -15,7 +15,7 @@ final class SecurityHeaders
         $response = $response
             ->withHeader('X-Content-Type-Options', 'nosniff')
             ->withHeader('X-Frame-Options', 'DENY')
-            ->withHeader('Referrer-Policy', (string)($settings['referrer_policy'] ?? 'strict-origin-when-cross-origin'))
+            ->withHeader('Referrer-Policy', (string)($response->headers()['Referrer-Policy'] ?? $settings['referrer_policy'] ?? 'strict-origin-when-cross-origin'))
             ->withHeader('Permissions-Policy', (string)($settings['permissions_policy'] ?? 'camera=(), microphone=(), geolocation=(), payment=()'));
 
         $customPolicy = array_key_exists('content_security_policy', $settings);
@@ -26,7 +26,10 @@ final class SecurityHeaders
         $mode = strtolower((string)($settings['csp_mode'] ?? 'report-only'));
         if ($policy !== '' && $mode !== 'off') {
             $header = $mode === 'enforce' ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only';
-            $response = $response->withHeader($header, preg_replace('/[\r\n]+/', ' ', $policy) ?? $policy);
+            $policy = preg_replace('/[\r\n]+/', ' ', $policy) ?? $policy;
+            $existing = (string)($response->headers()[$header] ?? '');
+            // Multiple CSP policies are intersected by browsers; never replace a route's sandbox.
+            $response = $response->withHeader($header, $existing !== '' ? $existing . ', ' . $policy : $policy);
         }
         if (self::https($request) && ($settings['hsts'] ?? true) === true) {
             $maxAge = max(300, min(63072000, (int)($settings['hsts_max_age'] ?? 31536000)));

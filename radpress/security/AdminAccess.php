@@ -28,6 +28,8 @@ final class AdminAccess
         if ($role === 'editor') {
             return self::matches($path, [
                 '/admin/pages',
+                '/admin/proposals',
+                '/admin/proposals/',
                 '/admin/pages/new',
                 '/admin/pages/edit/',
                 '/admin/pages/save',
@@ -43,6 +45,7 @@ final class AdminAccess
                 '/admin/media/upload',
                 '/admin/media/edit',
                 '/admin/media/update-text',
+                '/admin/media/update-metadata',
                 '/admin/media/replace',
                 '/admin/media/delete',
                 '/admin/menus',

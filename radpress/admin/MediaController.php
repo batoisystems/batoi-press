@@ -9,6 +9,8 @@ use Batoi\Press\Core\AssetManager;
 use Batoi\Press\Core\Config;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
+use Batoi\Press\Content\MediaRepository;
+use Batoi\Press\Content\MenuConflictException;
 use Batoi\Press\Security\AdminAccess;
 use Batoi\Press\Security\Csrf;
 use Batoi\Press\Security\UploadGuard;
@@ -142,6 +144,20 @@ final class MediaController
         $body .= '<section class="bp-editor-panel"><header><h2>' . $this->e($name) . '</h2><p>Changes are published at the existing path after the previous file is retained privately.</p></header>';
         $body .= '<dl class="bp-definition-list"><div><dt>Public URL</dt><dd><code>' . $this->e($url) . '</code></dd></div><div><dt>Type</dt><dd>' . $this->e(strtoupper($extension ?: 'FILE')) . '</dd></div><div><dt>Size</dt><dd>' . $this->e($this->size((int)$asset['size'])) . '</dd></div><div><dt>Modified</dt><dd>' . $this->e($this->modified((int)$asset['modified'])) . '</dd></div></dl></section>';
 
+        if (!in_array($asset['type'], ['scripts', 'styles'], true) && $asset['size'] <= AssetManager::DEFAULT_MAX_BYTES) {
+            try {
+                $details = (new MediaRepository($this->config->paths()))->load(MediaRepository::assetId($asset));
+                $body .= '<form method="post" action="/admin/media/update-metadata" class="bp-form bp-compact-form bp-media-metadata"><section class="bp-editor-panel"><header><h2>Library metadata</h2><p>Reusable title, alt text and caption. Existing page/post embeds keep their own text.</p></header>' . $this->csrf->field();
+                $body .= '<input type="hidden" name="id" value="' . $this->e($details['id']) . '"><input type="hidden" name="expected_revision" value="' . $this->e($details['revision']) . '">';
+                foreach (['title' => ['Title', 200], 'alt' => ['Alternative text', 1000], 'caption' => ['Caption', 2000]] as $key => [$label, $limit]) {
+                    $body .= '<label>' . $label . ($key === 'title'
+                        ? '<input name="title" maxlength="200" value="' . $this->e($details['metadata'][$key]) . '">'
+                        : '<textarea name="' . $key . '" maxlength="' . $limit . '" rows="' . ($key === 'caption' ? 3 : 2) . '">' . $this->e($details['metadata'][$key]) . '</textarea>') . '</label>';
+                }
+                $body .= '<div class="bp-form-actions">' . AdminLayout::submitButton('Save Metadata', 'save') . '</div></section></form>';
+            } catch (RuntimeException|\InvalidArgumentException) { $body .= '<p class="bp-error">Media metadata is unavailable or requires recovery.</p>'; }
+        }
+
         if (AssetManager::isTextEditable($relative)) {
             try {
                 $source = $manager->readEditableText($storage, $relative);
@@ -180,6 +196,21 @@ final class MediaController
         }
         $this->audit->record((string)($this->user['username'] ?? 'admin'), 'asset.edited', $storage . ':' . $relative, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
         return Response::redirect($this->assetEditorUrl($storage, $relative));
+    }
+
+    public function updateMetadata(Request $request): Response
+    {
+        if (!$this->csrf->validate($request->input('csrf_token'))) return $this->message('Security token expired.', true, 400);
+        try {
+            $repository = new MediaRepository($this->config->paths(), new \Batoi\Press\Core\FileStore(), null, (array)($this->config->security()['uploads']['machine_limits'] ?? []));
+            $current = $repository->load($request->input('id'));
+            $changes = array_intersect_key($request->post, array_flip(['title', 'alt', 'caption']));
+            $result = $repository->applyMetadata('proposal_' . bin2hex(random_bytes(16)), $current['id'], $changes, $request->input('expected_revision'));
+        } catch (MenuConflictException) { return $this->message('The asset or metadata changed. Reload before saving.', true, 409); }
+        catch (\InvalidArgumentException $error) { return $this->message($error->getMessage(), true, 422); }
+        catch (RuntimeException) { return $this->message('Media metadata could not be saved. Reload to check its current state before retrying.', true, 503); }
+        $this->audit->record((string)($this->user['username'] ?? ''), 'media.metadata.updated', $current['id'], (string)($request->server['REMOTE_ADDR'] ?? ''), 'success', ['revision' => $result['revision']]);
+        return Response::redirect($this->assetEditorUrl($current['asset']['storage'], $current['asset']['relative']));
     }
 
     public function replace(Request $request): Response

@@ -10,6 +10,9 @@ radpress/data/sessions/sess_*
 radpress/data/tmp/*
 radpress/data/versions/*
 radpress/data/security/*
+radpress/data/locks/*
+radpress/data/integrations/*
+radpress/content/menus/*.json.lock
 
 !radpress/data/backups/.gitkeep
 !radpress/data/cache/.gitkeep

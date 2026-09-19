@@ -80,10 +80,12 @@ final class Response
 
     public function send(): void
     {
-        http_response_code($this->status);
         foreach ($this->headers as $name => $value) {
             header($name . ': ' . $value);
         }
+        // PHP may infer a different status for WWW-Authenticate or Location.
+        // Preserve the controller's explicit status after all headers are set.
+        http_response_code($this->status);
         echo $this->body;
     }
 }

@@ -21,6 +21,9 @@ $root = sys_get_temp_dir() . '/batoi-press-static-export-' . bin2hex(random_byte
 
 try {
     createFixture($root);
+    file_put_contents($root . '/private-export-check.txt', 'PRIVATE_EXPORT_SENTINEL');
+    symlink($root . '/private-export-check.txt', $root . '/radpress/content/media/linked-private.txt');
+    file_put_contents($root . '/radpress/content/assets/.bp-previous-test', 'PRIVATE_REPLACEMENT_SENTINEL');
     $paths = new Paths($root, [
         'public_root' => 'public_html',
         'app' => 'radpress/app',

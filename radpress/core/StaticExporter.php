@@ -209,16 +209,7 @@ final class StaticExporter
 
     private function sidebarWidgets(): array
     {
-        $path = $this->paths->contentPath('widgets/sidebar.json');
-        $widgets = is_file($path) ? ((new FileStore())->readJson($path)['widgets'] ?? []) : [];
-        $widgets = is_array($widgets) ? array_values($widgets) : [];
-        foreach ($widgets as $widget) {
-            if (($widget['type'] ?? '') === 'recent_posts') {
-                return $widgets;
-            }
-        }
-        array_unshift($widgets, ['type' => 'recent_posts', 'title' => 'Recent posts']);
-        return $widgets;
+        return (new \Batoi\Press\Content\WidgetRepository($this->paths))->load()['widgets'];
     }
 
     private function products(): ProductRepository
@@ -438,11 +429,12 @@ final class StaticExporter
     private function mediaFiles(): array
     {
         $mediaDir = $this->paths->contentPath('media');
-        if (!is_dir($mediaDir)) {
+        if (is_link($mediaDir) || !is_dir($mediaDir)) {
             return [];
         }
 
-        $files = array_values(array_filter(glob($mediaDir . '/*') ?: [], 'is_file'));
+        $assets = new AssetManager($this->paths);
+        $files = array_values(array_filter(glob($mediaDir . '/*') ?: [], static fn (string $file): bool => $assets->find('media', basename($file)) !== null));
         usort($files, static fn (string $a, string $b): int => strcasecmp(basename($a), basename($b)));
         return $files;
     }
@@ -450,13 +442,14 @@ final class StaticExporter
     private function assetFiles(): array
     {
         $root = $this->paths->contentPath('assets');
-        if (!is_dir($root)) {
+        if (is_link($root) || !is_dir($root)) {
             return [];
         }
         $files = [];
+        $assets = new AssetManager($this->paths);
         foreach ($this->files($root) as $file) {
             $relative = ltrim(substr($file, strlen($root)), '/');
-            if ($relative !== '' && basename($relative) !== '.gitkeep') {
+            if ($relative !== '' && $assets->resolveAsset($relative) !== null) {
                 $files[$relative] = $file;
             }
         }

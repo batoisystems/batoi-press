@@ -59,10 +59,17 @@ final class PageRepository
 
     public function all(): array
     {
-        return $this->loadFrom($this->paths->contentPath('pages'));
+        return (new ContentTransaction($this->paths, $this->files))->read('page', fn (): array => $this->loadFrom($this->paths->contentPath('pages')));
     }
 
     public function save(array $input, string $actor): array
+    {
+        $prepared = $this->prepareSave($input, $actor);
+        return (new ContentTransaction($this->paths, $this->files))->commit('page', $prepared);
+    }
+
+    /** Validate and normalize without changing content or snapshots. */
+    public function prepareSave(array $input, string $actor): array
     {
         $requestedSlug = trim((string)($input['slug'] ?? ''));
         $slug = Slug::normalize($requestedSlug !== '' ? $requestedSlug : (string)($input['title'] ?? ''));
@@ -135,15 +142,7 @@ final class PageRepository
             'blocks' => $blocks,
         ];
 
-        $dir = $this->targetDir($originalSlug, $slug);
-        $this->snapshot($dir, $slug);
-        $this->files->writeJson($dir . '/meta.json', $meta);
-        $this->files->write($dir . '/body.html', $body);
-        if ($originalSlug !== '' && $originalSlug !== $slug) {
-            $this->updateChildParentReferences($originalSlug, $slug, $now);
-        }
-
-        return $meta;
+        return ['meta' => $meta, 'body' => $body, 'original_slug' => $originalSlug, 'base_revision' => $existing === null ? null : \Batoi\Press\Application\ContentRevision::for($existing)];
     }
 
     private function validatePageAssets(string $css, string $js): void

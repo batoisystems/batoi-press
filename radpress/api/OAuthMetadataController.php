@@ -24,9 +24,9 @@ final class OAuthMetadataController
             return Response::json(['error' => 'oauth_not_configured'], 404, $this->headers());
         }
         $base = rtrim((string)($this->config->site()['base_url'] ?? ''), '/');
-        $resource = rtrim((string)($oauth['resource'] ?? ($base . '/mcp')), '/');
+        $resource = (string)($oauth['resource'] ?? ($base . '/mcp'));
         $servers = array_values(array_filter(array_map('strval', (array)($oauth['authorization_servers'] ?? [])), static fn (string $value): bool => preg_match('#^https://#i', $value) === 1));
-        $issuer = rtrim((string)($oauth['issuer'] ?? ''), '/');
+        $issuer = (string)($oauth['issuer'] ?? '');
         if ($servers === [] && preg_match('#^https://#i', $issuer) === 1) {
             $servers[] = $issuer;
         }

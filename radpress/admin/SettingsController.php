@@ -41,6 +41,7 @@ final class SettingsController
         }
         $body .= '<form method="post" action="/admin/settings/save" enctype="multipart/form-data" class="bp-form bp-settings-form">';
         $body .= $this->csrf->field();
+        $body .= '<input type="hidden" name="expected_revision" value="' . $this->e(\Batoi\Press\Application\ContentRevision::for($this->config->site())) . '">';
         $body .= AdminLayout::section('Change guidance', $this->changeGuidance(), 'Review these notes before changing site-wide configuration.');
         $body .= $this->section('Identity', 'Public site name and supporting text.', '<div class="bp-form-grid">' . $this->input('Site Name', 'name', (string)($site['name'] ?? '')) . $this->input('Tagline', 'tagline', (string)($site['tagline'] ?? '')) . '</div>');
         $body .= $this->section('Branding', 'Control the public header identity and browser favicon.', $this->brandingField($site));
@@ -63,6 +64,9 @@ final class SettingsController
         }
 
         $original = $this->config->site();
+        if (!hash_equals(\Batoi\Press\Application\ContentRevision::for($original), trim($request->input('expected_revision'), '" '))) {
+            return Response::html($this->layout('Settings', '<p class="bp-error">Settings changed or the form is outdated. Reload before saving.</p>'), 409);
+        }
         $site = $original;
         foreach (['name', 'tagline', 'base_url', 'locale', 'timezone'] as $key) {
             $site[$key] = $request->input($key);
@@ -111,6 +115,7 @@ final class SettingsController
 
         $branding = new BrandAssetManager($this->config->paths());
         $newFiles = [];
+        $siteCommitted = false;
         try {
             if (!$this->isSupportedTimezone((string)$site['timezone'])) {
                 throw new RuntimeException('Select a timezone supported by this server.');
@@ -168,13 +173,18 @@ final class SettingsController
             }
 
             $this->files->writeJson($this->config->paths()->configPath('editor.json'), $editor);
-            $this->files->writeJson($this->config->paths()->configPath('site.json'), $site);
+            (new \Batoi\Press\Content\WebsiteDocumentStore($this->config->paths(), $this->files))->commit('site', $site, $request->input('expected_revision'));
+            $siteCommitted = true;
             $this->files->writeJson($this->config->paths()->configPath('integrations.json'), $integrations);
+        } catch (\Batoi\Press\Content\MenuConflictException $exception) {
+            foreach ($newFiles as $newFile) $branding->removeOwned($newFile);
+            return Response::html($this->layout('Settings', '<p class="bp-error">Site settings changed during this request. Reload before saving. Editor preferences may already have been saved.</p>'), 409);
         } catch (RuntimeException $exception) {
-            foreach ($newFiles as $newFile) {
+            foreach ($siteCommitted ? [] : $newFiles as $newFile) {
                 $branding->removeOwned($newFile);
             }
-            return Response::html($this->layout('Settings', $this->form($site, $editor, $exception->getMessage(), $integrations)), 400);
+            $message = ($siteCommitted ? 'Site settings were saved, but integration settings could not be completed. Reload and verify before retrying. ' : '') . $exception->getMessage();
+            return Response::html($this->layout('Settings', $this->form($site, $editor, $message, $integrations)), $siteCommitted ? 500 : 400);
         }
 
         foreach (['brand_logo', 'brand_logo_dark', 'favicon'] as $key) {

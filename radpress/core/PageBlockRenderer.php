@@ -20,8 +20,7 @@ final class PageBlockRenderer
         $html = '';
         $posts = $this->posts->allPublished();
         $products = $this->products->published();
-        $widgetPath = $this->paths->contentPath('widgets/sidebar.json');
-        $widgets = is_file($widgetPath) ? (array)((new FileStore())->readJson($widgetPath)['widgets'] ?? []) : [];
+        $widgets = (new \Batoi\Press\Content\WidgetRepository($this->paths))->load()['widgets'];
 
         foreach (array_slice($blocks, 0, 30) as $block) {
             if (!is_array($block)) {

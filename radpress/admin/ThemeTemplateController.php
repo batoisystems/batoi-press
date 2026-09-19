@@ -124,9 +124,12 @@ final class ThemeTemplateController
             return Response::html($this->layout('Themes', '<p class="bp-error">Theme cannot be activated: ' . $this->e(implode(' ', (array)$validation['errors'])) . '</p><p>' . AdminLayout::buttonLink('Back to themes', '/admin/themes', 'back', true) . '</p>'), 400);
         }
 
-        $site = $this->config->site();
+        $store = new \Batoi\Press\Content\WebsiteDocumentStore($this->config->paths(), $this->files);
+        $site = $store->read('site');
+        $revision = \Batoi\Press\Application\ContentRevision::for($site);
         $site['theme'] = $theme;
-        $this->files->writeJson($this->config->paths()->configPath('site.json'), $site);
+        try { $store->commit('site', $site, $revision); }
+        catch (\Batoi\Press\Content\MenuConflictException $exception) { return Response::html($this->layout('Themes', '<p class="bp-error">Settings changed during activation. Reload and try again.</p>'), 409); }
         $this->audit->record((string)($this->user['username'] ?? 'admin'), 'theme.activated', $theme, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
 
         return Response::redirect('/admin/themes');

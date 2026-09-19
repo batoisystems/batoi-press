@@ -30,9 +30,13 @@ try {
     $csrf = new \Batoi\Press\Security\Csrf(new \Batoi\Press\Security\Session('press_portability_test',$config->paths()->dataPath('sessions')));
     $settings = new \Batoi\Press\Admin\SettingsController($config,$files,$csrf,new \Batoi\Press\Core\AuditLog($config->paths(),$files),['username'=>'owner','role'=>'owner']);
     $input = ['csrf_token'=>$csrf->token(),'name'=>'Test','timezone'=>'UTC','mail_provider'=>'mailgun','mailgun_domain'=>'example.com','mailgun_api_key'=>'fake-mail-key','recaptcha_site_key'=>'fake-site-key','recaptcha_secret_key'=>'fake-secret-key','show_theme_toggle'=>'1','posts_load_more'=>'1','palette_dark_body_bg'=>'#123456','footer_top_columns'=>'3'];
+    $input['expected_revision'] = \Batoi\Press\Application\ContentRevision::for($config->site());
     $saved = $settings->save(new \Batoi\Press\Core\Request('POST','/admin/settings/save',[],$input,[]));
     if ($saved->status() !== 302) throw new RuntimeException('Settings failed to save synthetic keys.');
     $reloaded = \Batoi\Press\Core\Config::load($root);
+    $freshSettings = new \Batoi\Press\Admin\SettingsController($reloaded,$files,$csrf,new \Batoi\Press\Core\AuditLog($reloaded->paths(),$files),['username'=>'owner','role'=>'owner']);
+    $stale = $freshSettings->save(new \Batoi\Press\Core\Request('POST','/admin/settings/save',[],$input,[]));
+    if ($stale->status() !== 409) throw new RuntimeException('Stale settings form overwrote a newer site revision.');
     if ($store->decrypt($reloaded->integrations()['mailgun_api_key']) !== 'fake-mail-key' || $store->decrypt($reloaded->integrations()['recaptcha_secret_key']) !== 'fake-secret-key') throw new RuntimeException('Settings did not persist encrypted keys.');
     if (!$reloaded->site()['show_theme_toggle'] || !$reloaded->site()['posts_load_more'] || $reloaded->site()['palette_dark']['body_bg'] !== '#123456' || $reloaded->site()['footer_top_columns'] !== 3) throw new RuntimeException('Appearance settings did not persist.');
     $updates = new \Batoi\Press\Admin\UpdateController($config, $csrf, new \Batoi\Press\Core\AuditLog($config->paths(), $files), ['username'=>'owner','role'=>'owner']);

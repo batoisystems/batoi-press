@@ -18,21 +18,104 @@ final class MenuRepository
 
     public function __construct(
         private readonly Paths $paths,
-        private readonly FileStore $files
+        private readonly FileStore $files,
+        private readonly ?\Closure $checkpoint = null
     ) {
     }
 
     public function load(string $name = 'main'): array
     {
-        $path = $this->path($name);
-        if (!is_file($path)) {
-            return $this->emptyDocument($name);
-        }
-
-        return $this->normalizeLoaded($this->files->readJson($path), $name);
+        return $this->withLock($name, function () use ($name): array {
+            $this->recoverOperation($name);
+            $path = $this->path($name);
+            return is_file($path) ? $this->normalizeLoaded($this->files->readJson($path), $name) : $this->emptyDocument($name);
+        });
     }
 
-    public function save(array $document, string $actor, ?int $expectedRevision = null, string $name = 'main'): array
+    /** Validate a proposed menu without changing the live document or writing a snapshot. */
+    public function prepareSave(array $document, string $actor, int $expectedRevision, string $name = 'main'): array
+    {
+        $current = $this->load($name);
+        if ($expectedRevision !== (int)$current['revision']) {
+            throw new MenuConflictException('This menu changed after the editor was opened. Reload it before saving again.');
+        }
+        return $this->normalizeForSave($document, $current, $actor, $name, $expectedRevision + 1);
+    }
+
+    public function save(array $document, string $actor, ?int $expectedRevision = null, string $name = 'main', ?string $operationId = null, ?string $expectedHash = null): array
+    {
+        return $this->withLock($name, function () use ($document, $actor, $expectedRevision, $name, $operationId, $expectedHash): array {
+            $this->recoverOperation($name);
+            $path = $this->path($name);
+            $currentRaw = is_file($path) ? $this->files->readJson($path) : [];
+            $current = $this->normalizeLoaded($currentRaw, $name);
+            $currentRevision = (int)($current['revision'] ?? 0);
+            if (($expectedRevision !== null && $expectedRevision !== $currentRevision)
+                || ($expectedHash !== null && !hash_equals($expectedHash, \Batoi\Press\Application\ContentRevision::for($current)))) {
+                throw new MenuConflictException('This menu changed after the editor was opened. Reload it before saving again.');
+            }
+            if ($operationId !== null && is_file($this->receiptPath($operationId))) throw new MenuConflictException('This menu operation already has a receipt.');
+            $normalized = $this->normalizeForSave($document, $current, $actor, $name, $currentRevision + 1);
+            if ($currentRaw !== []) $this->snapshot($name, $currentRaw, $currentRevision);
+            if ($operationId !== null) {
+                $journal = ['state' => 'pending', 'id' => $operationId, 'key' => $name,
+                    'before_hash' => \Batoi\Press\Application\ContentRevision::for($currentRaw),
+                    'after_hash' => \Batoi\Press\Application\ContentRevision::for($normalized),
+                    'result' => ['id' => $normalized['id'], 'type' => 'menu', 'key' => $name, 'revision' => $normalized['revision']]];
+                $this->files->writeJson($this->journalPath($name), $journal);
+                @chmod($this->journalPath($name), 0600);
+                if ($this->checkpoint !== null) ($this->checkpoint)('journal');
+            }
+            $this->atomicWrite($path, $normalized);
+            if ($operationId !== null && $this->checkpoint !== null) ($this->checkpoint)('written');
+            if ($operationId !== null) $this->recoverOperation($name);
+            return $normalized;
+        });
+    }
+
+    public function operationReceipt(string $name, string $id): ?array
+    {
+        return $this->withLock($name, function () use ($name, $id): array {
+            $this->recoverOperation($name);
+            $path = $this->receiptPath($id);
+            $receipt = is_file($path) ? $this->files->readJson($path) : [];
+            if ($receipt !== [] && ($receipt['key'] ?? '') !== $name) throw new RuntimeException('Menu receipt target mismatch.');
+            return $receipt;
+        }) ?: null;
+    }
+
+    private function recoverOperation(string $name): void
+    {
+        $journalPath = $this->journalPath($name);
+        if (!is_file($journalPath)) return;
+        $journal = $this->files->readJson($journalPath);
+        if (($journal['state'] ?? '') !== 'pending') return;
+        if (($journal['key'] ?? '') !== $name || !is_string($journal['before_hash'] ?? null) || !is_string($journal['after_hash'] ?? null)) throw new RuntimeException('Invalid menu recovery journal.');
+        $path = $this->path($name);
+        $current = is_file($path) ? $this->files->readJson($path) : [];
+        $hash = \Batoi\Press\Application\ContentRevision::for($current);
+        if (hash_equals($journal['after_hash'], $hash)) $journal['state'] = 'committed';
+        elseif (hash_equals($journal['before_hash'], $hash)) $journal['state'] = 'not_applied';
+        else throw new RuntimeException('Menu recovery requires operator review: unexpected external changes.');
+        $receiptPath = $this->receiptPath($journal['id']);
+        $this->files->writeJson($receiptPath, $journal);
+        @chmod($receiptPath, 0600);
+        $this->files->writeJson($journalPath, $journal);
+    }
+
+    private function journalPath(string $name): string
+    {
+        $this->path($name);
+        return $this->paths->dataPath('integrations/menu-transactions/' . $name . '.json');
+    }
+
+    private function receiptPath(string $id): string
+    {
+        if (!preg_match('/^proposal_[a-f0-9]{32}$/D', $id)) throw new RuntimeException('Invalid menu operation ID.');
+        return $this->paths->dataPath('integrations/menu-transactions/receipts/' . $id . '.json');
+    }
+
+    private function withLock(string $name, callable $callback): array
     {
         $path = $this->path($name);
         $directory = dirname($path);
@@ -49,19 +132,7 @@ final class MenuRepository
         }
 
         try {
-            $currentRaw = is_file($path) ? $this->files->readJson($path) : [];
-            $current = $this->normalizeLoaded($currentRaw, $name);
-            $currentRevision = (int)($current['revision'] ?? 0);
-            if ($expectedRevision !== null && $expectedRevision !== $currentRevision) {
-                throw new MenuConflictException('This menu changed after the editor was opened. Reload it before saving again.');
-            }
-
-            $normalized = $this->normalizeForSave($document, $current, $actor, $name, $currentRevision + 1);
-            if ($currentRaw !== []) {
-                $this->snapshot($name, $currentRaw, $currentRevision);
-            }
-            $this->atomicWrite($path, $normalized);
-            return $normalized;
+            return $callback();
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);

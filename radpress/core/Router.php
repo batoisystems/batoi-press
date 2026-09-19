@@ -303,6 +303,7 @@ final class Router
         if ($request->path === '/admin/media/update-text' && $request->method === 'POST') {
             return (new MediaController($this->config, $csrf, $audit, $user))->updateText($request);
         }
+        if ($request->path === '/admin/media/update-metadata' && $request->method === 'POST') return (new MediaController($this->config, $csrf, $audit, $user))->updateMetadata($request);
 
         if ($request->path === '/admin/media/replace' && $request->method === 'POST') {
             return (new MediaController($this->config, $csrf, $audit, $user))->replace($request);
@@ -403,12 +404,30 @@ final class Router
             return (new ConnectionController($this->config, new AccessTokenRepository($this->config->paths(), $files), $csrf, $audit, $user))->index();
         }
 
+        if ($request->path === '/admin/proposals' || str_starts_with($request->path, '/admin/proposals/')) {
+            $mutations = new \Batoi\Press\Application\ContentMutationService($this->config, $this->pages, $this->posts, $audit, new \Batoi\Press\Application\IdempotencyStore($this->config->paths()));
+            $controller = new \Batoi\Press\Admin\ProposalController($this->config, $mutations, $csrf, $user);
+            if ($request->path === '/admin/proposals' && $request->method === 'GET') return $controller->index();
+            if ($request->method === 'GET' && preg_match('#^/admin/proposals/(proposal_[a-f0-9]{32})/media-preview$#D', $request->path, $match)) return $controller->mediaPreview($match[1]);
+            if (preg_match('#^/admin/proposals/(proposal_[a-f0-9]{32})(/review)?$#D', $request->path, $match)) {
+                if ($request->method === 'GET' && empty($match[2])) return $controller->show($match[1]);
+                if ($request->method === 'POST' && ($match[2] ?? '') === '/review') return $controller->review($match[1], $request);
+            }
+            return Response::html('<p>Proposal route not found.</p>', 404);
+        }
+
         if ($request->path === '/admin/connections/issue' && $request->method === 'POST') {
             return (new ConnectionController($this->config, new AccessTokenRepository($this->config->paths(), $files), $csrf, $audit, $user))->issue($request);
         }
 
         if ($request->path === '/admin/connections/revoke' && $request->method === 'POST') {
             return (new ConnectionController($this->config, new AccessTokenRepository($this->config->paths(), $files), $csrf, $audit, $user))->revoke($request);
+        }
+        if ($request->path === '/admin/connections/rotate' && $request->method === 'POST') {
+            return (new ConnectionController($this->config, new AccessTokenRepository($this->config->paths(), $files), $csrf, $audit, $user))->rotate($request);
+        }
+        if (in_array($request->path, ['/admin/connections/oauth/link', '/admin/connections/oauth/revoke'], true) && $request->method === 'POST') {
+            return (new ConnectionController($this->config, new AccessTokenRepository($this->config->paths(), $files), $csrf, $audit, $user))->oauthChange($request, str_ends_with($request->path, '/revoke'));
         }
 
         if ($request->path === '/admin/users/new') {
@@ -520,16 +539,7 @@ final class Router
 
     private function sidebarWidgets(): array
     {
-        $path = $this->config->paths()->contentPath('widgets/sidebar.json');
-        $widgets = is_file($path) ? ((new FileStore())->readJson($path)['widgets'] ?? []) : [];
-        $widgets = is_array($widgets) ? array_values($widgets) : [];
-        foreach ($widgets as $widget) {
-            if (($widget['type'] ?? '') === 'recent_posts') {
-                return $widgets;
-            }
-        }
-        array_unshift($widgets, ['type' => 'recent_posts', 'title' => 'Recent posts']);
-        return $widgets;
+        return (new \Batoi\Press\Content\WidgetRepository($this->config->paths()))->load()['widgets'];
     }
 
     private function postUrls(array $posts): array
@@ -556,17 +566,12 @@ final class Router
 
     private function media(string $name): Response
     {
-        $name = basename($name);
-        if ($name === '' || str_contains($name, '..')) {
+        $asset = (new AssetManager($this->config->paths()))->find('media', $name);
+        if ($asset === null) {
             return $this->notFound();
         }
 
-        $file = $this->config->paths()->contentPath('media/' . $name);
-        if (!is_file($file)) {
-            return $this->notFound();
-        }
-
-        return $this->assetResponse($file, false);
+        return $this->assetResponse($asset['path'], false);
     }
 
     private function asset(string $relative): Response

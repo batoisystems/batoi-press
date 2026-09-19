@@ -2969,6 +2969,10 @@ p {
     resize: vertical;
 }
 
+.bp-media-metadata textarea {
+    min-height: 4.5rem;
+}
+
 .bp-form button,
 .bp-inline-form button {
     align-items: center;

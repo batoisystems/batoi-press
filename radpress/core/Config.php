@@ -17,7 +17,7 @@ final class Config
         private readonly Paths $paths,
         private readonly FileStore $files
     ) {
-        $this->site = $this->readOptionalJson('site.json', []);
+        $this->site = (new \Batoi\Press\Content\WebsiteDocumentStore($this->paths, $this->files))->read('site');
         $this->routes = $this->readOptionalJson('routes.json', []);
         $this->security = $this->readOptionalJson('security.json', []);
         $this->update = $this->readOptionalJson('update.json', []);

@@ -57,6 +57,9 @@ final class AssetManager
     {
         $relative = self::validateRelativePath($relative);
         $target = $this->paths->contentPath('assets/' . $relative);
+        if (!$this->unlinkedPath('assets', $relative)) {
+            throw new RuntimeException('Linked asset storage is not supported.');
+        }
         $directory = dirname($target);
         if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
             throw new RuntimeException('Unable to prepare asset storage.');
@@ -82,7 +85,7 @@ final class AssetManager
 
         $legacyRoot = $this->paths->contentPath('media');
         foreach (glob($legacyRoot . '/*') ?: [] as $file) {
-            if (is_file($file) && basename($file) !== '.gitkeep') {
+            if (is_file($file) && $this->unlinkedPath('media', basename($file)) && !str_starts_with(basename($file), '.')) {
                 $records[] = $this->record('media', basename($file), $file);
             }
         }
@@ -101,7 +104,7 @@ final class AssetManager
 
         $root = $this->paths->contentPath('assets');
         $file = $root . '/' . $relative;
-        if (!is_file($file)) {
+        if (!$this->unlinkedPath('assets', $relative) || !is_file($file)) {
             return null;
         }
 
@@ -176,12 +179,18 @@ final class AssetManager
 
     public function delete(string $storage, string $relative): bool
     {
+        return $this->withMutationLock(fn (): bool => $this->deleteUnlocked($storage, $relative));
+    }
+
+    private function deleteUnlocked(string $storage, string $relative): bool
+    {
         if ($storage === 'media') {
             $name = basename($relative);
             if ($name === '' || $name !== $relative || str_contains($name, '..')) {
                 return false;
             }
-            $file = $this->paths->contentPath('media/' . $name);
+            $file = $this->resolveStoredFile('media', $name);
+            if ($file === null) return false;
         } elseif ($storage === 'assets') {
             $file = $this->resolveAsset($relative);
             if ($file === null || str_starts_with(self::validateRelativePath($relative), 'libraries/')) {
@@ -198,7 +207,7 @@ final class AssetManager
     {
         if ($storage === 'media') {
             $name = basename($relative);
-            if ($name === '' || $name !== $relative || str_contains($name, '..')) {
+            if ($name === '' || $name !== $relative || str_contains($name, '..') || str_starts_with($name, '.') || !$this->unlinkedPath('media', $name)) {
                 return null;
             }
             $file = $this->paths->contentPath('media/' . $name);
@@ -224,6 +233,11 @@ final class AssetManager
     }
 
     private function publishReplacement(string $storage, string $relative, string $target, string $stage): void
+    {
+        $this->withMutationLock(fn () => $this->publishReplacementUnlocked($storage, $relative, $target, $stage));
+    }
+
+    private function publishReplacementUnlocked(string $storage, string $relative, string $target, string $stage): void
     {
         $previous = dirname($target) . '/.bp-previous-' . bin2hex(random_bytes(6));
         try {
@@ -339,7 +353,7 @@ final class AssetManager
         }
         $segments = explode('/', $relative);
         foreach ($segments as $segment) {
-            if ($segment === '' || $segment === '.' || $segment === '..') {
+            if ($segment === '' || str_starts_with($segment, '.')) {
                 throw new RuntimeException('Invalid asset path.');
             }
         }
@@ -365,12 +379,12 @@ final class AssetManager
 
     private function recursiveFiles(string $directory): array
     {
-        if (!is_dir($directory)) {
+        if (is_link($directory) || !is_dir($directory)) {
             return [];
         }
         $files = [];
         foreach (scandir($directory) ?: [] as $name) {
-            if ($name === '.' || $name === '..') {
+            if (str_starts_with($name, '.')) {
                 continue;
             }
             $path = $directory . '/' . $name;
@@ -384,5 +398,35 @@ final class AssetManager
             }
         }
         return $files;
+    }
+
+    /** Never follow asset-root, intermediate-directory or leaf symlinks. */
+    private function unlinkedPath(string $storage, string $relative): bool
+    {
+        $path = $this->paths->contentPath($storage);
+        if (is_link($path)) return false;
+        foreach (explode('/', $relative) as $segment) {
+            $path .= '/' . $segment;
+            if (is_link($path)) return false;
+        }
+        return true;
+    }
+
+    /** Shared by browser replacement/deletion and governed media transactions. */
+    public function withMutationLock(callable $callback): mixed
+    {
+        $directory = $this->paths->dataPath('locks');
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) throw new RuntimeException('Unable to prepare asset locking.');
+        $path = $directory . '/assets.lock';
+        if (is_link($directory) || is_link($path)) throw new RuntimeException('Linked asset locks are not supported.');
+        $lock = fopen($path, 'c+');
+        if ($lock === false || !flock($lock, LOCK_EX)) {
+            if (is_resource($lock)) fclose($lock);
+            throw new RuntimeException('Unable to lock assets.');
+        }
+        try {
+            (new \Batoi\Press\Content\MediaRepository($this->paths))->recoverLocked();
+            return $callback();
+        } finally { flock($lock, LOCK_UN); fclose($lock); }
     }
 }

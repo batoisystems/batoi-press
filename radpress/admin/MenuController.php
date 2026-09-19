@@ -115,9 +115,12 @@ final class MenuController
         $pages = $this->pages();
         $page = $homepage !== '' ? $pages->findBySlug($homepage) : null;
         if ($page !== null && ($page['status'] ?? '') === 'published') {
-            $site = $this->config->site();
+            $store = new \Batoi\Press\Content\WebsiteDocumentStore($this->config->paths(), $this->files);
+            $site = $store->read('site');
+            $revision = \Batoi\Press\Application\ContentRevision::for($site);
             $site['homepage'] = $homepage;
-            $this->files->writeJson($this->config->paths()->configPath('site.json'), $site);
+            try { $store->commit('site', $site, $revision); }
+            catch (MenuConflictException $exception) { return Response::html($this->layout('Menus', '<p class="bp-error">Navigation was saved, but concurrent settings changes prevented updating the homepage. Reload before changing the homepage again.</p>'), 409); }
         }
         $this->audit->record(
             (string)($this->user['username'] ?? 'admin'),

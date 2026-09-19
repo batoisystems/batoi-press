@@ -35,10 +35,15 @@ final class AccessTokenRepository
         string $name,
         array $scopes,
         string $issuedBy,
-        ?DateTimeInterface $expiresAt = null
+        ?DateTimeInterface $expiresAt = null,
+        ?string $principal = null
     ): array {
         $name = trim($name);
         $issuedBy = trim($issuedBy);
+        $principal = $principal === null ? $issuedBy : trim($principal);
+        if ($principal === '' || strlen($principal) > 120) {
+            throw new InvalidArgumentException('A local connection principal is required.');
+        }
         if ($name === '' || strlen($name) > 80) {
             throw new InvalidArgumentException('Access token name must contain between 1 and 80 bytes.');
         }
@@ -69,10 +74,20 @@ final class AccessTokenRepository
             'secret_hash' => $secretHash,
             'scopes' => $normalizedScopes,
             'issued_by' => $issuedBy,
+            'principal_username' => $principal,
             'created_at' => $now->format(DATE_ATOM),
             'expires_at' => $expiresAt?->format(DATE_ATOM),
             'revoked_at' => null,
         ];
+        $usersPath = $this->paths->configPath('users.json');
+        if (is_file($usersPath)) {
+            foreach ((array)($this->files->readJson($usersPath)['users'] ?? []) as $user) {
+                if (is_array($user) && ($user['username'] ?? null) === $principal) {
+                    $record['principal_created_at'] = (string)($user['created_at'] ?? '');
+                    break;
+                }
+            }
+        }
 
         $this->mutate(function (array $data) use ($record): array {
             $data['tokens'][] = $record;
@@ -115,6 +130,42 @@ final class AccessTokenRepository
         $records = array_map(fn (array $record): array => $this->publicRecord($record), $this->read()['tokens']);
         usort($records, static fn (array $a, array $b): int => strcmp((string)$b['created_at'], (string)$a['created_at']));
         return $records;
+    }
+
+    /** Replace the secret atomically; scopes, expiry and principal are unchanged. */
+    public function rotate(string $id): ?array
+    {
+        $issued = null;
+        $this->mutate(function (array $data) use ($id, &$issued): array {
+            foreach ($data['tokens'] as &$record) {
+                if (($record['id'] ?? '') !== $id || !$this->active($record)) continue;
+                $secret = $this->base64Url(random_bytes(32));
+                $record['secret_hash'] = password_hash($secret, PASSWORD_DEFAULT);
+                $record['rotated_at'] = date(DATE_ATOM);
+                $issued = ['token' => 'bp2_' . $id . '_' . $secret, 'access' => $this->publicRecord($record)];
+                break;
+            }
+            unset($record);
+            return $data;
+        });
+        return $issued;
+    }
+
+    /** Called only after credential and policy authorization; throttle metadata writes. */
+    public function markUsed(string $id): void
+    {
+        $record = $this->find($id);
+        if ($record === null || time() - (int)strtotime((string)($record['last_used_at'] ?? '')) < 60) return;
+        $this->mutate(function (array $data) use ($id): array {
+            foreach ($data['tokens'] as &$record) {
+                if (($record['id'] ?? '') === $id && $this->active($record)) {
+                    $record['last_used_at'] = date(DATE_ATOM);
+                    break;
+                }
+            }
+            unset($record);
+            return $data;
+        });
     }
 
     public function revoke(string $id, ?DateTimeInterface $revokedAt = null): bool
@@ -191,9 +242,14 @@ final class AccessTokenRepository
             'name' => (string)($record['name'] ?? ''),
             'scopes' => array_values(is_array($record['scopes'] ?? null) ? $record['scopes'] : []),
             'issued_by' => (string)($record['issued_by'] ?? ''),
+            'principal_username' => (string)($record['principal_username'] ?? $record['issued_by'] ?? ''),
+            'principal_created_at' => $record['principal_created_at'] ?? null,
+            'legacy_identity' => !isset($record['principal_username'], $record['principal_created_at']),
             'created_at' => (string)($record['created_at'] ?? ''),
             'expires_at' => isset($record['expires_at']) ? (string)$record['expires_at'] : null,
             'revoked_at' => isset($record['revoked_at']) ? (string)$record['revoked_at'] : null,
+            'rotated_at' => $record['rotated_at'] ?? null,
+            'last_used_at' => $record['last_used_at'] ?? null,
             'active' => $this->active($record),
         ];
     }

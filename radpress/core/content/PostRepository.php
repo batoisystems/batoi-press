@@ -50,6 +50,11 @@ final class PostRepository
 
     public function all(): array
     {
+        return (new ContentTransaction($this->paths, $this->files))->read('post', fn (): array => $this->loadAll());
+    }
+
+    private function loadAll(): array
+    {
         $base = $this->paths->contentPath('posts');
         if (!is_dir($base)) {
             return [];
@@ -73,6 +78,13 @@ final class PostRepository
     }
 
     public function save(array $input, string $actor): array
+    {
+        $prepared = $this->prepareSave($input, $actor);
+        return (new ContentTransaction($this->paths, $this->files))->commit('post', $prepared);
+    }
+
+    /** Validate and normalize without changing content or snapshots. */
+    public function prepareSave(array $input, string $actor): array
     {
         $requestedSlug = trim((string)($input['slug'] ?? ''));
         $slug = Slug::normalize($requestedSlug !== '' ? $requestedSlug : (string)($input['title'] ?? ''));
@@ -143,15 +155,7 @@ final class PostRepository
             'seo_description' => trim((string)($input['seo_description'] ?? '')),
         ];
 
-        $dir = $this->targetDir($originalSlug, $slug);
-        $this->snapshot($dir, $slug);
-        $this->files->writeJson($dir . '/meta.json', $meta);
-        $this->files->write($dir . '/body.html', $this->html->sanitize((string)($input['body'] ?? '')));
-        if ($originalSlug !== '' && $originalSlug !== $slug) {
-            $this->updateChildParentReferences($originalSlug, $slug, $now);
-        }
-
-        return $meta;
+        return ['meta' => $meta, 'body' => $this->html->sanitize((string)($input['body'] ?? '')), 'original_slug' => $originalSlug, 'base_revision' => $existing === null ? null : \Batoi\Press\Application\ContentRevision::for($existing)];
     }
 
     public function publicPath(array|string $post): string

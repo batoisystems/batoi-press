@@ -1,5 +1,5 @@
 {
-  "current_version": "2.3.1",
+  "current_version": "3.0.0",
   "channel": "stable",
   "stable_manifest_url": "https://www.batoi.com/pub/press/latest.json",
   "require_signed_packages": true,

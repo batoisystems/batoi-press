@@ -7,6 +7,58 @@ use DateTimeImmutable;
 
 final class WidgetRenderer
 {
+    public const TYPES = ['html' => 'Custom HTML', 'recent_posts' => 'Recent Posts', 'tag_cloud' => 'Tag Cloud', 'image_gallery' => 'Image Gallery', 'activity_calendar' => 'Activity Calendar', 'subscribe' => 'Subscribe'];
+    public const TARGETS = ['all_sidebars', 'left_sidebar', 'right_sidebar'];
+
+    /** Shared editor/machine normalization; strict mode rejects rather than discards unsupported input. */
+    public static function normalizeList(array $rows, bool $strict = false): array
+    {
+        if ($strict && (!array_is_list($rows) || count($rows) > 50)) throw new \RuntimeException('Supply at most 50 ordered widgets.');
+        $widgets = [];
+        $html = new HtmlContent();
+        foreach ($rows as $row) {
+            if (!is_array($row)) throw new \RuntimeException('Each widget must be an object.');
+            if ($strict) {
+                $bounds = ['type' => 30, 'target' => 30, 'title' => 200, 'body' => 60000, 'gallery_images' => 8000, 'subscribe_url' => 2048];
+                foreach ($row as $field => $value) {
+                    if (!isset($bounds[$field]) || !is_string($value) || strlen($value) > $bounds[$field]) throw new \RuntimeException('Invalid widget field.');
+                }
+                if (!isset(self::TYPES[$row['type'] ?? '']) || !in_array($row['target'] ?? 'all_sidebars', self::TARGETS, true)) throw new \RuntimeException('Unsupported widget type or target.');
+            }
+            $type = isset(self::TYPES[(string)($row['type'] ?? '')]) ? (string)$row['type'] : 'html';
+            $target = in_array($row['target'] ?? '', self::TARGETS, true) ? (string)$row['target'] : 'all_sidebars';
+            $title = trim((string)($row['title'] ?? ''));
+            if ($type === 'recent_posts') {
+                if (!array_filter($widgets, static fn (array $widget): bool => $widget['type'] === 'recent_posts')) $widgets[] = ['type' => $type, 'title' => $title ?: 'Recent posts', 'target' => $target];
+                elseif ($strict) throw new \RuntimeException('Only one Recent Posts widget is supported.');
+                continue;
+            }
+            $body = $html->sanitize((string)($row['body'] ?? ''));
+            $gallery = substr(trim((string)($row['gallery_images'] ?? '')), 0, 8000);
+            $subscribe = trim((string)($row['subscribe_url'] ?? ''));
+            if ($subscribe !== '' && (!self::safeUrl($subscribe) || !str_starts_with(strtolower($subscribe), 'https://'))) throw new \RuntimeException('Newsletter signup URLs must be valid HTTPS URLs.');
+            if ($strict) {
+                $urls = $subscribe === '' ? [] : [$subscribe];
+                if ($gallery !== '') {
+                    $lines = explode("\n", $gallery);
+                    if (count($lines) > 24) throw new \RuntimeException('A gallery supports at most 24 images.');
+                    foreach ($lines as $line) $urls[] = trim(explode('|', $line, 2)[0]);
+                }
+                foreach ($urls as $url) {
+                    $parts = parse_url($url);
+                    if (!self::safeUrl($url) || $parts === false || isset($parts['user']) || isset($parts['pass']) || preg_match('/[\x00-\x20\x7f\\\\]/', rawurldecode($url)) || str_starts_with(rawurldecode($url), '//')) throw new \RuntimeException('Widget links must be safe internal or HTTPS URLs without credentials.');
+                }
+            }
+            $needsBody = in_array($type, ['html', 'image_gallery', 'subscribe'], true);
+            if (($type === 'image_gallery' && self::galleryImages($gallery) !== []) || ($type === 'subscribe' && $subscribe !== '')) $needsBody = false;
+            if ($title !== '' && (!$needsBody || $body !== '')) $widgets[] = ['type' => $type, 'title' => $title, 'body' => $body, 'target' => $target, 'gallery_images' => $gallery, 'subscribe_url' => $subscribe];
+            elseif ($strict) throw new \RuntimeException('Each widget needs a title and any content required by its type.');
+        }
+        if (!array_filter($widgets, static fn (array $widget): bool => $widget['type'] === 'recent_posts')) array_unshift($widgets, ['type' => 'recent_posts', 'title' => 'Recent posts', 'target' => 'all_sidebars']);
+        if ($strict && count($widgets) > 50) throw new \RuntimeException('The widget limit includes the required Recent Posts widget.');
+        return $widgets;
+    }
+
     public static function galleryImages(string $source): array
     {
         $images = [];

@@ -36,10 +36,12 @@ try {
     ]]];
 
     $files = new FileStore();
+    $files->writeJson($root . '/radpress/config/users.json', ['users' => [['username' => 'owner', 'role' => 'owner']]]);
     $files->writeJson($root . '/radpress/config/paths.json', ['config' => 'radpress/config', 'content' => 'radpress/content', 'data' => 'radpress/data']);
     $files->writeJson($root . '/radpress/config/site.json', ['name' => 'OAuth Test', 'base_url' => 'https://press.example.test']);
     $files->writeJson($root . '/radpress/config/security.json', ['oauth' => [
         'enabled' => true,
+        'bindings' => [['issuer' => 'https://identity.example.test', 'subject' => 'owner@example.test', 'client_id' => 'client-fixture', 'username' => 'owner', 'enabled' => true, 'scopes' => ['site:read', 'content:read']]],
         'issuer' => 'https://identity.example.test',
         'resource' => 'https://press.example.test/mcp',
         'authorization_servers' => ['https://identity.example.test'],
@@ -51,6 +53,7 @@ try {
     $claims = [
         'iss' => 'https://identity.example.test',
         'sub' => 'owner@example.test',
+        'client_id' => 'client-fixture',
         'aud' => 'https://press.example.test/mcp',
         'iat' => $now,
         'nbf' => $now - 5,
@@ -64,12 +67,28 @@ try {
     assertOAuth(($access['scopes'] ?? []) === ['content:read', 'site:read'], 'OAuth scopes should be allowlisted and normalized');
     assertOAuth(!str_contains(json_encode($access), 'owner@example.test'), 'resolved OAuth access metadata should not expose the raw subject');
 
+    foreach (['sub', 'exp', 'client_id'] as $requiredClaim) {
+        $invalid = $claims;
+        unset($invalid[$requiredClaim]);
+        assertOAuthThrows(static fn () => (new MachineAuthenticator($config))->authorize(
+            new Request('GET', '/api/v2/site', [], [], ['REMOTE_ADDR' => '127.0.0.7', 'HTTP_AUTHORIZATION' => 'Bearer ' . JWT::encode($invalid, $privateKey, 'RS256', 'oauth-test-key')]),
+            ['site:read']
+        ), 'OAuth tokens require a subject and expiry');
+    }
+
     $wrongAudience = $claims;
     $wrongAudience['aud'] = 'https://another.example.test/mcp';
     assertOAuthThrows(static fn () => (new MachineAuthenticator($config))->authorize(
         new Request('GET', '/api/v2/site', [], [], ['REMOTE_ADDR' => '127.0.0.2', 'HTTP_AUTHORIZATION' => 'Bearer ' . JWT::encode($wrongAudience, $privateKey, 'RS256', 'oauth-test-key')]),
         ['site:read']
     ), 'OAuth tokens for another resource should fail closed');
+    foreach (['iss', 'aud'] as $exactClaim) {
+        $notExact = $claims;
+        $notExact[$exactClaim] .= '/';
+        assertOAuthThrows(static fn () => (new MachineAuthenticator($config))->authorize(
+            new Request('GET', '/api/v2/site', [], [], ['REMOTE_ADDR' => '127.0.0.8', 'HTTP_AUTHORIZATION' => 'Bearer ' . JWT::encode($notExact, $privateKey, 'RS256', 'oauth-test-key')]), ['site:read']
+        ), 'Issuer and audience must match exactly, including trailing slash');
+    }
 
     $missingTokenException = null;
     try {

@@ -15,7 +15,7 @@ final class MachineAuthenticator
         $this->tokens = new AccessTokenRepository($config->paths());
     }
 
-    public function authorize(Request $request, array $requiredScopes, bool $validateOrigin = false): array
+    public function authorize(Request $request, array $requiredScopes, bool $validateOrigin = false, array $anyScopes = []): array
     {
         if ($validateOrigin) {
             $this->validateOrigin($request->header('Origin'));
@@ -38,6 +38,9 @@ final class MachineAuthenticator
         if ($access === null) {
             $access = (new OAuthTokenVerifier($this->config->paths(), $this->oauthConfiguration()))->verify($matches[1]);
         }
+        if ($access !== null) {
+            $access = (new MachineAccessPolicy($this->config->paths()))->resolve($access);
+        }
         if ($access === null) {
             $failureLimiter->hit($failureKey);
             throw $this->unauthorized('The bearer access token is invalid, expired, revoked, or intended for another resource.', $requiredScopes);
@@ -52,10 +55,13 @@ final class MachineAuthenticator
         $requestLimiter->hit($requestKey);
 
         $granted = is_array($access['scopes'] ?? null) ? $access['scopes'] : [];
-        if (array_diff($requiredScopes, $granted) !== []) {
+        if (array_diff($requiredScopes, $granted) !== [] || ($anyScopes !== [] && array_intersect($anyScopes, $granted) === [])) {
             throw new MachineAccessException('The access token does not grant the required scope.', 403, 'insufficient_scope', [
-                'WWW-Authenticate' => $this->challenge('insufficient_scope', $requiredScopes),
+                'WWW-Authenticate' => $this->challenge('insufficient_scope', $requiredScopes ?: [$anyScopes[0]]),
             ]);
+        }
+        if (($access['oauth'] ?? false) !== true) {
+            $this->tokens->markUsed((string)$access['id']);
         }
         return $access;
     }

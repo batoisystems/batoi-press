@@ -30,6 +30,7 @@ try {
     $controller = new WidgetController($config, $files, $csrf, new AuditLog($config->paths(), $files), ['username' => 'editor', 'role' => 'editor']);
     $response = $controller->save(new Request('POST', '/admin/widgets/save', [], [
         'csrf_token' => $csrf->token(),
+        'expected_revision' => (new \Batoi\Press\Content\WidgetRepository($config->paths()))->load()['revision'],
         'widget_type' => ['html', 'recent_posts', 'tag_cloud', 'image_gallery', 'html'],
         'widget_target' => ['right_sidebar', 'all_sidebars', 'left_sidebar', 'all_sidebars', 'all_sidebars'],
         'widget_title' => ['Second', 'Recent posts', 'Topics', 'Gallery', 'Unused'],
@@ -44,6 +45,9 @@ try {
     assertWidgets(($saved[2]['type'] ?? '') === 'tag_cloud' && ($saved[3]['type'] ?? '') === 'image_gallery', 'additional built-in widget types should persist');
     assertWidgets(str_contains($controller->edit()->content(), 'Second body'), 'saved widgets should load back into the editor');
     assertWidgets(str_contains($controller->edit()->content(), 'Built-in widget'), 'recent posts should load as a visible sortable row');
+    assertWidgets(str_contains($controller->edit()->content(), 'name="expected_revision"'), 'widget forms carry a revision precondition');
+    $stale = $controller->save(new Request('POST', '/admin/widgets/save', [], ['csrf_token' => $csrf->token(), 'expected_revision' => \Batoi\Press\Application\ContentRevision::for([]), 'widget_type' => ['tag_cloud'], 'widget_title' => ['Stale edit']], []));
+    assertWidgets($stale->status() === 409 && $files->readJson($config->paths()->contentPath('widgets/sidebar.json'))['widgets'] === $saved, 'stale browser widget forms cannot overwrite newer content');
     $posts = new \Batoi\Press\Content\PostRepository($config->paths(), $files, new \Batoi\Press\Core\HtmlContent());
     $posts->save(['title'=>'Widget article','slug'=>'widget-article','status'=>'published','tags'=>'Testing','body'=>'Article'], 'owner');
     $renderer = new \Batoi\Press\Core\PageBlockRenderer($config->paths(), $posts, new \Batoi\Press\Content\ProductRepository($config->paths(), $files, new \Batoi\Press\Core\HtmlContent()));
@@ -56,6 +60,22 @@ try {
     assertWidgets(str_contains($calendar, '<caption>' . date('F Y')) && substr_count($calendar, '<th scope=') === 7 && str_contains($calendar,'Today &lt;event&gt;'), 'calendar should render a real month grid with escaped dated post links');
     $signup = \Batoi\Press\Core\WidgetRenderer::render(['type'=>'subscribe','subscribe_url'=>'https://example.org/subscribe'], [], []);
     assertWidgets(str_contains($signup,'Subscribe to newsletter') && !str_contains($signup,'<form'), 'newsletter widget must link to configured signup without collecting personal data');
+    $strict = \Batoi\Press\Core\WidgetRenderer::normalizeList([['type' => 'html', 'title' => 'Safe preview', 'body' => '<p>Body</p><script>alert(1)</script>']], true);
+    assertWidgets($strict[0]['type'] === 'recent_posts' && $strict[1]['body'] === '<p>Body</p>', 'machine preparation shares sanitization and the existing required Recent Posts behavior');
+    foreach ([
+        [['type' => 'html', 'title' => 'Bad', 'body' => 'Body', 'custom_js' => 'alert(1)']],
+        [['type' => 'html', 'title' => ['invalid'], 'body' => 'Body']],
+        [['type' => 'unknown', 'title' => 'Bad']],
+        [['type' => 'image_gallery', 'title' => 'Bad', 'gallery_images' => 'javascript:alert(1) | Bad']],
+        [['type' => 'image_gallery', 'title' => 'Bad', 'gallery_images' => '/%2fevil.example/image.png | Bad']],
+        [['type' => 'subscribe', 'title' => 'Bad', 'subscribe_url' => 'https://user:secret@example.test/signup']],
+        [['type' => 'recent_posts'], ['type' => 'recent_posts']],
+        array_fill(0, 50, ['type' => 'tag_cloud', 'title' => 'Tags']),
+    ] as $invalidWidgets) {
+        try { \Batoi\Press\Core\WidgetRenderer::normalizeList($invalidWidgets, true); throw new LogicException('Invalid widget preparation accepted'); }
+        catch (RuntimeException $exception) { assertWidgets($exception->getMessage() !== '', 'invalid machine widgets produce a validation message'); }
+    }
+    assertWidgets(($files->readJson($config->paths()->contentPath('widgets/sidebar.json'))['widgets'] ?? []) === $saved, 'widget preparation never changes stored sidebar content');
     echo "Widget checks passed\n";
 } finally {
     removeWidgetFixture($root);
