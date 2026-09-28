@@ -142,6 +142,7 @@ final class PageController
                     $input['blocks']
                 ));
             }
+            $sanitizerWarnings = (new HtmlContent())->removedMarkup((string)($input['body'] ?? ''));
             (new ContentMutationService($this->config, $this->pages, $this->posts, $this->audit, new IdempotencyStore($this->config->paths())))->saveFromAdmin(
                 'page',
                 $input,
@@ -152,6 +153,7 @@ final class PageController
         } catch (RuntimeException $exception) {
             return Response::html($this->layout('Pages', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>' . AdminLayout::buttonLink('Back to pages', '/admin/pages', 'back', true) . '</p>'), 409);
         }
+        if (!empty($sanitizerWarnings)) return Response::html($this->layout('Page saved', '<p role="status">Page saved. ' . $this->e(implode(' ', $sanitizerWarnings)) . ' Use Media performance settings for hero preloading.</p>' . AdminLayout::buttonLink('Back to pages', '/admin/pages', 'back', true)));
         return Response::redirect('/admin/pages');
     }
 
@@ -197,6 +199,13 @@ final class PageController
             . '<label class="bp-field-wide">Custom CSS <textarea name="custom_css" rows="8" spellcheck="false" placeholder=".page-class { color: #111827; }">' . $this->e((string)($page['custom_css'] ?? '')) . '</textarea><span class="bp-field-help">Loaded only on this page. Enter CSS rules without a &lt;style&gt; wrapper.</span></label>'
             . '<label class="bp-field-wide">Custom JavaScript <textarea name="custom_js" rows="8" spellcheck="false" placeholder="document.addEventListener(\'DOMContentLoaded\', () => { });">' . $this->e((string)($page['custom_js'] ?? '')) . '</textarea><span class="bp-field-help">Loaded only on this page. Enter JavaScript without a &lt;script&gt; wrapper.</span></label>'
             . '</div></details>';
+        $pageAssets .= '<details><summary>Media performance</summary><p>Select the local hero image already used in the page body. Preload applies only to this page.</p>'
+            . $this->input('Hero image URL', 'hero_image', (string)($page['hero_image'] ?? ''), false)
+            . $this->input('Responsive image sizes', 'image_sizes', (string)($page['image_sizes'] ?? '100vw'), false);
+        foreach (['hero_preload' => 'Preload hero image', 'lazy_images' => 'Lazy-load later images (review below-the-fold placement)'] as $field => $label) {
+            $pageAssets .= '<input type="hidden" name="' . $field . '" value="0"><label><input type="checkbox" name="' . $field . '" value="1"' . (!empty($page[$field]) ? ' checked' : '') . '> ' . $label . '</label>';
+        }
+        $pageAssets .= '<label>Hero priority <select name="hero_priority"><option value="auto">Automatic</option><option value="high"' . (($page['hero_priority'] ?? '') === 'high' ? ' selected' : '') . '>High</option></select></label></details>';
         $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($page['title'] ?? ''), true, 'data-bp-slug-source') . $this->input('Slug', 'slug', $slug, true, 'data-bp-slug-target') . $modeSwitch . $editor . $pageAssets . '</div>';
         $publishing = $this->select((string)($page['status'] ?? 'draft')) . $this->workflowFields($page) . $this->parentSelect($requestedParent, $slug) . $this->templateSelect((string)($page['template'] ?? 'page')) . $this->latestPostsFields($page) . $this->workflowHistory($page) . $this->metaList($page);
         $seo = $this->input('SEO Title', 'seo_title', (string)($page['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($page['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short page summary for search snippets and social previews.</span></label>';

@@ -33,6 +33,7 @@ final class Theme
             ob_start();
             require $layoutFile;
             $content = (string)ob_get_clean();
+            $content = (new MediaPerformance($this->paths))->markup($content, (array)($data['page'] ?? []), $localizedAssets);
             if ($localizedAssets && function_exists('bp_localize_markup_urls')) {
                 $content = \bp_localize_markup_urls($content);
             }
@@ -66,6 +67,7 @@ final class Theme
             $head .= '<script async src="https://www.googletagmanager.com/gtag/js?id=' . $encodedId . '"></script><script>' . $analyticsScript . '</script>';
         }
         $page = is_array($data['page'] ?? null) ? $data['page'] : [];
+        $head .= (new MediaPerformance($this->paths))->head($page, $localizedAssets);
         $pageCss = (string)($page['custom_css'] ?? '');
         $pageJs = (string)($page['custom_js'] ?? '');
         if ($pageCss !== '' && preg_match('#</style(?=[\s/>])#i', $pageCss) !== 1) {

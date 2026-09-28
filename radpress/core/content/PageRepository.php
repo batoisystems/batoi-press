@@ -142,6 +142,7 @@ final class PageRepository
             'blocks' => $blocks,
         ];
 
+        $meta += (new \Batoi\Press\Core\MediaPerformance($this->paths))->normalize($input, $existing ?? []);
         $meta += \Batoi\Press\Core\SocialMetadata::normalize($input, $existing ?? []);
         return ['meta' => $meta, 'body' => $body, 'original_slug' => $originalSlug, 'base_revision' => $existing === null ? null : \Batoi\Press\Application\ContentRevision::for($existing)];
     }

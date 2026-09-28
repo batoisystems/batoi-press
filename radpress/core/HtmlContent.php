@@ -5,7 +5,7 @@ namespace Batoi\Press\Core;
 
 final class HtmlContent
 {
-    private const ALLOWED_TAGS = '<main><header><footer><nav><section><article><aside><p><div><span><br><h1><h2><h3><h4><h5><h6><ul><ol><li><strong><b><em><i><del><mark><small><sub><sup><abbr><a><blockquote><code><pre><img><iframe><figure><figcaption><hr><table><thead><tbody><tfoot><tr><th><td><form><fieldset><legend><label><input><button><select><option><textarea>';
+    private const ALLOWED_TAGS = '<main><header><footer><nav><section><article><aside><p><div><span><br><h1><h2><h3><h4><h5><h6><ul><ol><li><strong><b><em><i><del><mark><small><sub><sup><abbr><a><blockquote><code><pre><img><iframe><figure><figcaption><hr><table><thead><tbody><tfoot><tr><th><td><form><fieldset><legend><label><input><button><select><option><textarea><video><audio><source><track>';
     private const TEXT_EDIT_BLOCKED_TAGS = [
         'button',
         'code',
@@ -48,7 +48,47 @@ final class HtmlContent
             return '<iframe src="' . htmlspecialchars($src[2], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" loading="lazy" referrerpolicy="strict-origin-when-cross-origin">';
         }, $html) ?? '';
 
+        $html = preg_replace_callback('/<(video|audio|source|track)\b[^>]*>/i', static function (array $match): string {
+            if (!class_exists(\DOMDocument::class)) return '';
+            $dom = new \DOMDocument();
+            @$dom->loadHTML('<?xml encoding="utf-8" ?>' . $match[0], LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+            $tag = strtolower($match[1]);
+            $node = $dom->getElementsByTagName($tag)->item(0);
+            if (!$node) return '';
+            $attributes = '';
+            foreach (['src', 'poster'] as $name) {
+                $value = $node->getAttribute($name);
+                if ($value !== '' && preg_match('#^(?:/(?!/)|https://)[^\s<>"\\\\]+$#iD', $value)) {
+                    $attributes .= ' ' . $name . '="' . htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+                }
+            }
+            foreach (['type', 'kind', 'srclang', 'label', 'title', 'aria-label', 'width', 'height'] as $name) {
+                if ($node->hasAttribute($name)) $attributes .= ' ' . $name . '="' . htmlspecialchars($node->getAttribute($name), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+            }
+            if ($node->hasAttribute('default') && $tag === 'track') $attributes .= ' default';
+            if (in_array($tag, ['video', 'audio'], true)) {
+                $preload = $node->getAttribute('preload');
+                $attributes .= ' controls preload="' . (in_array($preload, ['none', 'metadata', 'auto'], true) ? $preload : 'none') . '"';
+                foreach (['muted', 'loop', 'playsinline'] as $name) if ($node->hasAttribute($name)) $attributes .= ' ' . $name;
+            }
+            return '<' . $tag . $attributes . '>';
+        }, $html) ?? '';
         return trim($html);
+    }
+
+    /** Safe summaries only: never include removed source or attribute values. */
+    public function removedMarkup(string $source): array
+    {
+        $clean = $this->sanitize($source);
+        preg_match_all('/<([a-z][a-z0-9-]*)\b/i', $source, $before);
+        preg_match_all('/<([a-z][a-z0-9-]*)\b/i', $clean, $after);
+        $counts = array_count_values(array_map('strtolower', $after[1]));
+        $warnings = [];
+        foreach (array_count_values(array_map('strtolower', $before[1])) as $tag => $count) {
+            if ($count > ($counts[$tag] ?? 0)) $warnings[] = 'Removed unsupported ' . $tag . ' markup (' . ($count - ($counts[$tag] ?? 0)) . ').';
+        }
+        if (preg_match('/\son[a-z]+\s*=|javascript\s*:|expression\s*\(/i', $source)) $warnings[] = 'Removed unsafe attributes or active values.';
+        return $warnings;
     }
 
     public function hasComplexStructure(string $html): bool
