@@ -40,7 +40,7 @@ final class MediaController
         $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Upload asset</h2><p>Files are classified into typed storage automatically.</p></div></header><form method="post" action="/admin/media/upload" enctype="multipart/form-data" class="bp-form bp-compact-form">';
         $body .= $this->csrf->field();
         $body .= '<label>Files <input type="file" name="media[]" accept="' . $this->e($this->acceptValue($extensions)) . '" multiple required><span class="bp-field-help">Choose up to 20 files. Maximum size per file: ' . $this->e((string)$uploadLimit) . ' MB.</span></label>';
-        $body .= '<label><input type="checkbox" name="generate_variants" value="1"> Generate responsive WebP/AVIF copies when supported (originals retained).</label>';
+        $body .= '<label class="bp-check-option"><input type="checkbox" name="generate_variants" value="1"><span>Generate responsive WebP/AVIF copies when supported (originals retained).</span></label>';
         $body .= AdminLayout::submitButton('Upload Files', 'upload') . '</form></section>';
         $body .= AdminLayout::section('Storage policy', $this->uploadPolicy($extensions), 'New uploads use typed paths; existing flat media URLs remain compatible.');
 

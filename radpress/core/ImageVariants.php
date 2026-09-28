@@ -50,9 +50,17 @@ final class ImageVariants
     public function srcset(array $image, bool $localized = true): string
     {
         $file = $this->manifest($image['url']);
-        if (!is_file($file)) return '';
-        $data = (new FileStore())->readJson($file);
-        if (($data['sha256'] ?? '') !== hash_file('sha256', $image['path'])) return '';
+        $hash = hash_file('sha256', $image['path']);
+        if (is_file($file)) {
+            $data = (new FileStore())->readJson($file);
+            if (($data['sha256'] ?? '') !== $hash) return '';
+        } else {
+            // Cache maintenance must not remove responsive behavior for existing copies.
+            $data = ['variants' => []];
+            foreach (array_unique([min(480, $image['width']), min(960, $image['width']), min(1600, $image['width'])]) as $width) {
+                $data['variants'][] = ['url' => '/assets/images/derived/' . $hash . '-' . $width . '.webp', 'width' => $width, 'format' => 'webp'];
+            }
+        }
         $entries = [];
         // WebP is the responsive default; AVIF remains available explicitly in Media.
         foreach (($data['variants'] ?? []) as $variant) {

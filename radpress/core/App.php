@@ -34,6 +34,6 @@ final class App
 
         $response = (new Router($theme, $pages, $posts, $config, $products))->dispatch($request);
         if (str_starts_with($request->path, '/admin')) $response = $response->withHeader('Cache-Control', 'private, no-store');
-        return SecurityHeaders::apply($response, $request, $config)->withHeader('X-Request-ID', $request->requestId);
+        return SecurityHeaders::apply($response, $request, $config)->withHeader('X-Request-ID', (string)($response->headers()['X-Request-ID'] ?? $request->requestId));
     }
 }

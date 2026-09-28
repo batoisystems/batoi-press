@@ -27,12 +27,12 @@ final class CacheController
 
         $body = AdminLayout::pageHeader(
             'Cache',
-            'Review generated runtime cache files and clear them after template, theme, or configuration changes.',
+            'Manage files in the runtime cache directory. Press does not currently cache rendered public pages.',
             AdminLayout::buttonLink('Back to Dashboard', '/admin', 'back', true)
         );
 
         $body .= '<dl class="bp-admin-stats bp-admin-stats-compact">';
-        $body .= AdminLayout::statCard('Cache files', (string)$files, $files === 1 ? 'One generated file is stored.' : $files . ' generated files are stored.');
+        $body .= AdminLayout::statCard('Cache entries', (string)$files, $files === 1 ? 'One directory entry is present.' : $files . ' directory entries are present.');
         $body .= AdminLayout::statCard('Directory status', $writable ? 'Writable' : 'Not writable', $writable ? 'Cache can be cleared from the admin console.' : 'Fix server permissions before clearing cache.');
         $body .= AdminLayout::statCard('Storage path', 'radpress/data/cache', $path !== '' ? $path : 'Cache path is unavailable.');
         $body .= '</dl>';
@@ -44,9 +44,9 @@ final class CacheController
         } elseif ($files === 0) {
             $action .= '<p class="bp-field-help">There are no cache files to remove right now.</p>';
         }
-        $body .= AdminLayout::section('Cache maintenance', $action, 'Use this when published output looks stale or after editing templates and theme files.');
+        $body .= AdminLayout::section('Cache maintenance', $action, 'This does not clear browser caches, hosting/CDN caches, or PHP OPcache.');
 
-        $guidance = '<ul class="bp-check-list"><li>Clear cache after changing theme templates, public header/footer, or shared layout files.</li><li>Clear cache after changing configuration that affects rendered URLs, navigation, or metadata.</li><li>If the directory is not writable, the site can still run, but generated cache files may not refresh from the admin console.</li></ul>';
+        $guidance = '<p>This screen counts direct directory entries and removes regular files in the runtime cache directory. It does not create a rendered-page cache. Theme assets use verified content fingerprints; other asset freshness follows the configured HTTP cache policy. Investigate browser/CDN headers separately when output looks stale.</p>';
         $body .= AdminLayout::section('Operational notes', $guidance, 'Cache clearing is a low-risk maintenance action, but server permissions must be healthy.');
 
         return Response::html($this->layout('Cache', $body));

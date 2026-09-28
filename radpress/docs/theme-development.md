@@ -199,3 +199,60 @@ For Batoi Press admin pages:
   tables, and actions.
 - Keep logout, account, update, and view-site actions in the topbar rather than
   in the lower sidebar.
+
+## Template save recovery and diagnostics
+
+The editor posts to `/admin/theme-templates/save`. JavaScript sends the existing
+UTF-8/base64 form transport and asks for a JSON acknowledgement. Native form POST
+also works and preserves source whitespace. Both paths retain owner/admin access,
+CSRF validation, source validation, the 2 MiB limit, and pre-save snapshots.
+Failed validation returns the submitted source escaped in an editable form;
+JavaScript transport failures leave the original editor open. **Download source**
+creates a local text file only on explicit request. Without JavaScript, copy the
+source from the recovery textarea. Source is not saved in browser storage.
+Edits made while an earlier save is pending remain in the editor.
+
+A server-generated `X-Request-ID` connects the authenticated request audit record
+(method and route) with `theme.template.save_result` (method, status, reference).
+Application errors show the reference. Neither record includes template bodies,
+cookies, credentials, or CSRF tokens. Requests blocked before PHP cannot receive
+an application reference. Download the source before refreshing or signing in
+again after session expiry.
+
+The EHS report of Chrome POST followed by audited GET and HTTP 404 remains
+unreproduced. Local native/JavaScript saves, failed validation and recovery pass;
+that does not establish the production cause. Collect the exact timestamp,
+status, sanitized redirect chain and reference (if present), then correlate web
+server, proxy and hosting-filter logs. Do not export request bodies/cookies/tokens
+in a HAR or disable hosting security. No GET save route or routing workaround is
+introduced.
+
+## Page media performance
+
+Page editors can select an existing local asset URL as the hero and separately
+choose preload and high fetch priority. Insert the image in the page body;
+selection does not insert or move it. Press injects an escaped image preload in
+the head of that page only and makes matching body images eager. Theme rendering
+adds intrinsic dimensions to local raster images when neither dimension was
+specified. Review custom theme CSS after adopting this behavior.
+
+Optional lazy loading applies to later local body images, excluding the first
+image and every matching hero. Enable it only after reviewing above-the-fold
+placement. Existing explicit loading and responsive-image attributes are retained
+except that a selected hero is always eager. The `sizes` field describes the
+actual CSS layout (default `100vw`); review it for narrower image columns.
+
+Media upload can create bounded 480/960/1600px WebP and AVIF copies using available
+GD encoders. Originals remain unchanged; no upscaling occurs. Unsupported
+encoders, unsupported/animated images, inputs over 12 million pixels/16 MiB or insufficient
+PHP memory skip optimization. Derived files appear in Media. WebP copies supply
+responsive `srcset`; AVIF copies are available for explicit selection. Replacing
+an original invalidates its derivative manifest by checksum, and old derivatives
+are not automatically deleted. Clearing runtime cache discards derivative manifests; Press can still discover
+existing matching copies by their original-content fingerprint. Regenerate by opting in on a new upload. Budget
+storage for these optional copies. PHP without DOM leaves image markup unchanged.
+
+Video/audio embeds retain controls, safe URLs, caption tracks and fallback text;
+unspecified preload defaults to `none`. Autoplay is not enabled. Page saves report
+removed unsupported elements and unsafe attributes without displaying removed
+values. Arbitrary `<link>`, script or head markup is still not allowed in bodies.

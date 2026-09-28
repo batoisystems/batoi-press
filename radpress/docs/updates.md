@@ -82,3 +82,12 @@ Public stable manifests may include optional trust metadata:
 ```
 
 In v0.5.0 this metadata is informational. SHA-256 checksum verification remains the enforced integrity check for normal update workflows.
+
+## Preserving hosting rules
+
+Existing `public_html/.htaccess` is now preserved during manifest-based updates,
+alongside existing AIF and paths configuration. New installations still receive
+the packaged file. Review future release notes for security/rewrite changes that
+must be merged manually into customized rules. The upgrade regression verifies
+preservation of a site-specific rewrite/compression fixture. No release version,
+production hosting or published package was changed for this work.

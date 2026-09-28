@@ -34,7 +34,8 @@ final class AssetResponse
         $etag = '"' . $hash . '"';
         $fingerprint = is_string($request->query['h'] ?? null) ? $request->query['h'] : '';
         $immutable = $themeAsset && strlen($fingerprint) === 16 && hash_equals(substr($hash, 0, 16), $fingerprint);
-        $private = $request->header('Cookie') !== '' || $request->header('Authorization') !== '';
+        $private = $request->header('Cookie') !== '' || $request->header('Authorization') !== ''
+            || isset($request->server['PHP_AUTH_USER']) || isset($request->server['REMOTE_USER']);
         $headers = ['Content-Type' => AssetManager::mimeType($path), 'ETag' => $etag,
             'Last-Modified' => gmdate('D, d M Y H:i:s', $mtime) . ' GMT',
             'Cache-Control' => $private ? 'private, no-store' : self::policy($settings, $immutable),

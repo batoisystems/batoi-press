@@ -72,3 +72,14 @@ Embedded media is validated using normal upload restrictions and stored with saf
 Settings expose opt-in visitor light/dark switching, per-mode validated color tokens, top/bottom footer columns, bottom text, and labelled icon links. Custom themes must opt into these settings. Theme switching stores only a local browser preference. Scroll-to-top appears only when a page is scrollable.
 
 Gallery widgets accept up to 24 lines of `Media URL | alternative text`; configured URLs replace legacy gallery HTML. Activity Calendar shows the current month with published-post links. Subscribe uses a configured HTTPS signup page, not a local subscriber database or campaign sender. Legacy sanitized widget HTML remains supported.
+
+## Optional page media metadata
+
+Pages may store `hero_image` (existing local `/assets/` or `/media/` raster URL),
+`hero_preload` (boolean), `hero_priority` (`auto` or `high`), `lazy_images`
+(boolean) and `image_sizes` (escaped CSS sizes string, maximum 500 bytes).
+Omitted values preserve existing metadata for older callers; defaults do not
+preload or lazy-load images. These controls are available through the page admin
+form; the machine-editable field allowlist is unchanged. Derivative manifests
+use `data/cache/media-variants-*.json`, separate from source content, and reference
+original checksums and public derivative files.

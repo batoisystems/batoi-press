@@ -142,3 +142,72 @@ The `1.0.0` stable decision is recorded in `radpress/docs/stable-readiness.md`. 
 ## 1.0 Release Decision
 
 Do not tag `v1.0.0` until the checklist above is complete or consciously converted into documented `1.x` follow-up issues. The `1.0.0` release should mean the content format, theme contract, update package contract, and deployment model are stable for normal production use.
+
+## Reliability/performance implementation verification (September 2026)
+
+This work is not a release or deployment. The five phases cover recoverable
+template saves and safe request correlation; streaming public asset responses;
+structured page media controls; private hosting diagnostics; and accurate runtime
+cache maintenance guidance. Existing security and signed-update policies remain.
+
+Focused commands, in addition to the existing gates:
+
+```sh
+php radpress/tests/theme_page_templates.php
+node radpress/tests/template_save_recovery.js
+php radpress/tests/asset_responses.php
+php radpress/tests/media_performance.php
+php radpress/tests/machine_media.php
+php radpress/tests/update_runner.php
+php radpress/tests/performance_benchmark.php
+```
+
+All 50 functional PHP scripts passed across the full run and focused reruns.
+The separate benchmark also completed. Changed PHP files passed syntax checks;
+the JavaScript recovery regression and `node --check` passed. The existing
+asset-read test was adapted to inspect emitted bytes rather than buffered
+`Response::content()`. Upgrade tests verify existing hosting rules and site
+configuration preservation. WebP generation ran locally; AVIF was unavailable
+and its graceful skip path was exercised. This environment uses PHP 8.4; PHP 8.1
+syntax compatibility is retained but a separate 8.1 runtime was not available.
+
+Chrome review on a disposable loopback fixture verified the full-width editor,
+sidebar, validation error with correlation ID, retained source and successful
+retry, plus Hosting Health and page media controls. Native POST without JavaScript and source whitespace
+preservation are covered by PHP tests. The JavaScript regression covers non-JSON
+404, network failure, explicit download, retry, edits during a pending save and
+missing TextEncoder fallback. Live HTTP checks verified 200/HEAD, 206, 304 and 416.
+No EHS host or production hosting was modified or certified.
+
+### Measurements and caching decision
+
+`performance_benchmark.php` creates a disposable 64 MiB fixture, runs three fresh
+processes per delivery mode to a `/dev/null` sink, and performs 20 renders per
+route. September 28 local results (PHP 8.4.17, warm local filesystem, no network):
+
+| Work | Median server time | Additional peak PHP memory |
+| --- | ---: | ---: |
+| Prior buffered file read/delivery | 13.14 ms | 64.02 MiB |
+| Streamed file including strong validator | 122.14 ms | 0.30 MiB |
+| Home render (6,494-byte HTML) | 3.19 ms | Not separately sampled |
+| About render (5,176-byte HTML) | 3.40 ms | Not separately sampled |
+| Blog render (5,662-byte HTML) | 2.95 ms | Not separately sampled |
+
+Render p95 values were 7.51/5.41/5.88 ms respectively. The asset path substantially
+reduces PHP memory, but validation adds a complete file read and hashing cost;
+it is not a CPU/latency speedup over an unconditional buffered read to a local
+sink. Initial SHA-256 large-file trials cost about 0.72 seconds; ordinary public
+assets now use available xxh128 validators, while theme fingerprints retain
+SHA-256. Large range/HEAD/304 workloads still incur hashing and should be measured
+on target hosting. Transfer savings from 304/ranges are not included in this
+server-only benchmark. Proxy buffering, disk contention, TLS, client bandwidth
+and browser image decoding remain separate costs.
+
+These small representative renders do not justify a public-page cache, so no
+cache implementation or separate cache design is added. The EHS origin request
+of approximately 0.23 seconds was a different environment and also cannot explain
+all client-observed latency. Revisit caching only after target-host profiling
+shows meaningful rendering cost. Any future design must explicitly handle
+cookies, sessions, authentication, previews, CSRF tokens, personalized content,
+query-string keys, publication/schedule/theme/config invalidation, bounded disk
+storage and eviction before approval.

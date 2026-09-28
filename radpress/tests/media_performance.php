@@ -30,6 +30,8 @@ try {
     if (function_exists('imagewebp')) {
         mediaPerfCheck(count($variants) >= 1 && str_contains($media->markup('<img src="/assets/images/hero.png">', $settings), 'srcset='), 'WebP generated and responsive');
         mediaPerfCheck(str_contains($media->head($settings), 'imagesrcset='), 'preload selects same responsive representation');
+        (new \Batoi\Press\Core\Cache($paths))->clear();
+        mediaPerfCheck(str_contains($media->head($settings), 'imagesrcset='), 'cache clearing preserves existing responsive copies');
     }
     mediaPerfCheck((new ImageVariants($paths))->generate('/assets/missing.png') === [], 'unsupported input graceful');
     $serverBefore = $_SERVER;
