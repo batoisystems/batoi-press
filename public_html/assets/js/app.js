@@ -656,17 +656,48 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.querySelectorAll('form[data-bp-code-submit]').forEach((form) => {
-        form.addEventListener('submit', () => {
-            const source = form.querySelector('textarea[name="source"]');
-            const encoded = form.querySelector('input[name="source_encoded"]');
-            if (!(source instanceof HTMLTextAreaElement) || !(encoded instanceof HTMLInputElement)) return;
-            const bytes = new TextEncoder().encode(source.value);
-            let binary = '';
-            for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-                binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+        const source = form.querySelector('textarea[name="source"]');
+        const status = document.querySelector('[data-bp-save-status]');
+        form.querySelector('[data-bp-source-download]')?.addEventListener('click', () => {
+            const url = URL.createObjectURL(new Blob([source.value], {type: 'text/plain;charset=utf-8'}));
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'template-recovery.txt';
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        });
+        let saving = false;
+        form.addEventListener('submit', async (event) => {
+            if (event.submitter?.hasAttribute('formaction')) return;
+            if (!window.fetch || !window.TextEncoder) return; // Native POST remains supported.
+            event.preventDefault();
+            if (saving) return;
+            saving = true;
+            const submittedSource = source.value;
+            let reference = '';
+            try {
+                const bytes = new TextEncoder().encode(submittedSource);
+                let binary = '';
+                for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+                    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+                }
+                const data = new FormData(form);
+                data.set('source_encoded', window.btoa(binary));
+                data.delete('source');
+                status.textContent = 'Saving… Keep this editor open.';
+                const response = await fetch(form.action, {method: 'POST', body: data, credentials: 'same-origin', headers: {'X-Press-Editor': '1'}});
+                reference = response.headers.get('X-Request-ID') || '';
+                const result = await response.json();
+                if (!response.ok || !result.ok) throw new Error(result.message || 'Save failed.');
+                if (source.value !== submittedSource) {
+                    status.textContent = 'The submitted version was saved. You have newer unsaved edits; save again to keep them.';
+                } else if (result.location) window.location.assign(result.location);
+            } catch (error) {
+                status.textContent = 'Save was not confirmed. Your source remains here. Download it before reloading. ' + (error.message || '') + (reference ? ' Reference: ' + reference + '.' : '') + ' If hosting returned an error, ask the host to inspect the request and redirect chain.';
+            } finally {
+                saving = false;
+                source.disabled = false;
             }
-            encoded.value = window.btoa(binary);
-            source.disabled = true;
         });
     });
 

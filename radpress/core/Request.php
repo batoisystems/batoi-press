@@ -5,6 +5,7 @@ namespace Batoi\Press\Core;
 
 final class Request
 {
+    public readonly string $requestId;
     public function __construct(
         public readonly string $method,
         public readonly string $path,
@@ -13,6 +14,7 @@ final class Request
         public readonly array $server,
         public readonly string $rawBody = ''
     ) {
+        $this->requestId = bin2hex(random_bytes(12));
     }
 
     public static function fromGlobals(): self

@@ -310,7 +310,7 @@ final class ThemeTemplateController
         return Response::html($this->layout('Theme Templates', $body));
     }
 
-    public function edit(string $target): Response
+    public function edit(string $target, ?string $recovery = null, string $message = ''): Response
     {
         if ($blocked = $this->authorize()) {
             return $blocked;
@@ -327,27 +327,70 @@ final class ThemeTemplateController
         if (!is_file($path) && !$this->isCreatable($key)) {
             return Response::html($this->layout('Theme Templates', '<p class="bp-error">Template file is missing.</p><p>' . AdminLayout::buttonLink('Back to templates', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . '</p>'), 404);
         }
-        $source = is_file($path) ? $this->files->read($path) : $this->starterSource($key);
+        $source = $recovery ?? (is_file($path) ? $this->files->read($path) : $this->starterSource($key));
 
         $body = AdminLayout::pageHeader(
             (string)$template['label'],
             (string)$template['description'],
             AdminLayout::buttonLink('Back to templates', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . AdminLayout::buttonLink('View site', '/', 'site', true)
         );
+        $body .= '<p role="status" data-bp-save-status>' . $this->e($message) . '</p>';
         $body .= '<form method="post" action="/admin/theme-templates/save" class="bp-form bp-admin-editor bp-template-editor" autocomplete="off" data-bp-code-submit>';
-        $body .= '<p class="bp-field-help">Changes are applied only after Save Template succeeds. If your hosting firewall returns 404, keep a local copy and ask the host to inspect the blocked request; do not disable site security.</p>';
+        $body .= '<p class="bp-field-help">Changes are applied only after Save Template succeeds. If hosting returns 404, download your source and ask the host to inspect the request and redirect chain; do not disable site security.</p>';
         $body .= $this->csrf->field();
         $body .= '<input type="hidden" name="theme" value="' . $this->e($theme) . '">';
         $body .= '<input type="hidden" name="template" value="' . $this->e($key) . '">';
         $body .= '<input type="hidden" name="source_encoded" value="">';
         $body .= '<div class="bp-editor-main">' . $this->editorPanel('Template code', $this->codeEditor($source, (string)$template['type']), 'Edit source carefully. PHP templates are checked before saving.') . '</div>';
         $body .= '<aside class="bp-editor-side">' . $this->editorPanel('Reference', $this->referencePanel($theme, $key, $path), 'Available context and file ownership.') . $this->editorPanel('Editing standard', $this->editingStandard(), 'Required checks before saving and previewing templates.') . '</aside>';
-        $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . AdminLayout::submitButton('Save Template', 'save') . '</div></form>';
+        $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . '<button type="button" class="bp-button bp-button-secondary" data-bp-source-download>Download source</button>' . AdminLayout::submitButton('Save Template', 'save') . '</div></form>';
 
         return Response::html($this->layout((string)$template['label'], $body));
     }
 
     public function save(Request $request): Response
+    {
+        if ($blocked = $this->authorize()) return $blocked;
+        $id = $request->requestId;
+        try {
+            $response = $this->saveAttempt($request);
+        } catch (\Throwable $exception) {
+            $response = Response::html('<p class="bp-error">Save was not confirmed. Download source, check theme/snapshot permissions, and inspect the current file before retrying.</p>', 500);
+        }
+        $message = '';
+        if ($response->status() >= 400) {
+            // Only extract our escaped error paragraph, never log the response or source.
+            preg_match('/<p class="bp-error">(.*?)<\/p>/s', $response->content(), $match);
+            $message = html_entity_decode(strip_tags($match[1] ?? 'Save failed. Review the source and retry.'), ENT_QUOTES, 'UTF-8');
+            $message .= ' Reference: ' . $id . '. Download or copy your source before reloading.';
+            $source = is_string($request->post['source'] ?? null) ? $request->post['source'] : '';
+            if ($request->input('source_encoded') !== '') {
+                $decoded = base64_decode($request->input('source_encoded'), true);
+                if (is_string($decoded)) $source = $decoded;
+            }
+            if (strlen($source) <= 2097152) {
+                try {
+                    $editor = $this->edit($this->resolveTheme($request->input('theme')) . '/' . $request->input('template'), $source, $message);
+                    $response = Response::html($editor->content(), $response->status());
+                } catch (\Throwable $exception) { /* Keep the original failure for an invalid target. */ }
+            }
+        }
+        if ($message !== '' && !str_contains($response->content(), $id)) {
+            $recovery = isset($source) && strlen($source) <= 2097152 ? $this->codeEditor($source, 'php') : '';
+            $response = Response::html($this->layout('Template save failed', '<p role="status">' . $this->e($message) . '</p>' . $recovery), $response->status());
+        }
+        try {
+            $this->audit->record((string)($this->user['username'] ?? 'admin'), 'theme.template.save_result', '/admin/theme-templates/save', '', $response->status() < 400 ? 'success' : 'failed', ['request_id' => $id, 'method' => $request->method, 'status' => $response->status()]);
+        } catch (RuntimeException $exception) {
+            error_log('Press template-save audit unavailable; reference ' . $id);
+        }
+        if ($request->header('X-Press-Editor') === '1') {
+            $response = Response::json(['ok' => $response->status() < 400, 'message' => $message, 'request_id' => $id, 'location' => $response->headers()['Location'] ?? null], $response->status() < 400 ? 200 : $response->status());
+        }
+        return $response->withHeader('X-Request-ID', $id)->withHeader('Cache-Control', 'private, no-store');
+    }
+
+    private function saveAttempt(Request $request): Response
     {
         if ($blocked = $this->authorize()) {
             return $blocked;
@@ -366,7 +409,7 @@ final class ThemeTemplateController
         }
 
         $path = $this->templatePath($theme, $key);
-        $source = $request->input('source');
+        $source = is_string($request->post['source'] ?? null) ? $request->post['source'] : '';
         $encoded = $request->input('source_encoded');
         if ($encoded !== '') {
             $decoded = base64_decode($encoded, true);
@@ -375,6 +418,7 @@ final class ThemeTemplateController
             }
             $source = $decoded;
         }
+        if (strlen($source) > 2097152) return Response::html('<p class="bp-error">Template source exceeds the 2 MiB limit.</p>', 400);
         if (trim($source) === '') {
             return Response::html($this->layout('Theme Templates', '<p class="bp-error">Template source cannot be empty.</p><p>' . AdminLayout::buttonLink('Back to editor', '/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key), 'back', true) . '</p>'), 400);
         }
@@ -388,7 +432,7 @@ final class ThemeTemplateController
             $this->snapshot($theme, $key, $path);
             $this->files->write($path, $source);
         } catch (RuntimeException $exception) {
-            return Response::html($this->layout('Theme Templates', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>' . AdminLayout::buttonLink('Back to editor', '/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key), 'back', true) . '</p>'), 500);
+            return Response::html($this->layout('Theme Templates', '<p class="bp-error">' . 'Unable to save. Check theme and snapshot directory permissions.' . '</p><p>' . AdminLayout::buttonLink('Back to editor', '/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key), 'back', true) . '</p>'), 500);
         }
 
         $this->audit->record((string)($this->user['username'] ?? 'admin'), 'theme.template.updated', $theme . ':' . $key, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
@@ -418,7 +462,7 @@ final class ThemeTemplateController
             $this->snapshot($theme, $key, $target);
             $this->files->write($target, $this->files->read($snapshotPath));
         } catch (RuntimeException $exception) {
-            return Response::html($this->layout('Theme Templates', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>' . AdminLayout::buttonLink('Back to editor', '/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key), 'back', true) . '</p>'), 400);
+            return Response::html($this->layout('Theme Templates', '<p class="bp-error">' . 'Unable to save. Check theme and snapshot directory permissions.' . '</p><p>' . AdminLayout::buttonLink('Back to editor', '/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key), 'back', true) . '</p>'), 400);
         }
 
         $this->audit->record((string)($this->user['username'] ?? 'admin'), 'theme.template.restored', $theme . ':' . $key, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
@@ -781,7 +825,7 @@ final class ThemeTemplateController
         return '<ul class="bp-admin-checklist">'
             . '<li>' . AdminLayout::icon('check') . '<span>Escape dynamic output with the documented helper for its context.</span></li>'
             . '<li>' . AdminLayout::icon('check') . '<span>Keep layout changes compatible with page, post, blog, and 404 views.</span></li>'
-            . '<li>' . AdminLayout::icon('check') . '<span>Save, preview the site, and clear cache if rendered output does not refresh.</span></li>'
+            . '<li>' . AdminLayout::icon('check') . '<span>Save and preview the site. If output is stale, inspect browser caching and PHP OPcache.</span></li>'
             . '</ul>';
     }
 

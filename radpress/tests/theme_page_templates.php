@@ -97,6 +97,29 @@ try {
             $input['source_encoded'] = base64_encode('replacement');
             assertTemplate($controller->save(new \Batoi\Press\Core\Request('POST', '/admin/theme-templates/save', [], $input, []))->status() === 400, 'invalid CSRF should be rejected');
             assertTemplate(file_get_contents($target) === $source, 'rejected saves must preserve the custom template');
+            if ($key === 'header') {
+                $input['csrf_token'] = $csrf->token();
+                $input['source_encoded'] = base64_encode('<?php echo ; // recover-validation');
+                $invalid = $controller->save(new \Batoi\Press\Core\Request('POST', '/admin/theme-templates/save', [], $input, []));
+                assertTemplate($invalid->status() === 400 && str_contains($invalid->content(), 'recover-validation') && file_get_contents($target) === $source, 'syntax failure preserves editor content and stored source');
+            }
+            $input['csrf_token'] = $csrf->token();
+            unset($input['source_encoded']);
+            $input['source'] = "  " . $source . "\n\n";
+            $normal = $controller->save(new \Batoi\Press\Core\Request('POST', '/admin/theme-templates/save', [], $input, []));
+            assertTemplate($normal->status() === 302 && file_get_contents($target) === $input['source'], 'native form without JavaScript preserves exact source');
+            $input['csrf_token'] = 'expired';
+            $input['source'] = 'RECOVERABLE </textarea><script>privateTemplate()</script>';
+            $failed = $controller->save(new \Batoi\Press\Core\Request('POST', '/admin/theme-templates/save', [], $input, []));
+            assertTemplate($failed->status() === 400 && str_contains($failed->content(), 'RECOVERABLE &lt;/textarea&gt;') && str_contains($failed->content(), 'data-bp-source-download'), 'failure returns escaped recoverable editor');
+            assertTemplate(str_contains($failed->content(), $failed->headers()['X-Request-ID']), 'visible failure correlation ID');
+            $input['csrf_token'] = $csrf->token();
+            $input['source'] = $source;
+            $retry = $controller->save(new \Batoi\Press\Core\Request('POST', '/admin/theme-templates/save', [], $input, ['HTTP_X_PRESS_EDITOR'=>'1']));
+            assertTemplate($retry->status() === 200 && json_decode($retry->content(), true)['ok'] === true, 'AJAX recovery retry succeeds');
+            $auditText = file_get_contents($root . '/radpress/data/log/audit.jsonl');
+            assertTemplate(!str_contains($auditText, 'privateTemplate') && !str_contains($auditText, $csrf->token()), 'audit excludes source and tokens');
+
         }
     } finally {
         $_SERVER = $serverBefore;

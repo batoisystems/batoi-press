@@ -51,6 +51,7 @@ final class AuditLog
             (string)($request->server['REMOTE_ADDR'] ?? ''),
             $outcome,
             [
+                'request_id' => $request->requestId,
                 'method' => $request->method,
                 'route' => $path,
                 'query' => $this->safeQuery($request->query),

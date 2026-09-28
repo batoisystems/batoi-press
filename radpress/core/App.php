@@ -32,6 +32,8 @@ final class App
         $posts = new PostRepository($config->paths(), $files, $html);
         $products = new ProductRepository($config->paths(), $files, $html);
 
-        return SecurityHeaders::apply((new Router($theme, $pages, $posts, $config, $products))->dispatch($request), $request, $config);
+        $response = (new Router($theme, $pages, $posts, $config, $products))->dispatch($request);
+        if (str_starts_with($request->path, '/admin')) $response = $response->withHeader('Cache-Control', 'private, no-store');
+        return SecurityHeaders::apply($response, $request, $config)->withHeader('X-Request-ID', $request->requestId);
     }
 }
