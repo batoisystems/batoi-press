@@ -35,9 +35,10 @@
         let next = listing.querySelector('.bp-pagination a[rel="next"]');
         if (!grid || !next) return;
         const button = document.createElement('button');
-        button.type = 'button'; button.className = 'bp-button bp-button-secondary'; button.textContent = 'Load more';
+        button.type = 'button'; button.className = 'bp-button bp-button-secondary'; button.textContent = 'Load More';
         const status = document.createElement('p'); status.setAttribute('role', 'status');
         listing.append(button, status);
+        next.hidden = true;
         button.addEventListener('click', async () => {
             button.disabled = true; status.textContent = 'Loading posts…';
             try {
@@ -54,9 +55,11 @@
                 const nav = listing.querySelector('.bp-pagination');
                 const incomingNav = incoming.querySelector('.bp-pagination');
                 if (nav && incomingNav) nav.replaceWith(document.importNode(incomingNav, true));
+                next = listing.querySelector('.bp-pagination a[rel="next"]');
+                if (next) next.hidden = true;
                 button.hidden = !next;
                 status.textContent = cards.length + ' more posts loaded.';
-            } catch (_) { status.textContent = 'Could not load posts. Use the page navigation links to continue.'; }
+            } catch (_) { if (next) next.hidden = false; status.textContent = 'Could not load posts. Use the page navigation links to continue.'; }
             finally { button.disabled = false; }
         });
     });

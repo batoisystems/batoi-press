@@ -116,9 +116,15 @@ try {
         throw new RuntimeException('Batoi UIF compatibility aliases must match the bundled 3.0.0 assets.');
     }
 
-    $aifStatus = (new AifManager(Config::load($root)->aif()))->status();
+    // Test defaults independently of an installation's deliberately enabled AIF.
+    $aifStatus = (new AifManager([]))->status();
     if (($aifStatus['enabled'] ?? true) !== false || ($aifStatus['available'] ?? true) !== false) {
         throw new RuntimeException('Batoi AIF should be disabled and unavailable by default.');
+    }
+    $installedAif = Config::load($root)->aif();
+    $installedStatus = (new AifManager($installedAif))->status();
+    if ($installedStatus['enabled'] !== (($installedAif['enabled'] ?? false) === true)) {
+        throw new RuntimeException('AIF runtime status must respect the installation configuration.');
     }
 
     $authRoot = sys_get_temp_dir() . '/batoi-press-auth-smoke-' . bin2hex(random_bytes(4));

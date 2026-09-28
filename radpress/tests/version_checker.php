@@ -12,6 +12,10 @@ $manifest = json_encode([
 ], JSON_UNESCAPED_SLASHES);
 
 $requestedUrl = '';
+$transport = new ReflectionMethod(VersionChecker::class, 'requiresDirectDns');
+foreach ([['Darwin','cgi-fcgi',true],['Darwin','apache2handler',true],['Darwin','cli',false],['Linux','cgi-fcgi',false],['Windows','cgi-fcgi',false]] as [$os,$sapi,$expected]) {
+    assertVersion($transport->invoke(null,$os,$sapi) === $expected, 'Platform transport selection must isolate macOS web workers.');
+}
 $available = (new VersionChecker('https://example.test/latest.json', static function (string $url) use (&$requestedUrl, $manifest): string {
     $requestedUrl = $url;
     return (string)$manifest;

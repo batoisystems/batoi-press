@@ -39,6 +39,7 @@ final class PageController
             'status' => trim((string)($_GET['status'] ?? '')),
         ];
         $filteredPages = $this->filterPages($pages, $filters);
+        if ($filters['status'] === '') $filteredPages = array_values(array_filter($filteredPages, static fn(array $row): bool => ($row['status'] ?? '') !== 'trashed'));
         $body = AdminLayout::pageHeader(
             'Pages',
             'Create and maintain evergreen site pages with clear publication status.',
@@ -65,7 +66,7 @@ final class PageController
         foreach ($filteredPages as $page) {
             $slug = (string)($page['slug'] ?? '');
             $title = (string)($page['title'] ?? 'Untitled');
-            $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>' . (!empty($page['parent_slug']) ? 'Child page' : 'Page') . '</small></td><td>' . $this->statusBadge((string)($page['status'] ?? 'draft')) . '</td><td><code>' . $this->e($this->pageUrl($page)) . '</code></td><td>' . $this->formatDate((string)($page['updated_at'] ?? '')) . '</td><td><div class="bp-table-actions"><a href="' . $this->e($this->pageUrl($page)) . '">View</a><a href="/admin/pages/edit/' . rawurlencode($slug) . '">Edit</a><a href="/admin/pages/new?parent=' . rawurlencode($slug) . '">Add child</a></div></td></tr>';
+            $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>' . (!empty($page['parent_slug']) ? 'Child page' : 'Page') . '</small></td><td>' . $this->statusBadge((string)($page['status'] ?? 'draft')) . '</td><td><code>' . $this->e($this->pageUrl($page)) . '</code></td><td>' . $this->formatDate((string)($page['updated_at'] ?? '')) . '</td><td><div class="bp-table-actions"><a href="' . $this->e($this->pageUrl($page)) . '">View</a><a href="/admin/pages/edit/' . rawurlencode($slug) . '">Edit</a><a href="/admin/pages/new?parent=' . rawurlencode($slug) . '">Add child</a>' . $this->trashAction($page) . '</div></td></tr>';
         }
         $body .= '</tbody></table></div>';
         return Response::html($this->layout('Pages', $body));
@@ -74,7 +75,29 @@ final class PageController
     public function edit(?string $slug = null): Response
     {
         $page = $slug ? $this->pages->findBySlug($slug) : null;
+        if (($page['status'] ?? '') === 'trashed') return Response::html($this->layout('Trash', '<p>Restore this page as a draft before editing.</p>' . $this->trashAction($page)));
         return Response::html($this->layout($slug ? 'Edit Page' : 'Create Page', $this->form($page)));
+    }
+
+    private function trashAction(array $record): string
+    {
+        $restore = ($record['status'] ?? '') === 'trashed';
+        return '<form method="post" action="/admin/pages/trash" class="bp-inline-form">' . $this->csrf->field()
+            . '<input type="hidden" name="slug" value="' . $this->e((string)$record['slug']) . '"><input type="hidden" name="expected_revision" value="' . $this->e(ContentRevision::for($record)) . '">'
+            . '<input type="hidden" name="decision" value="' . ($restore ? 'restore' : 'trash') . '"><button type="submit" title="' . ($restore ? 'Restore privately as a draft' : 'Remove from the website; content stays recoverable in Trash') . '">' . ($restore ? 'Restore draft' : 'Move to Trash') . '</button></form>';
+    }
+
+    public function trash(Request $request): Response
+    {
+        if (!$this->csrf->validate($request->input('csrf_token'))) return Response::html($this->layout('pages', '<p>Security token expired.</p>'), 400);
+        if (!in_array($request->input('decision'), ['trash', 'restore'], true)) return Response::html($this->layout('pages', '<p>Invalid action.</p>'), 422);
+        try {
+            (new ContentMutationService($this->config, $this->pages, $this->posts, $this->audit, new IdempotencyStore($this->config->paths())))->trashFromAdmin('page', $request->input('slug'), $request->input('expected_revision'), $this->user, $request->input('decision') === 'restore');
+        } catch (RuntimeException $error) {
+            $status = $error instanceof \Batoi\Press\Application\ContentMutationException ? $error->httpStatus() : 409;
+            return Response::html($this->layout('pages', '<p class="bp-error">' . $this->e($error->getMessage()) . '</p><a href="/admin/pages">Back to pages</a>'), $status);
+        }
+        return Response::redirect('/admin/pages' . ($request->input('decision') === 'trash' ? '?status=trashed' : ''));
     }
 
     public function save(Request $request): Response
@@ -177,6 +200,11 @@ final class PageController
         $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($page['title'] ?? ''), true, 'data-bp-slug-source') . $this->input('Slug', 'slug', $slug, true, 'data-bp-slug-target') . $modeSwitch . $editor . $pageAssets . '</div>';
         $publishing = $this->select((string)($page['status'] ?? 'draft')) . $this->workflowFields($page) . $this->parentSelect($requestedParent, $slug) . $this->templateSelect((string)($page['template'] ?? 'page')) . $this->latestPostsFields($page) . $this->workflowHistory($page) . $this->metaList($page);
         $seo = $this->input('SEO Title', 'seo_title', (string)($page['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($page['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short page summary for search snippets and social previews.</span></label>';
+        $seo .= '<details><summary>Social sharing metadata</summary><p>Leave blank to use page defaults. Images and OG URL require absolute HTTPS URLs. Twitter card accepts summary or summary_large_image.</p>';
+        foreach (\Batoi\Press\Core\SocialMetadata::FIELDS as $field) {
+            $seo .= $this->input(strtoupper(str_replace('_', ' ', $field)), $field, (string)($page[$field] ?? ''), false);
+        }
+        $seo .= '</details>';
 
         $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible page content.') . '</div><aside class="bp-editor-side">' . AifEditorPanel::render($this->config, 'page') . $this->editorPanel('Publishing', $publishing, 'Control draft or live availability.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->pageChecklist(), 'Review before publishing or changing a live page.') . '</aside>';
         $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/pages', 'back', true) . AdminLayout::submitButton('Save Page', 'save') . '</div></form>';
@@ -264,6 +292,7 @@ final class PageController
     {
         $html = '<label>Status <select name="status">';
         foreach (PublicationState::STATUSES as $value) {
+            if ($value === 'trashed') continue;
             $html .= '<option value="' . $value . '"' . ($status === $value ? ' selected' : '') . '>' . $this->e(PublicationState::label($value)) . '</option>';
         }
         return $html . '</select><span class="bp-field-help">Use In review and Approved for handoff; Scheduled requires a publish date.</span></label>';

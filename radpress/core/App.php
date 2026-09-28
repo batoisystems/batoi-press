@@ -16,6 +16,9 @@ final class App
 
     public function handle(Request $request): Response
     {
+        // Keep response middleware from the same code generation during an update request.
+        class_exists(SecurityHeaders::class);
+        class_exists(Response::class);
         $config = Config::load($this->root);
         $maintenance = new MaintenanceMode($config->paths());
         if ($maintenance->active() && !str_starts_with($request->path, '/admin')) {

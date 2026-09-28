@@ -236,6 +236,11 @@ final class ThemeManager
             $version = (string)($this->manifest($slug)['version'] ?? '');
             if ($version !== '') {
                 $url .= '?v=' . rawurlencode($version);
+                $file = $this->resolveAsset($slug, $relative);
+                if ($file !== null) {
+                    $hash = hash_file('sha256', $file);
+                    if ($hash !== false) $url .= '&h=' . substr($hash, 0, 16);
+                }
             }
         } catch (RuntimeException) {
             // Invalid themes retain an unversioned URL and fail normal validation.

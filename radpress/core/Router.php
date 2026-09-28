@@ -258,6 +258,9 @@ final class Router
         if ($request->path === '/admin/pages/save' && $request->method === 'POST') {
             return (new PageController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->save($request);
         }
+        if ($request->path === '/admin/pages/trash' && $request->method === 'POST') {
+            return (new PageController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->trash($request);
+        }
 
         if ($request->path === '/admin/posts') {
             return (new PostController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->index();
@@ -273,6 +276,9 @@ final class Router
 
         if ($request->path === '/admin/posts/save' && $request->method === 'POST') {
             return (new PostController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->save($request);
+        }
+        if ($request->path === '/admin/posts/trash' && $request->method === 'POST') {
+            return (new PostController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->trash($request);
         }
 
         if ($request->path === '/admin/products') {

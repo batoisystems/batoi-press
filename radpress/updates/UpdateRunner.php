@@ -139,6 +139,9 @@ final class UpdateRunner
             }
 
             $installed++;
+            if (str_ends_with($target, '.php') && function_exists('opcache_invalidate')) {
+                opcache_invalidate($target, true);
+            }
         }
 
         $cacheCleared = (new Cache($this->paths))->clear();

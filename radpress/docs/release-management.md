@@ -38,6 +38,7 @@ Prerelease versions (for example `3.0.0-rc.1`) use a signed `candidate.json` and
 
 ## Current Release Track
 
+- `3.1.0`: Recoverable page/post Trash, social metadata, UIF footer icons, theme cache/contrast corrections and updater compatibility fixes. Default theme 3.3.0; bundled UIF remains 3.0.0. See `radpress/docs/releases/v3.1.0.md`.
 - `0.1.0`: Initial flat-file CMS, installer, public rendering, and admin foundation.
 - `0.2.0`: Bundled Batoi UIF and disabled-by-default Batoi AIF scaffolding.
 - `0.3.0`: Business-ready admin console, theme management, favicon handling, audit-log operations, static export/cache/user guidance, and admin standardization. See `radpress/docs/releases/v0.3.0.md`.

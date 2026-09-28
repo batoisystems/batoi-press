@@ -40,6 +40,19 @@ try {
     $unsupported = false;
     try { $method->invoke($controller, '<urlset><url><loc>https://example.com/</loc></url></urlset>'); } catch (RuntimeException $e) { $unsupported = str_contains($e->getMessage(), 'Unsupported XML format'); }
     assertImport($unsupported, 'unsupported XML should explain the format requirement');
+    // The reported import.xml omits the declaration and combines a draft page
+    // with a published custom-type post. Accept an external reproduction file
+    // for local verification without committing the user's supplied content.
+    $reportedXml = isset($argv[1]) ? file_get_contents($argv[1]) : '<batoi-press><pages><page><title>Batoi Press 3.0.0</title><slug>batoi-press-3</slug><status>draft</status><body><![CDATA[<p>Import fixture page.</p>]]></body></page></pages><posts><post><title>Import News</title><slug>import-news</slug><post_type>news</post_type><status>published</status><body><![CDATA[<p>Import fixture post.</p>]]></body></post></posts></batoi-press>';
+    assertImport(is_string($reportedXml), 'reported XML fixture must be readable');
+    $reported = $method->invoke($controller, $reportedXml);
+    assertImport($reported === ['pages'=>1,'posts'=>1,'media'=>0,'skipped'=>0], 'reported native XML structure must import both records');
+    $reportedPage = $pages->findBySlug('batoi-press-3');
+    $reportedPost = $posts->findBySlug('import-news');
+    assertImport(($reportedPage['status'] ?? '') === 'draft' && ($reportedPost['status'] ?? '') === 'published' && ($reportedPost['post_type'] ?? '') === 'news', 'reported import must preserve publication status and post type');
+    assertImport(str_contains($reportedPage['body'] ?? '', '<p>') && str_contains($reportedPost['body'] ?? '', '<p>'), 'reported CDATA HTML bodies must survive import');
+    $reportedAgain = $method->invoke($controller, $reportedXml);
+    assertImport($reportedAgain === ['pages'=>0,'posts'=>0,'media'=>0,'skipped'=>2], 'reimporting the reported sample must not overwrite existing records');
     echo "XML import checks passed\n";
 } finally { removeImport($root); }
 function assertImport(bool $condition,string $message):void{if(!$condition)throw new RuntimeException($message);}

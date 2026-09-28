@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 ?>
-<section class="bp-listing-page"<?php echo !empty($site['posts_load_more']) ? ' data-bp-load-more' : ''; ?>>
+<section class="bp-listing-page"<?php echo ($site['posts_load_more'] ?? true) ? ' data-bp-load-more' : ''; ?>>
     <header class="bp-page-heading"><p class="bp-eyebrow">Insights</p><h1><?php echo bp_esc((string)($title ?? 'Blog')); ?></h1><p>News, ideas, and practical guidance from <?php echo bp_esc((string)($site['name'] ?? 'our team')); ?>.</p></header>
     <?php if (empty($posts)): ?>
         <p>No published posts yet.</p>
@@ -22,7 +22,7 @@ declare(strict_types=1);
         <nav class="bp-pagination" aria-label="Blog pages">
             <?php if (($pageNumber ?? 1) > 1): ?><a class="bp-button bp-button-secondary" rel="prev" href="<?php echo bp_attr(bp_url($archivePath ?? '/blog') . '?page=' . ((int)$pageNumber - 1)); ?>">Previous</a><?php endif; ?>
             <span>Page <?php echo (int)($pageNumber ?? 1); ?> of <?php echo (int)$pageCount; ?></span>
-            <?php if (($pageNumber ?? 1) < $pageCount): ?><a class="bp-button bp-button-secondary" rel="next" href="<?php echo bp_attr(bp_url($archivePath ?? '/blog') . '?page=' . ((int)$pageNumber + 1)); ?>">Next</a><?php endif; ?>
+            <?php if (($pageNumber ?? 1) < $pageCount): ?><a class="bp-button bp-button-secondary" rel="next" href="<?php echo bp_attr(bp_url($archivePath ?? '/blog') . '?page=' . ((int)$pageNumber + 1)); ?>"><?php echo ($site['posts_load_more'] ?? true) ? 'Load More' : 'Next'; ?></a><?php endif; ?>
         </nav>
         <?php endif; ?>
     <?php endif; ?>

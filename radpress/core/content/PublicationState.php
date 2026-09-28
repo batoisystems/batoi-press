@@ -7,7 +7,7 @@ use RuntimeException;
 
 final class PublicationState
 {
-    public const STATUSES = ['draft', 'in_review', 'approved', 'scheduled', 'published', 'archived'];
+    public const STATUSES = ['draft', 'in_review', 'approved', 'scheduled', 'published', 'archived', 'trashed'];
 
     public static function normalize(mixed $status): string
     {
@@ -19,6 +19,7 @@ final class PublicationState
     {
         return match (self::normalize($status)) {
             'in_review' => 'In review',
+            'trashed' => 'Trash',
             default => ucfirst(self::normalize($status)),
         };
     }

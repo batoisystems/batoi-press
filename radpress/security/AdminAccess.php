@@ -33,10 +33,12 @@ final class AdminAccess
                 '/admin/pages/new',
                 '/admin/pages/edit/',
                 '/admin/pages/save',
+                '/admin/pages/trash',
                 '/admin/posts',
                 '/admin/posts/new',
                 '/admin/posts/edit/',
                 '/admin/posts/save',
+                '/admin/posts/trash',
                 '/admin/products',
                 '/admin/products/new',
                 '/admin/products/edit/',
@@ -63,6 +65,7 @@ final class AdminAccess
                 '/admin/posts/new',
                 '/admin/posts/edit/',
                 '/admin/posts/save',
+                '/admin/posts/trash',
             ]);
         }
 

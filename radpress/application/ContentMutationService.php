@@ -82,6 +82,7 @@ final class ContentMutationService
             return $this->locked($type, function () use ($type, $identifier, $expectedRevision, $actor, $requestId): array {
                 $existing = $this->find($type, $identifier);
                 $this->assertRevision($existing, $expectedRevision);
+                if (($existing['status'] ?? '') === 'trashed') throw new ContentMutationException('Restore content from Trash before publishing.', 'validation_failed', 422);
                 $input = $this->repositoryInput($type, $existing);
                 $input['original_slug'] = (string)$existing['slug'];
                 $input['status'] = 'published';
@@ -114,6 +115,9 @@ final class ContentMutationService
             if ($existing !== null) {
                 $this->assertRevision($existing, $expectedRevision);
             }
+            if (($input['status'] ?? '') === 'trashed' || ($existing['status'] ?? '') === 'trashed') {
+                throw new ContentMutationException('Use the dedicated Trash or Restore action.', 'validation_failed', 422);
+            }
             $clean = $this->validated($type, $input, $existing);
             if ($existing !== null) {
                 $clean['original_slug'] = (string)$existing['slug'];
@@ -124,6 +128,40 @@ final class ContentMutationService
             $result = $this->result($type, $existing === null ? 'created' : 'updated', $existing, $record);
             $this->record($actor, $type . '.admin_saved', $record, $requestId, $result['change_summary']);
             return $result;
+        });
+    }
+
+    /** Reversible deletion. The same transaction/revision boundary protects retained content. */
+    public function trashFromAdmin(string $type, string $slug, string $revision, array $user, bool $restore = false): array
+    {
+        $type = $this->type($type);
+        return $this->locked($type, function () use ($type, $slug, $revision, $user, $restore): array {
+            $record = $this->repository($type)->findBySlug($slug);
+            if ($record === null) throw new ContentMutationException('Content not found.', 'not_found', 404);
+            $role = \Batoi\Press\Security\AdminAccess::role($user);
+            if (($type === 'page' && !in_array($role, ['owner', 'admin', 'editor'], true)) || ($type === 'post' && !\Batoi\Press\Security\AdminAccess::canManagePost($user, $record))) throw new ContentMutationException('You cannot manage this content.', 'forbidden', 403);
+            $this->assertRevision($record, $revision);
+            if ($restore !== (($record['status'] ?? '') === 'trashed')) throw new ContentMutationException('Content status changed. Reload the list.', 'revision_conflict', 409);
+            $transaction = new \Batoi\Press\Content\ContentTransaction($this->config->paths());
+            $hierarchyRevision = $transaction->hierarchyRevision($type);
+            if (!$restore) {
+                if ($type === 'page' && $slug === (string)($this->config->site()['homepage'] ?? 'home')) throw new ContentMutationException('Choose another homepage before moving this page to Trash.', 'validation_failed', 422);
+                foreach ($this->repository($type)->all() as $child) {
+                    if (($child['parent_slug'] ?? '') === $slug) throw new ContentMutationException('Move or reparent child content before deleting its parent.', 'validation_failed', 422);
+                }
+            }
+            $input = $this->repositoryInput($type, $record);
+            $input['original_slug'] = $slug;
+            $input['status'] = $restore ? 'draft' : 'trashed';
+            $input['publish_at'] = '';
+            $input['unpublish_at'] = '';
+            $input['workflow_note'] = $restore ? 'Restored from Trash as a draft.' : 'Moved to Trash; content retained for restoration.';
+            $prepared = $this->repository($type)->prepareSave($input, (string)$user['username']);
+            if (($prepared['base_revision'] ?? null) !== $revision) throw new ContentMutationException('Content changed while preparing the operation. Reload the list.', 'revision_conflict', 409);
+            $prepared['hierarchy_revision'] = $hierarchyRevision;
+            $saved = $transaction->commit($type, $prepared);
+            $this->audit->record((string)$user['username'], 'content.' . $type . ($restore ? '.restored' : '.trashed'), (string)$record['id'], '');
+            return $saved;
         });
     }
 
@@ -739,9 +777,11 @@ final class ContentMutationService
 
     private function validated(string $type, array $input, ?array $existing): array
     {
+        if (($existing['status'] ?? '') === 'trashed') throw new ContentMutationException('Restore this content from Trash before editing.', 'validation_failed', 422);
         $allowed = $type === 'page'
             ? ['title', 'slug', 'parent_slug', 'body', 'blocks', 'custom_css', 'custom_js', 'template', 'seo_title', 'seo_description', 'show_latest_posts', 'latest_posts_limit', 'publish_at', 'unpublish_at', 'reviewer', 'workflow_note']
             : ['title', 'subtitle', 'slug', 'parent_slug', 'post_type', 'body', 'category', 'tags', 'featured_image', 'featured_image_alt', 'layout', 'seo_title', 'seo_description', 'published_at', 'publish_at', 'unpublish_at', 'reviewer', 'workflow_note'];
+        $allowed = array_merge($allowed, \Batoi\Press\Core\SocialMetadata::FIELDS);
         $base = $existing === null ? [] : $this->repositoryInput($type, $existing);
         if ($type === 'page' && array_key_exists('body', $input) && !array_key_exists('blocks', $input)) {
             unset($base['blocks']);
@@ -779,6 +819,7 @@ final class ContentMutationService
         $fields = $type === 'page'
             ? ['title', 'slug', 'parent_slug', 'body', 'blocks', 'custom_css', 'custom_js', 'status', 'template', 'seo_title', 'seo_description', 'show_latest_posts', 'latest_posts_limit', 'publish_at', 'unpublish_at', 'reviewer']
             : ['title', 'subtitle', 'slug', 'parent_slug', 'post_type', 'body', 'status', 'published_at', 'publish_at', 'unpublish_at', 'reviewer', 'category', 'featured_image', 'featured_image_alt', 'layout', 'seo_title', 'seo_description'];
+        $fields = array_merge($fields, \Batoi\Press\Core\SocialMetadata::FIELDS);
         $input = [];
         foreach ($fields as $field) {
             if (array_key_exists($field, $record)) {

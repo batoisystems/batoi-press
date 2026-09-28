@@ -20,6 +20,7 @@ html { scroll-behavior: smooth; }
 .bp-mode-toggle { left:1rem; }
 .bp-scroll-top { right:1rem; }
 .bp-mode-toggle[hidden], .bp-scroll-top[hidden] { display:none; }
+.bp-listing-page .bp-button[hidden] { display:none; }
 @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } }
 body.bp-theme-versatile { background: var(--bt-white); color: var(--bt-text); font-family: var(--bt-font-family), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 [data-bp-color-mode="dark"] { --bt-ink:#f9fafb;--bt-text:#e5e7eb;--bt-muted:#9ca3af;--bt-line:#374151;--bt-soft:#1f2937;--bt-white:#111827; }
@@ -342,7 +343,8 @@ body.bp-theme-versatile { --bp-panel:var(--bt-white); --bp-muted:var(--bt-muted)
 .bp-theme-versatile .bp-article { background:transparent; }
 .bp-theme-versatile .bp-header { background:var(--bp-header-bg, var(--bt-white)); }
 .bp-theme-versatile .bp-header .bp-brand, .bp-theme-versatile .bp-header .bp-links a { color:var(--bp-header-text, var(--bt-ink)); }
-.bp-theme-versatile .bp-footer { background:var(--bp-footer-bg, var(--bt-soft)); }
+.bp-theme-versatile .bp-footer { background:var(--bp-footer-bg, var(--bt-soft)); color:var(--bp-body-text, var(--bt-ink)); }
+.bp-theme-versatile .bp-footer :is(.bp-footer-brand strong, .bp-footer-links a, .bp-footer-menu-heading) { color:inherit; }
 .bp-theme-versatile a:hover { color:var(--bp-link-hover, var(--bt-blue-dark)); }
 .bp-theme-versatile .bp-text-link, .bp-theme-versatile .bp-sidebar-widget a:not(.bp-button) { color:var(--bp-link-hover, var(--bt-blue)); }
 .bp-theme-versatile .bp-scroll-top { color:#fff; }

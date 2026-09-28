@@ -52,6 +52,9 @@ final class UpdateController
         }
         $cards .= '</dl>';
         $body .= $cards;
+        if (!function_exists('sodium_crypto_sign_verify_detached')) {
+            $body .= '<p class="bp-error">Signed releases require PHP Sodium in the web server PHP configuration. Enable extension=sodium and restart PHP, or contact your host, before uploading. The optional SHA-256 checksum does not replace signature verification.</p>';
+        }
         $body .= AdminLayout::section('Update workflow', $this->updateWorkflow(), 'Recommended sequence for release maintenance.');
 
         $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Create backup</h2><p>Create a minimal update backup before staging or applying a package.</p></div></header><form method="post" action="/admin/updates/backup" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Create Backup', 'download') . '</form></section>';
@@ -109,7 +112,14 @@ final class UpdateController
             return $this->message('Stage Update', $error, true, 400);
         }
 
-        $target = $this->config->paths()->dataPath('tmp/update-package-' . date('Ymd-His') . '.zip');
+        if (($this->config->update()['require_signed_packages'] ?? false) && !function_exists('sodium_crypto_sign_verify_detached')) {
+            return $this->message('Stage Update', 'Signed updates require PHP Sodium. Enable extension=sodium in the web server PHP configuration before uploading. A SHA-256 checksum cannot replace signature verification.', true, 400);
+        }
+        $sha256 = trim($sha256);
+        if ($sha256 !== '' && preg_match('/^[a-f0-9]{64}$/iD', $sha256) !== 1) {
+            return $this->message('Stage Update', 'Leave SHA-256 blank or enter exactly 64 hexadecimal characters from the release manifest.', true, 400);
+        }
+        $target = $this->config->paths()->dataPath('tmp/update-package-' . date('Ymd-His') . '-' . bin2hex(random_bytes(4)) . '.zip');
         if (!is_dir(dirname($target)) && !mkdir(dirname($target), 0775, true) && !is_dir(dirname($target))) {
             return $this->message('Stage Update', 'Unable to prepare the update staging directory.', true, 500);
         }

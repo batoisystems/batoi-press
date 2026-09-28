@@ -58,7 +58,7 @@ $renderFooterMenu = function (string $parent = '', int $depth = 0, array $trail 
         <div class="bp-footer-bottom">
             <p class="bp-footer-meta"><?php if (!empty($site['footer_bottom_text'])): echo bp_esc((string)$site['footer_bottom_text']); else: ?>&copy; <?php echo date('Y'); ?> <?php echo bp_esc((string)($site['name'] ?? 'Batoi Press')); endif; ?></p>
             <?php foreach (\Batoi\Press\Core\Appearance::footerLinks((string)($site['footer_icon_links'] ?? '')) as $link): ?>
-            <a href="<?php echo bp_attr(bp_url($link['url'])); ?>"><span aria-hidden="true"><?php echo bp_esc($link['icon']); ?></span> <?php echo bp_esc($link['label']); ?></a>
+            <a href="<?php echo bp_attr(bp_url($link['url'])); ?>"><?php echo \Batoi\Press\Core\Appearance::footerIcon($link['icon']); ?> <?php echo bp_esc($link['label']); ?></a>
             <?php endforeach; ?>
         </div>
     </div>

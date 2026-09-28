@@ -335,7 +335,7 @@ final class SettingsController
         }
         return '<div class="bp-form-grid"><label>Color mode <select name="appearance_mode">' . $options . '</select></label>'
             . '<label><input type="checkbox" name="show_theme_toggle" value="1"' . (!empty($site['show_theme_toggle']) ? ' checked' : '') . '> Show visitor light/dark switch</label>'
-            . '<label><input type="checkbox" name="posts_load_more" value="1"' . (!empty($site['posts_load_more']) ? ' checked' : '') . '> Enable Load More on post archives (default theme)</label>' . $paletteFields
+            . '<label><input type="checkbox" name="posts_load_more" value="1"' . (($site['posts_load_more'] ?? true) ? ' checked' : '') . '> Enable Load More on post archives (default theme)</label>' . $paletteFields
             . '<label>Primary color <input type="color" name="brand_primary_color" value="' . $this->e((string)($site['brand_primary_color'] ?? '#0E68B0')) . '"></label>'
             . '<label>Accent color <input type="color" name="brand_accent_color" value="' . $this->e((string)($site['brand_accent_color'] ?? '#00B696')) . '"></label>'
             . '<label>Font family <input type="text" name="font_family" value="' . $this->e((string)($site['font_family'] ?? 'proxima-nova')) . '" placeholder="proxima-nova"></label>'
@@ -343,7 +343,7 @@ final class SettingsController
             . '<label>Top footer columns <input type="number" name="footer_top_columns" min="1" max="4" value="' . max(1,min(4,(int)($site['footer_top_columns'] ?? 2))) . '"><span class="bp-field-help">Arrange top-level Footer menu groups. Mobile layouts stack.</span></label>'
             . '<label>Bottom footer columns <input type="number" name="footer_bottom_columns" min="1" max="4" value="' . max(1,min(4,(int)($site['footer_bottom_columns'] ?? 2))) . '"></label>'
             . '<label class="bp-field-wide">Bottom footer text <textarea name="footer_bottom_text" rows="2" maxlength="500">' . $this->e((string)($site['footer_bottom_text'] ?? '')) . '</textarea></label>'
-            . '<label class="bp-field-wide">Bottom footer icon links <textarea name="footer_icon_links" rows="4" maxlength="4000">' . $this->e((string)($site['footer_icon_links'] ?? '')) . '</textarea><span class="bp-field-help">One link per line: label | HTTPS URL or /local-path | icon symbol. Example: RSS | /feed.xml | ↗. Labels stay visible for accessibility. Up to 12 links.</span></label>'
+            . '<label class="bp-field-wide">Bottom footer icon links <textarea name="footer_icon_links" rows="4" maxlength="4000">' . $this->e((string)($site['footer_icon_links'] ?? '')) . '</textarea><span class="bp-field-help">One link per line: label | HTTPS URL or /local-path | UIF icon name or symbol. Example: RSS | /feed.xml | uif:rss-feed. You can also use a literal symbol such as ↗; HTML is not accepted. Labels stay visible for accessibility. Up to 12 links.</span></label>'
             . '<label class="bp-field-wide">Footer text <textarea name="footer_text" rows="3" maxlength="500">' . $this->e((string)($site['footer_text'] ?? '')) . '</textarea></label></div>';
     }
 

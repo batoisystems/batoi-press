@@ -47,7 +47,14 @@ try {
     assertTemplate(!isset($templates['../unsafe']), 'unsafe page-template keys should be discarded');
     assertTemplate($manager->resolvePageLayout('demo', 'shop') === 'shop', 'declared shop template should resolve');
     assertTemplate($manager->resolvePageLayout('demo', 'missing') === 'page', 'unknown template should fall back to page');
-    assertTemplate(str_ends_with($manager->assetUrl('demo', 'css/theme.css', false), '?v=1.0.0'), 'theme asset URLs should include the manifest version for cache invalidation');
+    (new FileStore())->write($root . '/radpress/theme/demo/assets/css/theme.css', 'body { color: #111; }');
+    $assetUrl = $manager->assetUrl('demo', 'css/theme.css', false);
+    assertTemplate(str_contains($assetUrl, '?v=1.0.0&h='), 'theme asset URLs should include version and content fingerprint');
+    $assetFile = $manager->resolveAsset('demo', 'css/theme.css');
+    $originalAsset = file_get_contents($assetFile);
+    file_put_contents($assetFile, $originalAsset . '\n/* cache invalidation regression */');
+    assertTemplate($manager->assetUrl('demo', 'css/theme.css', false) !== $assetUrl, 'editing an asset without changing theme version must invalidate its URL');
+    file_put_contents($assetFile, $originalAsset);
 
     $pages = new PageRepository($paths, new FileStore(), new HtmlContent());
     $saved = $pages->save(['title' => 'Store', 'slug' => 'store', 'status' => 'published', 'template' => 'shop', 'show_latest_posts' => '1', 'latest_posts_limit' => '30', 'body' => '<h1>Store</h1>'], 'owner');

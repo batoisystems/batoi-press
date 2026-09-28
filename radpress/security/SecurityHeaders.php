@@ -21,7 +21,9 @@ final class SecurityHeaders
         $customPolicy = array_key_exists('content_security_policy', $settings);
         $policy = (string)($settings['content_security_policy'] ?? self::defaultPolicy($request, $config));
         if (!$customPolicy) {
-            $policy = self::withInlineScriptHashes($policy, $response->inlineScriptHashes());
+            // An in-place update can load this class after an older Response was instantiated.
+            // Missing hash support must fail closed, not turn a successful update into a fatal error.
+            $policy = self::withInlineScriptHashes($policy, method_exists($response, 'inlineScriptHashes') ? $response->inlineScriptHashes() : []);
         }
         $mode = strtolower((string)($settings['csp_mode'] ?? 'report-only'));
         if ($policy !== '' && $mode !== 'off') {

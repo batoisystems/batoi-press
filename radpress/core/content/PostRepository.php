@@ -155,6 +155,7 @@ final class PostRepository
             'seo_description' => trim((string)($input['seo_description'] ?? '')),
         ];
 
+        $meta += \Batoi\Press\Core\SocialMetadata::normalize($input, $existing ?? []);
         return ['meta' => $meta, 'body' => $this->html->sanitize((string)($input['body'] ?? '')), 'original_slug' => $originalSlug, 'base_revision' => $existing === null ? null : \Batoi\Press\Application\ContentRevision::for($existing)];
     }
 
@@ -238,7 +239,7 @@ final class PostRepository
             throw new RuntimeException('A post cannot be its own parent.');
         }
         $parent = $this->findBySlug($parentSlug);
-        if ($parent === null) {
+        if ($parent === null || ($parent['status'] ?? '') === 'trashed') {
             throw new RuntimeException('Selected parent post was not found.');
         }
         $visited = [];

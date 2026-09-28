@@ -38,6 +38,7 @@ final class PostController
             'status' => trim((string)($_GET['status'] ?? '')),
         ];
         $filteredPosts = $this->filterPosts($posts, $filters);
+        if ($filters['status'] === '') $filteredPosts = array_values(array_filter($filteredPosts, static fn(array $row): bool => ($row['status'] ?? '') !== 'trashed'));
         $body = AdminLayout::pageHeader(
             'Posts',
             'Plan, draft, and publish dated articles for the site.',
@@ -65,7 +66,7 @@ final class PostController
             $slug = (string)($post['slug'] ?? '');
             $title = (string)($post['title'] ?? 'Untitled');
             $publishedAt = (string)($post['publish_at'] ?? $post['published_at'] ?? $post['updated_at'] ?? '');
-            $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>' . (!empty($post['parent_slug']) ? 'Child post' : 'Post') . '</small></td><td>' . $this->statusBadge((string)($post['status'] ?? 'draft')) . '</td><td>' . $this->e((string)($post['category'] ?? 'General')) . '</td><td>' . $this->formatDate($publishedAt) . '</td><td><code>' . $this->e($this->posts->publicPath($post)) . '</code></td><td><div class="bp-table-actions"><a href="' . $this->e($this->posts->publicPath($post)) . '">View</a><a href="/admin/posts/edit/' . rawurlencode($slug) . '">Edit</a><a href="/admin/posts/new?parent=' . rawurlencode($slug) . '">Add child</a></div></td></tr>';
+            $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>' . (!empty($post['parent_slug']) ? 'Child post' : 'Post') . '</small></td><td>' . $this->statusBadge((string)($post['status'] ?? 'draft')) . '</td><td>' . $this->e((string)($post['category'] ?? 'General')) . '</td><td>' . $this->formatDate($publishedAt) . '</td><td><code>' . $this->e($this->posts->publicPath($post)) . '</code></td><td><div class="bp-table-actions"><a href="' . $this->e($this->posts->publicPath($post)) . '">View</a><a href="/admin/posts/edit/' . rawurlencode($slug) . '">Edit</a><a href="/admin/posts/new?parent=' . rawurlencode($slug) . '">Add child</a>' . $this->trashAction($post) . '</div></td></tr>';
         }
         $body .= '</tbody></table></div>';
         return Response::html($this->layout('Posts', $body));
@@ -77,7 +78,29 @@ final class PostController
         if ($post !== null && !AdminAccess::canManagePost($this->user, $post)) {
             return $this->forbiddenPost((string)($post['slug'] ?? $slug));
         }
+        if (($post['status'] ?? '') === 'trashed') return Response::html($this->layout('Trash', '<p>Restore this post as a draft before editing.</p>' . $this->trashAction($post)));
         return Response::html($this->layout($slug ? 'Edit Post' : 'Create Post', $this->form($post)));
+    }
+
+    private function trashAction(array $record): string
+    {
+        $restore = ($record['status'] ?? '') === 'trashed';
+        return '<form method="post" action="/admin/posts/trash" class="bp-inline-form">' . $this->csrf->field()
+            . '<input type="hidden" name="slug" value="' . $this->e((string)$record['slug']) . '"><input type="hidden" name="expected_revision" value="' . $this->e(ContentRevision::for($record)) . '">'
+            . '<input type="hidden" name="decision" value="' . ($restore ? 'restore' : 'trash') . '"><button type="submit" title="' . ($restore ? 'Restore privately as a draft' : 'Remove from the website; content stays recoverable in Trash') . '">' . ($restore ? 'Restore draft' : 'Move to Trash') . '</button></form>';
+    }
+
+    public function trash(Request $request): Response
+    {
+        if (!$this->csrf->validate($request->input('csrf_token'))) return Response::html($this->layout('posts', '<p>Security token expired.</p>'), 400);
+        if (!in_array($request->input('decision'), ['trash', 'restore'], true)) return Response::html($this->layout('posts', '<p>Invalid action.</p>'), 422);
+        try {
+            (new ContentMutationService($this->config, $this->pages, $this->posts, $this->audit, new IdempotencyStore($this->config->paths())))->trashFromAdmin('post', $request->input('slug'), $request->input('expected_revision'), $this->user, $request->input('decision') === 'restore');
+        } catch (RuntimeException $error) {
+            $status = $error instanceof \Batoi\Press\Application\ContentMutationException ? $error->httpStatus() : 409;
+            return Response::html($this->layout('posts', '<p class="bp-error">' . $this->e($error->getMessage()) . '</p><a href="/admin/posts">Back to posts</a>'), $status);
+        }
+        return Response::redirect('/admin/posts' . ($request->input('decision') === 'trash' ? '?status=trashed' : ''));
     }
 
     public function save(Request $request): Response
@@ -138,6 +161,11 @@ final class PostController
         $publishing = $this->select((string)($post['status'] ?? 'draft')) . $this->publishDateInput((string)($post['publish_at'] ?? $post['published_at'] ?? '')) . $this->dateTimeInput('Unpublish date', 'unpublish_at', (string)($post['unpublish_at'] ?? ''), 'Optional automatic public visibility cutoff.') . $this->input('Reviewer', 'reviewer', (string)($post['reviewer'] ?? ''), false) . '<label>Workflow note <textarea name="workflow_note" rows="3" maxlength="500"></textarea><span class="bp-field-help">Saved to workflow history; never displayed publicly.</span></label>' . $this->parentSelect($requestedParent, $slug) . $this->categoryInput((string)($post['category'] ?? 'General')) . $this->layoutSelect((string)($post['layout'] ?? 'full')) . $this->input('Tags', 'tags', implode(', ', (array)($post['tags'] ?? [])), false) . '<p class="bp-field-help">Separate tags with commas.</p>' . $this->workflowHistory($post) . $this->metaList($post);
         $media = $this->input('Featured image URL', 'featured_image', (string)($post['featured_image'] ?? ''), false) . $this->input('Featured image alt text', 'featured_image_alt', (string)($post['featured_image_alt'] ?? ''), false) . '<p class="bp-field-help">Use a public image URL from <a href="/admin/media?type=images" target="_blank" rel="noopener">Media</a>. Describe meaningful images for screen-reader users; leave alt text blank only for decorative images.</p>';
         $seo = $this->input('SEO Title', 'seo_title', (string)($post['seo_title'] ?? ''), false) . '<label>SEO Description <textarea name="seo_description">' . $this->e((string)($post['seo_description'] ?? '')) . '</textarea><span class="bp-field-help">Short article summary for search snippets and social previews.</span></label>';
+        $seo .= '<details><summary>Social sharing metadata</summary><p>Leave blank to use post defaults. Images and OG URL require absolute HTTPS URLs. Twitter card accepts summary or summary_large_image.</p>';
+        foreach (\Batoi\Press\Core\SocialMetadata::FIELDS as $field) {
+            $seo .= $this->input(strtoupper(str_replace('_', ' ', $field)), $field, (string)($post[$field] ?? ''), false);
+        }
+        $seo .= '</details>';
 
         $typeField = '<label>Post type / URL prefix <input name="post_type" value="' . $this->e($postType) . '" pattern="[a-z][a-z0-9-]{0,59}" maxlength="60" required><span class="bp-field-help">For example blog, news, or activities. Changing this changes the public URL; categories remain independent.</span></label>';
         $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible article content.') . '</div><aside class="bp-editor-side">' . AifEditorPanel::render($this->config, 'post') . $this->editorPanel('Publishing', $typeField . $publishing, 'Set status, category, layout, and tags.') . $this->editorPanel('Featured image', $media, 'Choose the primary image used by public post views.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->postChecklist(), 'Review before publishing or changing a live post.') . '</aside>';
@@ -160,6 +188,7 @@ final class PostController
     {
         $html = '<label>Status <select name="status">';
         foreach (PublicationState::STATUSES as $value) {
+            if ($value === 'trashed') continue;
             $html .= '<option value="' . $value . '"' . ($status === $value ? ' selected' : '') . '>' . $this->e(PublicationState::label($value)) . '</option>';
         }
         return $html . '</select><span class="bp-field-help">Use In review and Approved for handoff; Scheduled requires a publish date.</span></label>';

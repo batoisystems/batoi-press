@@ -142,6 +142,7 @@ final class PageRepository
             'blocks' => $blocks,
         ];
 
+        $meta += \Batoi\Press\Core\SocialMetadata::normalize($input, $existing ?? []);
         return ['meta' => $meta, 'body' => $body, 'original_slug' => $originalSlug, 'base_revision' => $existing === null ? null : \Batoi\Press\Application\ContentRevision::for($existing)];
     }
 
@@ -281,7 +282,7 @@ final class PageRepository
         }
 
         $parent = $this->findBySlug($parentSlug);
-        if ($parent === null) {
+        if ($parent === null || ($parent['status'] ?? '') === 'trashed') {
             throw new RuntimeException('Selected parent page was not found.');
         }
 

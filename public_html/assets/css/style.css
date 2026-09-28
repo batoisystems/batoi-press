@@ -1917,6 +1917,10 @@ p {
     gap: 16px;
 }
 
+.bp-template-editor { grid-template-columns: minmax(0, 1fr); }
+.bp-template-editor .bp-editor-side { grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); }
+.bp-template-editor textarea { min-height: 60vh; resize: vertical; }
+
 .bp-editor-panel {
     background: var(--bp-panel);
     border: 1px solid var(--bp-line);

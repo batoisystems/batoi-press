@@ -47,4 +47,13 @@ final class Appearance
         }
         return $links;
     }
+
+    public static function footerIcon(string $icon): string
+    {
+        $name = str_starts_with($icon, 'uif:') ? substr($icon, 4) : $icon;
+        if (preg_match('/^[a-z][a-z0-9-]{0,63}$/D', $name)) {
+            return '<span aria-hidden="true" data-uif-icon="' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '"></span>';
+        }
+        return '<span aria-hidden="true">' . htmlspecialchars($icon, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span>';
+    }
 }
