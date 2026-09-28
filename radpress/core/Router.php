@@ -386,6 +386,10 @@ final class Router
             return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->preview(rawurldecode(substr($request->path, 22)), $request->input('layout'));
         }
 
+        if ($request->path === '/admin/health' && $request->method === 'GET') {
+            return (new \Batoi\Press\Admin\HealthController($this->config, $user))->index();
+        }
+
         if ($request->path === '/admin/theme-templates') {
             return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->index($request->input('theme'));
         }

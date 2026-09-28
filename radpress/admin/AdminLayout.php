@@ -148,6 +148,7 @@ final class AdminLayout
                 ['label' => 'Themes', 'href' => '/admin/themes', 'icon' => 'code'],
                 ['label' => 'Static Export', 'href' => '/admin/export-static', 'icon' => 'download'],
                 ['label' => 'Cache', 'href' => '/admin/cache', 'icon' => 'database'],
+                ['label' => 'Hosting Health', 'href' => '/admin/health', 'icon' => 'shield'],
             ],
             'Governance' => [
                 ['label' => 'Security', 'href' => '/admin/security', 'icon' => 'shield'],
