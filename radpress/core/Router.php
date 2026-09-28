@@ -79,15 +79,15 @@ final class Router
         }
 
         if (str_starts_with($request->path, '/media/')) {
-            return $this->media(rawurldecode(substr($request->path, 7)));
+            return $this->media(rawurldecode(substr($request->path, 7)), $request);
         }
 
         if (str_starts_with($request->path, '/assets/')) {
-            return $this->asset(rawurldecode(substr($request->path, 8)));
+            return $this->asset(rawurldecode(substr($request->path, 8)), $request);
         }
 
         if (str_starts_with($request->path, '/theme-assets/')) {
-            return $this->themeAsset(rawurldecode(substr($request->path, 14)));
+            return $this->themeAsset(rawurldecode(substr($request->path, 14)), $request);
         }
 
         $postType = explode('/', trim($request->path, '/'))[0];
@@ -570,27 +570,27 @@ final class Router
         return $this->theme->render('404', ['title' => 'Page Not Found'], 404);
     }
 
-    private function media(string $name): Response
+    private function media(string $name, Request $request): Response
     {
         $asset = (new AssetManager($this->config->paths()))->find('media', $name);
         if ($asset === null) {
             return $this->notFound();
         }
 
-        return $this->assetResponse($asset['path'], false);
+        return AssetResponse::make($asset['path'], $request, $this->config->site());
     }
 
-    private function asset(string $relative): Response
+    private function asset(string $relative, Request $request): Response
     {
         $file = (new AssetManager($this->config->paths()))->resolveAsset($relative);
         if ($file === null) {
             return $this->notFound();
         }
 
-        return $this->assetResponse($file, false);
+        return AssetResponse::make($file, $request, $this->config->site());
     }
 
-    private function themeAsset(string $target): Response
+    private function themeAsset(string $target, Request $request): Response
     {
         $parts = explode('/', ltrim(str_replace('\\', '/', $target), '/'), 2);
         if (count($parts) !== 2) {
@@ -598,22 +598,7 @@ final class Router
         }
         $manager = new ThemeManager($this->config->paths());
         $file = $manager->resolveAsset($parts[0], $parts[1]);
-        return $file !== null ? $this->assetResponse($file, true) : $this->notFound();
-    }
-
-    private function assetResponse(string $file, bool $immutable): Response
-    {
-        $body = file_get_contents($file);
-        if ($body === false) {
-            return $this->notFound();
-        }
-
-        return new Response($body, 200, [
-            'Content-Type' => AssetManager::mimeType($file),
-            'Content-Length' => (string)strlen($body),
-            'Cache-Control' => $immutable ? 'public, max-age=31536000, immutable' : 'public, max-age=0, must-revalidate',
-            'X-Content-Type-Options' => 'nosniff',
-        ]);
+        return $file !== null ? AssetResponse::make($file, $request, $this->config->site(), true) : $this->notFound();
     }
 
     private function sitemap(): string

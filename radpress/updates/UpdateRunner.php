@@ -268,7 +268,7 @@ final class UpdateRunner
 
     private function preserveExistingTarget(string $relative): bool
     {
-        return in_array(trim(str_replace('\\', '/', $relative), '/'), ['radpress/config/aif.json', 'radpress/config/paths.json'], true);
+        return in_array(trim(str_replace('\\', '/', $relative), '/'), ['radpress/config/aif.json', 'radpress/config/paths.json', 'public_html/.htaccess'], true);
     }
 
     private function allowedTargetPrefixes(): array

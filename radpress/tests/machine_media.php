@@ -91,7 +91,10 @@ try {
         $response = $router->dispatch(new Request('GET', $url, [], [], []));
         mediaCheck($response->status() === 404 && !str_contains($response->content(), 'private'), 'public routes refuse hidden and linked bytes');
     }
-    mediaCheck($router->dispatch(new Request('GET', '/assets/documents/2026/09/safe.txt', [], [], []))->content() === 'safe', 'ordinary public asset delivery remains compatible');
+    ob_start();
+    $router->dispatch(new Request('GET', '/assets/documents/2026/09/safe.txt', [], [], []))->send();
+    $delivered = ob_get_clean();
+    mediaCheck($delivered === 'safe', 'ordinary public asset delivery remains compatible');
     rename($root . '/content/assets', $root . '/content/saved-assets');
     symlink($root . '/outside', $root . '/content/assets');
     mediaCheck($assets->all() === [] && $assets->resolveAsset('private.txt') === null, 'linked asset roots are not listed or served');

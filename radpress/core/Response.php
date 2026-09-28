@@ -9,7 +9,8 @@ final class Response
         private readonly string $body,
         private readonly int $status = 200,
         private readonly array $headers = [],
-        private readonly array $inlineScriptHashes = []
+        private readonly array $inlineScriptHashes = [],
+        private readonly ?FileBody $fileBody = null
     ) {
     }
 
@@ -64,13 +65,13 @@ final class Response
 
     public function withHeader(string $name, string $value): self
     {
-        return new self($this->body, $this->status, array_merge($this->headers, [$name => $value]), $this->inlineScriptHashes);
+        return new self($this->body, $this->status, array_merge($this->headers, [$name => $value]), $this->inlineScriptHashes, $this->fileBody);
     }
 
     public function withInlineScript(string $script): self
     {
         $hash = "'sha256-" . base64_encode(hash('sha256', $script, true)) . "'";
-        return new self($this->body, $this->status, $this->headers, array_values(array_unique([...$this->inlineScriptHashes, $hash])));
+        return new self($this->body, $this->status, $this->headers, array_values(array_unique([...$this->inlineScriptHashes, $hash])), $this->fileBody);
     }
 
     public function inlineScriptHashes(): array
@@ -80,12 +81,15 @@ final class Response
 
     public function send(): void
     {
+        // File lengths and ranges describe identity bytes, not a PHP gzip transform.
+        if ($this->fileBody !== null) @ini_set('zlib.output_compression', '0');
         foreach ($this->headers as $name => $value) {
             header($name . ': ' . $value);
         }
         // PHP may infer a different status for WWW-Authenticate or Location.
         // Preserve the controller's explicit status after all headers are set.
         http_response_code($this->status);
-        echo $this->body;
+        if ($this->fileBody !== null) $this->fileBody->send();
+        else echo $this->body;
     }
 }
