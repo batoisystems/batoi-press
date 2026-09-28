@@ -173,6 +173,8 @@ function releaseSignatureRequired(string $root): bool
 function isInstallableTarget(string $relative): bool
 {
     $relative = trim($relative, '/');
+    // Older installed updaters also honor this list: preserve hosting rules on the first upgrade.
+    if ($relative === 'public_html/.htaccess') return false;
     foreach (installableTargetPrefixes() as $prefix) {
         if ($relative === rtrim($prefix, '/') || str_starts_with($relative, $prefix)) {
             return true;

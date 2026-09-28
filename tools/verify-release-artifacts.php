@@ -69,6 +69,9 @@ foreach ($packageFiles as $file) {
     if ($path === '' || !isset($entries[$path])) {
         fail("Release package manifest references a missing file: {$path}");
     }
+    if ($path === 'public_html/.htaccess') {
+        fail('Upgrade manifest must preserve existing hosting rules, including with older updaters.');
+    }
     if (!isAllowedManifestTarget($path)) {
         fail("Release package manifest references a non-installable path: {$path}");
     }

@@ -85,9 +85,11 @@ In v0.5.0 this metadata is informational. SHA-256 checksum verification remains 
 
 ## Preserving hosting rules
 
-Existing `public_html/.htaccess` is now preserved during manifest-based updates,
+From 3.2.0, `public_html/.htaccess` remains in fresh-install ZIPs but is omitted
+from the installable-file manifest, protecting existing hosting rules even when
+an older installed updater applies the release. The new updater also explicitly
+preserves existing `public_html/.htaccess` during manifest-based updates,
 alongside existing AIF and paths configuration. New installations still receive
 the packaged file. Review future release notes for security/rewrite changes that
 must be merged manually into customized rules. The upgrade regression verifies
-preservation of a site-specific rewrite/compression fixture. No release version,
-production hosting or published package was changed for this work.
+preservation of a site-specific rewrite/compression fixture. See the 3.2.0 release notes for publication and installation verification.

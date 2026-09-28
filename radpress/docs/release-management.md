@@ -38,6 +38,8 @@ Prerelease versions (for example `3.0.0-rc.1`) use a signed `candidate.json` and
 
 ## Current Release Track
 
+- `3.2.0`: Recoverable template saves, streamed HTTP assets, page media controls and private hosting health. See [release notes](releases/v3.2.0.md).
+
 - `3.1.0`: Recoverable page/post Trash, social metadata, UIF footer icons, theme cache/contrast corrections and updater compatibility fixes. Default theme 3.3.0; bundled UIF remains 3.0.0. See `radpress/docs/releases/v3.1.0.md`.
 - `0.1.0`: Initial flat-file CMS, installer, public rendering, and admin foundation.
 - `0.2.0`: Bundled Batoi UIF and disabled-by-default Batoi AIF scaffolding.
@@ -145,7 +147,8 @@ Do not tag `v1.0.0` until the checklist above is complete or consciously convert
 
 ## Reliability/performance implementation verification (September 2026)
 
-This work is not a release or deployment. The five phases cover recoverable
+The implementation was initially completed without release or deployment; it is
+now packaged as 3.2.0 following release authorization. The five phases cover recoverable
 template saves and safe request correlation; streaming public asset responses;
 structured page media controls; private hosting diagnostics; and accurate runtime
 cache maintenance guidance. Existing security and signed-update policies remain.
