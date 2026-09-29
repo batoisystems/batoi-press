@@ -47,7 +47,17 @@ final class ContactController
         try {
             (new MailerService($this->config->paths(), $integrations))->sendContact($name, $email, $subject !== '' ? $subject : 'Website contact from ' . $name, $message);
         } catch (RuntimeException $exception) {
-            return $this->result($exception->getMessage(), 503, $returnPath);
+            // Provider errors can contain private transport details. Record only
+            // safe correlation metadata, never the exception, token or enquiry.
+            try {
+                (new \Batoi\Press\Core\AuditLog($this->config->paths(), new FileStore()))->record(
+                    'public', 'contact.delivery_failed', '/contact/submit', '', 'failed',
+                    ['request_id' => $request->requestId]
+                );
+            } catch (RuntimeException) {
+                // Logging failure must not expose the original provider error.
+            }
+            return $this->result('We could not send your message. Please try again later. Reference: ' . $request->requestId, 503, $returnPath);
         }
         return Response::redirect($returnPath . '?contact=sent');
     }
@@ -64,7 +74,7 @@ final class ContactController
     {
         $encryptedSecret = (string)($config['recaptcha_secret_key'] ?? '');
         if ($encryptedSecret === '') {
-            return true;
+            return trim((string)($config['recaptcha_site_key'] ?? '')) === '';
         }
         if ($token === '' || !function_exists('curl_init')) {
             return false;

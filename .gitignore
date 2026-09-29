@@ -2,6 +2,10 @@
 /dist/
 /specs/
 /tools/
+!/.github/
+!/.github/workflows/
+!/.github/workflows/publish-release.yml
+!/.github/workflows/regression.yml
 radpress/data/backups/*.zip
 radpress/data/cache/*
 radpress/data/export/*.zip

@@ -1,0 +1,86 @@
+name: Verify signed release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing release version without the v prefix
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: press-release-verification
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve immutable release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          INPUT_VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          TAG=${RELEASE_TAG:-v$INPUT_VERSION}
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          gh release view "$TAG" --json tagName,isDraft,isPrerelease > release-info.json
+          test "$(jq -r .isDraft release-info.json)" = false
+          test "$(jq -r .tagName release-info.json)" = "$TAG"
+          VERSION=${TAG#v}
+          INDEX=latest.json
+          if [[ "$VERSION" == *-* ]]; then
+            test "$(jq -r .isPrerelease release-info.json)" = true
+            INDEX=candidate.json
+          else
+            test "$(jq -r .isPrerelease release-info.json)" = false
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "index=$INDEX" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+          persist-credentials: false
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: zip, sodium, curl, mbstring, dom
+          coverage: none
+
+      - name: Download exact offline-signed artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          INDEX: ${{ steps.release.outputs.index }}
+        run: |
+          mkdir -p dist
+          gh release download "$TAG" --pattern "batoi-press-$VERSION.zip" --pattern "$INDEX" --pattern "$INDEX.sig" --pattern release-public-keys.json --dir dist
+          test "$(php -r '$c=json_decode(file_get_contents("radpress/config/update.json"),true); echo $c["current_version"];')" = "$VERSION"
+          php .github/scripts/verify-release-artifacts.php --zip "dist/batoi-press-$VERSION.zip" --manifest "dist/$INDEX"
+          php -r '$m=json_decode(file_get_contents($argv[1]),true); $expected=str_contains($argv[2],"-")?"candidate":"stable"; if (($m["channel"]??"")!==$expected) exit(1);' "dist/$INDEX" "$VERSION"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-batoi-press-${{ steps.release.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Explicit deployment boundary
+        run: |
+          echo "::warning::Verified artifacts only. Website deployment is NOT performed by this workflow."
+          {
+            echo "### Verified; not deployed"
+            echo "The exact offline-signed artifacts passed verification against the selected release tag."
+            echo "Publish through the reviewed distribution process. Automatic SSH publication is disabled until host-key pinning, rollback-safe metadata switching and public readback are implemented."
+          } >> "$GITHUB_STEP_SUMMARY"

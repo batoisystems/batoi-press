@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-require dirname(__DIR__) . '/radpress/autoload.php';
+require dirname(__DIR__, 2) . '/radpress/autoload.php';
 
-$root = dirname(__DIR__);
+$root = dirname(__DIR__, 2);
 $version = readCurrentVersion($root);
 $zipPath = optionValue($argv, '--zip') ?? $root . '/dist/batoi-press-' . $version . '.zip';
 $manifestPath = optionValue($argv, '--manifest') ?? $root . '/dist/' . (str_contains($version, '-') ? 'candidate.json' : 'latest.json');
@@ -93,6 +93,9 @@ if (!is_array($manifest)) {
 
 if ((string)($manifest['version'] ?? '') !== $version) {
     fail('Release manifest version does not match current_version.');
+}
+if (($manifest['channel'] ?? '') !== (str_contains($version, '-') ? 'candidate' : 'stable')) {
+    fail('Release channel does not match version stability.');
 }
 
 $checksum = hash_file('sha256', $zipPath);

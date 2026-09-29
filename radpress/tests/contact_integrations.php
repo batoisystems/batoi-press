@@ -26,7 +26,7 @@ try {
     $honeypot = $controller->submit(new Request('POST', '/contact/submit', [], ['website'=>'bot','name'=>'Bot','email'=>'bot@example.com','message'=>'Spam'], ['REMOTE_ADDR'=>'192.0.2.2']));
     assertContact($honeypot->status() === 302 && str_contains((string)($honeypot->headers()['Location'] ?? ''), 'contact=sent'), 'honeypot submissions should be discarded without mail delivery');
     $disabled = $controller->submit(new Request('POST', '/contact/submit', [], ['name'=>'Person','email'=>'person@example.com','message'=>'Hello'], ['REMOTE_ADDR'=>'192.0.2.3']));
-    assertContact($disabled->status() === 503 && str_contains($disabled->content(), 'disabled'), 'valid contact submissions should report disabled delivery safely');
+    assertContact($disabled->status() === 503 && str_contains($disabled->content(), 'Reference:') && !str_contains($disabled->content(), 'delivery is disabled'), 'valid contact submissions should report a neutral correlated delivery failure');
     file_put_contents($root . '/radpress/config/integrations.json', json_encode(['mail_provider'=>'php_mail','mail_from'=>'site@example.com','mail_to'=>'owner@example.com']));
     $config = Config::load($root);
     $pages = new \Batoi\Press\Content\PageRepository($config->paths(), new \Batoi\Press\Core\FileStore(), new \Batoi\Press\Core\HtmlContent());

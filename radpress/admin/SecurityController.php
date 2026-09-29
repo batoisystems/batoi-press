@@ -152,9 +152,15 @@ final class SecurityController
     private function diagnostics(): string
     {
         $update = $this->config->update();
+        $headers = (array)($this->config->security()['headers'] ?? []);
+        $integrations = $this->config->integrations();
+        $customPolicy = array_key_exists('content_security_policy', $headers);
+        $captchaConfigured = trim((string)($integrations['recaptcha_site_key'] ?? '')) !== '';
         $securityDir = $this->config->paths()->dataPath('security');
         $checks = [
-            ['Sodium cryptography', function_exists('sodium_crypto_sign_verify_detached'), 'Required for secrets, MFA, and signed updates.'],
+            ['Sodium cryptography', function_exists('sodium_crypto_sign_verify_detached'), 'Required for signed updates in this web PHP runtime. Enable it through your host; a checksum cannot replace signature verification.'],
+            ['CSP policy source', !$customPolicy, $customPolicy ? 'Custom policy overrides generated integration allowances. Review script, frame and connection sources; Press does not rewrite your policy.' : 'Generated policy uses configured integrations. Scripts added independently by custom themes need an explicit policy review.'],
+            ['reCAPTCHA configuration', $captchaConfigured === !empty($integrations['recaptcha_secret_key']), 'Built-in contact forms use v2 checkbox keys. Both keys are required together. Custom v3 forms must own server verification and policy configuration.'],
             ['Signed updates', ($update['require_signed_packages'] ?? false) === true && (array)($update['release_public_keys'] ?? []) !== [], 'Stable update verification must fail closed.'],
             ['Private security storage', is_dir($securityDir) && !is_writable($securityDir) ? true : is_dir($securityDir), 'Runtime keys and revocation state remain outside public files.'],
             ['ZIP support', class_exists('ZipArchive'), 'Required to inspect and stage update packages.'],

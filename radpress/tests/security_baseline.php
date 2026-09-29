@@ -107,6 +107,22 @@ try {
     file_put_contents($headerRoot . '/radpress/config/security.json', json_encode(['headers' => ['csp_mode' => 'enforce', 'content_security_policy' => $customPolicy]]));
     $customResponse = SecurityHeaders::apply(Response::html('ok'), new Request('GET', '/', [], [], ['HTTPS' => 'on']), Config::load($headerRoot));
     assertSame($customPolicy, $customResponse->headers()['Content-Security-Policy'], 'explicit custom policies must remain unchanged');
+    file_put_contents($headerRoot . '/radpress/config/integrations.json', json_encode(['recaptcha_site_key' => 'test-v2-key']));
+    foreach (['report-only', 'enforce'] as $mode) {
+        file_put_contents($headerRoot . '/radpress/config/security.json', json_encode(['headers' => ['csp_mode' => $mode]]));
+        $captchaResponse = SecurityHeaders::apply(Response::html('ok'), new Request('GET', '/contact', [], [], ['HTTPS' => 'on']), Config::load($headerRoot));
+        $header = $mode === 'enforce' ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only';
+        $policy = $captchaResponse->headers()[$header];
+        foreach (['script-src' => ['https://www.google.com/recaptcha/', 'https://www.gstatic.com/recaptcha/'], 'frame-src' => ['https://www.google.com/recaptcha/', 'https://recaptcha.google.com/recaptcha/'], 'connect-src' => ['https://www.google.com/recaptcha/']] as $directive => $sources) {
+            preg_match('/(?:^|; )' . $directive . ' ([^;]+)/', $policy, $matches);
+            foreach ($sources as $source) assertTrue(in_array($source, explode(' ', $matches[1] ?? ''), true), 'Enabled CAPTCHA must allow ' . $directive . ' ' . $source);
+        }
+        assertTrue(!preg_match('~https://www\\.google\\.com(?:;| |$)~', $policy), 'CAPTCHA must not broadly allow the whole Google origin');
+    }
+    assertTrue(!str_contains($scriptPolicy, 'google.com'), 'disabled CAPTCHA must not add Google sources');
+    file_put_contents($headerRoot . '/radpress/config/security.json', json_encode(['headers' => ['csp_mode' => 'enforce', 'content_security_policy' => $customPolicy]]));
+    $customResponse = SecurityHeaders::apply(Response::html('ok'), new Request('GET', '/contact', [], [], ['HTTPS' => 'on']), Config::load($headerRoot));
+    assertSame($customPolicy, $customResponse->headers()['Content-Security-Policy'], 'enabled CAPTCHA must not overwrite an explicit custom policy');
 } finally {
     removeTree($headerRoot);
 }

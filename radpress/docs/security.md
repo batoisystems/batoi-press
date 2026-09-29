@@ -51,6 +51,31 @@ Keep report-only during a theme compatibility review, then use `enforce` after
 required image, frame, script, and style sources are represented by a narrow
 policy. Batoi Press never adds arbitrary request values to the policy.
 
+The built-in contact form supports **reCAPTCHA v2 checkbox** keys, configured
+as a pair in Settings. A partially configured site key without a secret fails
+human verification rather than silently bypassing it. A custom v3 form must
+implement its own server-side action/score verification; v3 keys are not a
+drop-in replacement for the built-in v2 form.
+
+Generated CSP includes Google's path-scoped reCAPTCHA script/connect sources
+and both Google frame endpoints only when the integration site key is configured.
+See [Google's CSP guidance](https://developers.google.com/recaptcha/docs/faq).
+For independently integrated custom themes, maintain an explicit complete policy
+under `headers.content_security_policy` in `radpress/config/security.json`.
+This replaces, rather than extends, the generated policy: retain your existing
+directives and explicitly authorize necessary inline code by hash/nonce. Include
+`https://www.google.com/recaptcha/` and `https://www.gstatic.com/recaptcha/` in
+`script-src`, both `https://www.google.com/recaptcha/` and
+`https://recaptcha.google.com/recaptcha/` in `frame-src`, and
+`https://www.google.com/recaptcha/` in `connect-src`. Do not add whole-origin
+wildcards or disable CSP. Omit `upgrade-insecure-requests` from report-only
+policies. Test the actual browser response for hosting-injected policies too.
+
+Security diagnostics identify generated versus custom policy without exposing
+private keys. Contact delivery failures return a neutral visitor message and
+request reference; the private audit records that reference, not enquiry content
+or raw provider errors.
+
 Theme ZIP uploads undergo non-executing compatibility inspection before
 installation. The inspection rejects unsafe paths, links, encrypted entries,
 archive-limit violations, likely secrets, prohibited PHP execution operations,

@@ -16,6 +16,32 @@ From `1.0.0` onward, public content files, theme templates, installer behavior, 
 
 ## Release Checklist
 
+Build new releases with `php tools/build-committed-release.php` after committing
+tracked changes using the maintainer's private local tooling. The `tools/`
+directory is intentionally not distributed through GitHub. The build wrapper uses
+the local builder/manifest helpers against an archive of the committed source.
+Only the non-signing CI runner and verifier live under `.github/scripts/`.
+
+The local wrapper requires committing
+tracked changes. It archives HEAD, excludes untracked files, keeps the offline key
+outside the archive, refuses to overwrite an existing versioned ZIP, and verifies
+the result. The private temporary source tree is retained for inspection. The
+lower-level builder remains available for controlled fixtures, not as a release
+from a populated installation.
+
+The GitHub release workflow now verifies existing offline-signed artifacts for
+the exact selected tag; it never creates an unsigned replacement index. Candidate
+releases use `candidate.json`. It intentionally **does not deploy the website**.
+The former SSH path is disabled pending operator-pinned host keys, coordinated
+rollback-safe metadata publication and public checksum/signature readback. Existing
+deployment secrets do not enable this unimplemented path. Use the reviewed manual
+distribution process and publish the ZIP before the index; do not treat the
+verification workflow's success as public deployment success.
+
+Before publication run `php .github/scripts/run-tests.php` (requires Node for JavaScript
+regressions). Push/PR CI runs the same standalone entrypoints on PHP 8.1, 8.3 and
+8.5. A local pass does not establish that the remote matrix has run.
+
 Prerelease versions (for example `3.0.0-rc.1`) use a signed `candidate.json` and `candidate.json.sig`, and a GitHub prerelease. Do not replace the stable `latest.json` pair until production acceptance is complete. Candidate installation uses the signed ZIP through Admin → Updates.
 
 - [ ] Decide the next version number from the version policy.
@@ -37,6 +63,8 @@ Prerelease versions (for example `3.0.0-rc.1`) use a signed `candidate.json` and
 - [ ] Publish the GitHub release and public Batoi manifest/package.
 
 ## Current Release Track
+
+- `3.2.3`: reCAPTCHA CSP compatibility, safe contact failures, private diagnostics and signed-release verification tooling. See [release notes](releases/v3.2.3.md).
 
 - `3.2.2`: Omit the enforcement-only HTTPS upgrade directive from generated report-only CSP headers; preserve HSTS and enforced policies. See [release notes](releases/v3.2.2.md).
 

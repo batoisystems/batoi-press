@@ -53,10 +53,11 @@ final class SecurityHeaders
             $connectSources[] = 'https://*.google-analytics.com';
         }
         if ((string)($integrations['recaptcha_site_key'] ?? '') !== '') {
-            $scriptSources[] = 'https://www.google.com';
-            $scriptSources[] = 'https://www.gstatic.com';
-            $connectSources[] = 'https://www.google.com';
-            $frameSources[] = 'https://www.google.com';
+            $scriptSources[] = 'https://www.google.com/recaptcha/';
+            $scriptSources[] = 'https://www.gstatic.com/recaptcha/';
+            $connectSources[] = 'https://www.google.com/recaptcha/';
+            $frameSources[] = 'https://www.google.com/recaptcha/';
+            $frameSources[] = 'https://recaptcha.google.com/recaptcha/';
         }
         $fontUrl = (string)($config->site()['font_stylesheet_url'] ?? '');
         $fontHost = filter_var($fontUrl, FILTER_VALIDATE_URL) ? parse_url($fontUrl, PHP_URL_HOST) : null;
