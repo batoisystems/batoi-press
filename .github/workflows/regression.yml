@@ -22,6 +22,6 @@ jobs:
         with:
           node-version: '22'
       - name: PHP syntax
-        run: find public_html radpress tools -name '*.php' -print0 | xargs -0 -n 1 php -l
+        run: find public_html radpress .github/scripts -name '*.php' -print0 | xargs -0 -n 1 php -l
       - name: PHP and JavaScript regressions
         run: php .github/scripts/run-tests.php

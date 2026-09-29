@@ -41,7 +41,7 @@ foreach ([new RuntimeException('private transport detail'), new ValueError('priv
 $invalid = (new VersionChecker('https://example.test/latest.json', static fn (): string => '<html>not json</html>'))->check('1.7.0');
 assertVersion(($invalid['ok'] ?? true) === false && ($invalid['error'] ?? '') === 'Update manifest is invalid.', 'Invalid manifest content should fail clearly.');
 
-$unavailable = (new VersionChecker('https://example.test/latest.json', static fn (): false => false))->check('1.7.0');
+$unavailable = (new VersionChecker('https://example.test/latest.json', static fn (): bool => false))->check('1.7.0');
 assertVersion(($unavailable['ok'] ?? true) === false, 'An unavailable manifest should fail.');
 assertVersion(str_contains((string)($unavailable['error'] ?? ''), 'fetch update manifest'), 'A failed check should include actionable hosting diagnostics.');
 
