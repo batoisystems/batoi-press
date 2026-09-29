@@ -685,8 +685,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 data.set('source_encoded', window.btoa(binary));
                 data.delete('source');
                 status.textContent = 'Saving… Keep this editor open.';
-                const response = await fetch(form.action, {method: 'POST', body: data, credentials: 'same-origin', headers: {'X-Press-Editor': '1'}});
+                // Do not follow hosting/login redirects: 301/302/303 can drop the
+                // POST body, and a redirect must never be treated as a saved file.
+                const response = await fetch(form.action, {method: 'POST', body: data, credentials: 'same-origin', redirect: 'error', headers: {'X-Press-Editor': '1'}});
                 reference = response.headers.get('X-Request-ID') || '';
+                if (response.redirected) throw new Error('The save request was redirected; saving is not confirmed.');
+                if (!(response.headers.get('Content-Type') || '').toLowerCase().includes('application/json')) {
+                    throw new Error('The server returned HTTP ' + response.status + ' instead of a save confirmation. Check the login session and hosting redirect/error logs.');
+                }
                 const result = await response.json();
                 if (!response.ok || !result.ok) throw new Error(result.message || 'Save failed.');
                 if (source.value !== submittedSource) {

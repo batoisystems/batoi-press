@@ -398,7 +398,7 @@ final class Router
             return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 28)));
         }
 
-        if ($request->path === '/admin/theme-templates/save' && $request->method === 'POST') {
+        if ($request->path === '/admin/theme-templates/save') {
             return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->save($request);
         }
 

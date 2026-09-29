@@ -351,6 +351,13 @@ final class ThemeTemplateController
     public function save(Request $request): Response
     {
         if ($blocked = $this->authorize()) return $blocked;
+        if ($request->method !== 'POST') {
+            $message = 'Template saving requires POST. No template was saved by this request. Return to the editor; if this followed Save Template, ask the host to inspect redirects that change POST to GET. Preserve or download your unsaved source before reloading.';
+            $response = $request->header('X-Press-Editor') === '1'
+                ? Response::json(['ok' => false, 'message' => $message, 'request_id' => $request->requestId], 405)
+                : Response::html($this->layout('Template save not submitted', '<p class="bp-error">' . $this->e($message) . '</p><p>Reference: ' . $this->e($request->requestId) . '</p>' . AdminLayout::buttonLink('Back to templates', '/admin/theme-templates', 'back', true)), 405);
+            return $response->withHeader('Allow', 'POST')->withHeader('X-Request-ID', $request->requestId)->withHeader('Cache-Control', 'private, no-store');
+        }
         $id = $request->requestId;
         try {
             $response = $this->saveAttempt($request);

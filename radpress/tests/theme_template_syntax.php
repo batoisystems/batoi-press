@@ -24,6 +24,16 @@ $controller = new ThemeTemplateController(
 );
 
 $method = new ReflectionMethod($controller, 'isPhpRuntimeStartupNoise');
+foreach (['GET', 'HEAD', 'PUT'] as $verb) {
+    $request = new \Batoi\Press\Core\Request($verb, '/admin/theme-templates/save', [], [], []);
+    $response = $controller->save($request);
+    assertTrue($response->status() === 405 && ($response->headers()['Allow'] ?? '') === 'POST', 'Non-POST template saves must explicitly reject the method instead of showing a public 404.');
+    assertTrue(str_contains($response->content(), 'No template was saved by this request') && str_contains($response->content(), $request->requestId), 'Method errors must explain the safe outcome with a correlation reference.');
+    assertTrue(($response->headers()['Cache-Control'] ?? '') === 'private, no-store', 'Save diagnostics must not be cached.');
+}
+$jsonRequest = new \Batoi\Press\Core\Request('GET', '/admin/theme-templates/save', [], [], ['HTTP_X_PRESS_EDITOR'=>'1']);
+$jsonResponse = $controller->save($jsonRequest);
+assertTrue($jsonResponse->status() === 405 && (json_decode($jsonResponse->content(), true)['ok'] ?? true) === false, 'AJAX method rejection must remain a structured failed save.');
 $method->setAccessible(true);
 
 assertTrue($method->invoke($controller, [

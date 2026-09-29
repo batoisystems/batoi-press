@@ -38,6 +38,8 @@ Prerelease versions (for example `3.0.0-rc.1`) use a signed `candidate.json` and
 
 ## Current Release Track
 
+- `3.2.1`: Explicit template-save method diagnostics and redirect/HTML response recovery. See [release notes](releases/v3.2.1.md).
+
 - `3.2.0`: Recoverable template saves, streamed HTTP assets, page media controls and private hosting health. See [release notes](releases/v3.2.0.md).
 
 - `3.1.0`: Recoverable page/post Trash, social metadata, UIF footer icons, theme cache/contrast corrections and updater compatibility fixes. Default theme 3.3.0; bundled UIF remains 3.0.0. See `radpress/docs/releases/v3.1.0.md`.
