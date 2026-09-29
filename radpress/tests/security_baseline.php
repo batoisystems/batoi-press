@@ -71,6 +71,45 @@ assertSame('nosniff', (string)($secured->headers()['X-Content-Type-Options'] ?? 
 assertSame('DENY', (string)($secured->headers()['X-Frame-Options'] ?? ''), 'responses should deny framing');
 assertTrue(isset($secured->headers()['Content-Security-Policy-Report-Only']), 'default CSP rollout should be report-only');
 assertTrue(str_starts_with((string)($secured->headers()['Strict-Transport-Security'] ?? ''), 'max-age='), 'HTTPS responses should carry HSTS');
+assertTrue(!str_contains($secured->headers()['Content-Security-Policy-Report-Only'], 'upgrade-insecure-requests'), 'default report-only CSP must omit the enforcement-only upgrade directive');
+
+$headerRoot = sys_get_temp_dir() . '/batoi-press-security-headers-' . bin2hex(random_bytes(4));
+mkdir($headerRoot . '/radpress/config', 0775, true);
+try {
+    file_put_contents($headerRoot . '/radpress/config/paths.json', json_encode(['config' => 'radpress/config']));
+    foreach (['report-only', 'enforce', 'off', 'unknown'] as $mode) {
+        file_put_contents($headerRoot . '/radpress/config/security.json', json_encode(['headers' => ['csp_mode' => $mode]]));
+        $modeConfig = Config::load($headerRoot);
+        foreach ([['HTTPS' => 'on'], ['HTTP_X_FORWARDED_PROTO' => 'https'], []] as $server) {
+            $isHttps = $server !== [];
+            $routePolicy = "sandbox; default-src 'none'";
+            $response = SecurityHeaders::apply(
+                Response::html('ok')->withHeader('Content-Security-Policy', $routePolicy),
+                new Request('GET', '/', [], [], $server),
+                $modeConfig
+            );
+            $headers = $response->headers();
+            $enforcedPolicy = $headers['Content-Security-Policy'];
+            $reportPolicy = $headers['Content-Security-Policy-Report-Only'] ?? '';
+            assertSame($isHttps, isset($headers['Strict-Transport-Security']), 'HSTS should depend on HTTPS, not CSP mode');
+            assertTrue(!str_contains($reportPolicy, 'upgrade-insecure-requests'), 'report-only policies must not generate the upgrade directive');
+            assertSame($mode === 'enforce' && $isHttps, str_contains($enforcedPolicy, 'upgrade-insecure-requests'), 'generated upgrade directive requires both enforcement and HTTPS');
+            if ($mode === 'enforce') {
+                assertTrue(str_starts_with($enforcedPolicy, $routePolicy . ', '), 'enforcement should intersect with the existing route policy');
+                assertSame('', $reportPolicy, 'enforcement must not also emit a report-only policy');
+            } else {
+                assertSame($routePolicy, $enforcedPolicy, 'report-only and off modes must preserve route enforcement');
+                assertSame($mode !== 'off', $reportPolicy !== '', 'unknown CSP modes should retain the report-only fallback');
+            }
+        }
+    }
+    $customPolicy = "default-src 'self'; upgrade-insecure-requests";
+    file_put_contents($headerRoot . '/radpress/config/security.json', json_encode(['headers' => ['csp_mode' => 'enforce', 'content_security_policy' => $customPolicy]]));
+    $customResponse = SecurityHeaders::apply(Response::html('ok'), new Request('GET', '/', [], [], ['HTTPS' => 'on']), Config::load($headerRoot));
+    assertSame($customPolicy, $customResponse->headers()['Content-Security-Policy'], 'explicit custom policies must remain unchanged');
+} finally {
+    removeTree($headerRoot);
+}
 
 $sessionRoot = sys_get_temp_dir() . '/batoi-press-security-baseline-' . bin2hex(random_bytes(4));
 mkdir($sessionRoot . '/sessions', 0775, true);

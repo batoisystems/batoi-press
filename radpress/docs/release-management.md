@@ -38,6 +38,8 @@ Prerelease versions (for example `3.0.0-rc.1`) use a signed `candidate.json` and
 
 ## Current Release Track
 
+- `3.2.2`: Omit the enforcement-only HTTPS upgrade directive from generated report-only CSP headers; preserve HSTS and enforced policies. See [release notes](releases/v3.2.2.md).
+
 - `3.2.1`: Explicit template-save method diagnostics and redirect/HTML response recovery. See [release notes](releases/v3.2.1.md).
 
 - `3.2.0`: Recoverable template saves, streamed HTTP assets, page media controls and private hosting health. See [release notes](releases/v3.2.0.md).

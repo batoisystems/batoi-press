@@ -18,14 +18,14 @@ final class SecurityHeaders
             ->withHeader('Referrer-Policy', (string)($response->headers()['Referrer-Policy'] ?? $settings['referrer_policy'] ?? 'strict-origin-when-cross-origin'))
             ->withHeader('Permissions-Policy', (string)($settings['permissions_policy'] ?? 'camera=(), microphone=(), geolocation=(), payment=()'));
 
+        $mode = strtolower((string)($settings['csp_mode'] ?? 'report-only'));
         $customPolicy = array_key_exists('content_security_policy', $settings);
-        $policy = (string)($settings['content_security_policy'] ?? self::defaultPolicy($request, $config));
+        $policy = (string)($settings['content_security_policy'] ?? self::defaultPolicy($request, $config, $mode === 'enforce'));
         if (!$customPolicy) {
             // An in-place update can load this class after an older Response was instantiated.
             // Missing hash support must fail closed, not turn a successful update into a fatal error.
             $policy = self::withInlineScriptHashes($policy, method_exists($response, 'inlineScriptHashes') ? $response->inlineScriptHashes() : []);
         }
-        $mode = strtolower((string)($settings['csp_mode'] ?? 'report-only'));
         if ($policy !== '' && $mode !== 'off') {
             $header = $mode === 'enforce' ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only';
             $policy = preg_replace('/[\r\n]+/', ' ', $policy) ?? $policy;
@@ -40,7 +40,7 @@ final class SecurityHeaders
         return $response;
     }
 
-    private static function defaultPolicy(Request $request, Config $config): string
+    private static function defaultPolicy(Request $request, Config $config, bool $enforced): string
     {
         $integrations = $config->integrations();
         $scriptSources = ["'self'", 'https://cdn.jsdelivr.net'];
@@ -78,7 +78,8 @@ final class SecurityHeaders
             "media-src 'self' https:",
             'frame-src ' . implode(' ', array_unique($frameSources)),
         ];
-        if (self::https($request)) {
+        // Browsers ignore this directive (and warn) in a report-only policy.
+        if ($enforced && self::https($request)) {
             $directives[] = 'upgrade-insecure-requests';
         }
         return implode('; ', $directives);
