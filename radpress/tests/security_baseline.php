@@ -123,6 +123,28 @@ try {
     file_put_contents($headerRoot . '/radpress/config/security.json', json_encode(['headers' => ['csp_mode' => 'enforce', 'content_security_policy' => $customPolicy]]));
     $customResponse = SecurityHeaders::apply(Response::html('ok'), new Request('GET', '/contact', [], [], ['HTTPS' => 'on']), Config::load($headerRoot));
     assertSame($customPolicy, $customResponse->headers()['Content-Security-Policy'], 'enabled CAPTCHA must not overwrite an explicit custom policy');
+    // Independent custom-theme CAPTCHA and Maps declarations must not require
+    // fake built-in keys or grant unrelated browser permissions.
+    foreach (['report-only', 'enforce'] as $mode) {
+        foreach ([[], ['google_maps_embed' => true], ['recaptcha_custom_theme' => true], ['google_maps_embed' => true, 'recaptcha_custom_theme' => true], ['google_maps_embed' => 'true', 'recaptcha_custom_theme' => 'true']] as $integrations) {
+            file_put_contents($headerRoot . '/radpress/config/security.json', json_encode(['headers' => ['csp_mode' => $mode]]));
+            file_put_contents($headerRoot . '/radpress/config/integrations.json', json_encode($integrations));
+            $response = SecurityHeaders::apply(Response::html('ok'), new Request('GET', '/home', [], [], ['HTTPS' => 'on']), Config::load($headerRoot));
+            $policy = $response->headers()[$mode === 'enforce' ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only'];
+            $maps = ($integrations['google_maps_embed'] ?? false) === true;
+            $captcha = ($integrations['recaptcha_custom_theme'] ?? false) === true;
+            assertSame($maps, str_contains($policy, 'https://www.google.com/maps/embed '), 'Shared Google Maps embeds require explicit boolean opt-in');
+            assertSame($maps, str_contains($policy, 'https://www.google.com/maps/embed/'), 'Maps Embed API paths require explicit boolean opt-in');
+            assertSame($captcha, str_contains($policy, 'https://recaptcha.google.com/recaptcha/'), 'Custom CAPTCHA must be independently opt-in');
+            preg_match('/(?:^|; )script-src ([^;]+)/', $policy, $scripts);
+            assertSame($captcha, str_contains($scripts[1] ?? '', 'google.com'), 'Maps must not enable Google scripts');
+            assertTrue(!preg_match('~https://www\\.google\\.com(?:;| |$)~', $policy), 'Declared integrations must not allow the whole Google origin');
+        }
+    }
+    file_put_contents($headerRoot . '/radpress/config/integrations.json', json_encode(['google_maps_embed' => true, 'recaptcha_custom_theme' => true]));
+    file_put_contents($headerRoot . '/radpress/config/security.json', json_encode(['headers' => ['csp_mode' => 'enforce', 'content_security_policy' => $customPolicy]]));
+    $customResponse = SecurityHeaders::apply(Response::html('ok'), new Request('GET', '/home', [], [], ['HTTPS' => 'on']), Config::load($headerRoot));
+    assertSame($customPolicy, $customResponse->headers()['Content-Security-Policy'], 'Integration switches must preserve explicit custom policy');
 } finally {
     removeTree($headerRoot);
 }

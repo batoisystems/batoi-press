@@ -52,12 +52,18 @@ final class SecurityHeaders
             $scriptSources[] = 'https://www.googletagmanager.com';
             $connectSources[] = 'https://*.google-analytics.com';
         }
-        if ((string)($integrations['recaptcha_site_key'] ?? '') !== '') {
+        if (trim((string)($integrations['recaptcha_site_key'] ?? '')) !== '' || ($integrations['recaptcha_custom_theme'] ?? false) === true) {
             $scriptSources[] = 'https://www.google.com/recaptcha/';
             $scriptSources[] = 'https://www.gstatic.com/recaptcha/';
             $connectSources[] = 'https://www.google.com/recaptcha/';
             $frameSources[] = 'https://www.google.com/recaptcha/';
             $frameSources[] = 'https://recaptcha.google.com/recaptcha/';
+        }
+        if (($integrations['google_maps_embed'] ?? false) === true) {
+            // Support shared Maps embeds and Embed API URLs without allowing
+            // every Google page or adding Maps JavaScript permissions.
+            $frameSources[] = 'https://www.google.com/maps/embed';
+            $frameSources[] = 'https://www.google.com/maps/embed/';
         }
         $fontUrl = (string)($config->site()['font_stylesheet_url'] ?? '');
         $fontHost = filter_var($fontUrl, FILTER_VALIDATE_URL) ? parse_url($fontUrl, PHP_URL_HOST) : null;

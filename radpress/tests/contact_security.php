@@ -15,6 +15,8 @@ try {
     $verify = new ReflectionMethod(ContactController::class, 'verifyRecaptcha');
     foreach ([
         [[], '', true],
+        [['recaptcha_custom_theme' => true], '', true],
+        [['recaptcha_custom_theme' => true, 'recaptcha_site_key' => 'configured'], '', false],
         [['recaptcha_site_key' => 'configured'], '', false],
         [['recaptcha_secret_key' => 'invalid'], '', false],
         [['recaptcha_secret_key' => 'invalid'], 'fake-token', false],

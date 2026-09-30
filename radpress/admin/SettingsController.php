@@ -110,6 +110,8 @@ final class SettingsController
         $integrations['mailgun_domain'] = trim($request->input('mailgun_domain'));
         $integrations['mailgun_region'] = $request->input('mailgun_region') === 'eu' ? 'eu' : 'us';
         $integrations['recaptcha_site_key'] = trim($request->input('recaptcha_site_key'));
+        $integrations['recaptcha_custom_theme'] = $request->input('recaptcha_custom_theme') === '1';
+        $integrations['google_maps_embed'] = $request->input('google_maps_embed') === '1';
         $measurementId = strtoupper(trim($request->input('analytics_measurement_id')));
         $integrations['analytics_measurement_id'] = preg_match('/^G-[A-Z0-9]{4,20}$/', $measurementId) === 1 ? $measurementId : '';
 
@@ -314,6 +316,8 @@ final class SettingsController
             . '<label>reCAPTCHA v2 checkbox site key <input type="text" name="recaptcha_site_key" value="' . $this->e((string)($integrations['recaptcha_site_key'] ?? '')) . '"><span class="bp-field-help">The built-in form supports v2 checkbox keys. Custom v3 forms need their own server-side action and score verification; do not configure a v3 key here.</span></label>'
             . '<label>reCAPTCHA secret key <input type="password" name="recaptcha_secret_key" value="" autocomplete="new-password" placeholder="' . ($recaptchaSet ? 'Configured — leave blank to keep' : 'Enter secret key') . '"></label>'
             . ($recaptchaSet ? '<label><input type="checkbox" name="remove_recaptcha_secret_key" value="1"> Remove saved reCAPTCHA secret</label>' : '')
+            . '<label class="bp-field-wide bp-check-option"><input type="checkbox" name="recaptcha_custom_theme" value="1"' . (($integrations['recaptcha_custom_theme'] ?? false) === true ? ' checked' : '') . '><span>Allow reCAPTCHA used by a custom theme<small>Adds reCAPTCHA browser sources to the generated policy. Your custom theme must render the form and verify tokens on the server. This does not enable CAPTCHA on the built-in form.</small></span></label>'
+            . '<label class="bp-field-wide bp-check-option"><input type="checkbox" name="google_maps_embed" value="1"' . (($integrations['google_maps_embed'] ?? false) === true ? ' checked' : '') . '><span>Allow Google Maps embeds<small>Allows Google Maps iframe embeds in the generated policy. Explicit custom policies and hosting policies must allow these sources separately.</small></span></label>'
             . '<label>Google Analytics measurement ID <input type="text" name="analytics_measurement_id" value="' . $this->e((string)($integrations['analytics_measurement_id'] ?? '')) . '" placeholder="G-XXXXXXXXXX"></label>'
             . '<p class="bp-field-wide bp-field-help">Private keys are encrypted in local data storage and are never rendered back into this form.</p></div>';
     }

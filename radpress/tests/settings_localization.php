@@ -45,6 +45,12 @@ $formHtml = (string)$form->invoke($controller, array_merge($config->site(), ['po
 assertSettings(str_contains($formHtml, 'name="posts_per_page"') && str_contains($formHtml, 'value="18"'), 'Settings should expose the configured public blog page size.');
 assertSettings(str_contains($formHtml, 'name="appearance_mode"') && str_contains($formHtml, 'name="brand_primary_color"'), 'Settings should expose public light, dark, and brand color controls.');
 assertSettings(str_contains($formHtml, 'name="mail_provider"') && str_contains($formHtml, 'name="analytics_measurement_id"'), 'Settings should expose mail and analytics integrations.');
+$integrationFields = new ReflectionMethod($controller, 'integrationFields');
+$integrationHtml = (string)$integrationFields->invoke($controller, ['google_maps_embed'=>true,'recaptcha_custom_theme'=>true]);
+foreach (['google_maps_embed','recaptcha_custom_theme'] as $field) {
+    assertSettings(str_contains($integrationHtml, 'name="' . $field . '" value="1" checked'), 'Enabled integration declarations should remain checked.');
+    assertSettings(str_contains($formHtml, 'name="' . $field . '" value="1">'), 'Absent integration declarations should default off.');
+}
 assertSettings(str_contains($formHtml, '/admin/import'), 'Settings should expose the XML site-content import workflow.');
 foreach (['show_theme_toggle','posts_load_more','footer_top_columns','footer_bottom_columns','footer_bottom_text','footer_icon_links'] as $field) assertSettings(str_contains($formHtml, 'name="' . $field . '"'), 'Missing setting: ' . $field);
 foreach (['light','dark'] as $mode) {

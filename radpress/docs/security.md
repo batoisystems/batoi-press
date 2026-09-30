@@ -58,9 +58,13 @@ implement its own server-side action/score verification; v3 keys are not a
 drop-in replacement for the built-in v2 form.
 
 Generated CSP includes Google's path-scoped reCAPTCHA script/connect sources
-and both Google frame endpoints only when the integration site key is configured.
+and both Google frame endpoints when the integration site key is configured or
+**Allow reCAPTCHA used by a custom theme** is enabled in Settings
+(`recaptcha_custom_theme: true` in `integrations.json`). The switch declares
+browser dependencies only: it does not render a widget, add built-in CAPTCHA
+keys, bypass configured verification, or implement custom v3 verification.
 See [Google's CSP guidance](https://developers.google.com/recaptcha/docs/faq).
-For independently integrated custom themes, maintain an explicit complete policy
+For installations using an explicit custom policy, maintain the complete policy
 under `headers.content_security_policy` in `radpress/config/security.json`.
 This replaces, rather than extends, the generated policy: retain your existing
 directives and explicitly authorize necessary inline code by hash/nonce. Include
@@ -70,6 +74,22 @@ directives and explicitly authorize necessary inline code by hash/nonce. Include
 `https://www.google.com/recaptcha/` in `connect-src`. Do not add whole-origin
 wildcards or disable CSP. Omit `upgrade-insecure-requests` from report-only
 policies. Test the actual browser response for hosting-injected policies too.
+
+Google Maps embeds are independent of reCAPTCHA. Enable **Allow Google Maps
+embeds** in Settings (`google_maps_embed: true` in `integrations.json`) to add
+`https://www.google.com/maps/embed` and `https://www.google.com/maps/embed/`
+to generated `frame-src`. These cover the shared-map URL and Embed API paths;
+they do not authorize the Maps JavaScript API or arbitrary Google frames. Sites
+without either opt-in gain no new Google sources. Explicit custom policies
+remain authoritative and need the corresponding frame sources added manually.
+An error quoting the Google origin can refer to either product: inspect the
+actual iframe URL before changing CAPTCHA settings.
+
+Contact email uses UTF-8 HTML for server mail and Mailgun. Visitor fields are
+escaped and message line breaks retained; submitted HTML remains literal text.
+Mailgun also receives the original plain-text alternative. Server mail carries
+MIME headers and quoted-printable encoding. Reply-To is validated at the mail
+service boundary as well as by the public contact controller.
 
 Security diagnostics identify generated versus custom policy without exposing
 private keys. Contact delivery failures return a neutral visitor message and
