@@ -33,47 +33,7 @@ final class HtmlContent
 
     public function sanitize(string $html): string
     {
-        $html = preg_replace('#<\s*(script|style|object|embed)[^>]*>.*?<\s*/\s*\1\s*>#is', '', $html) ?? '';
-        $html = strip_tags($html, self::ALLOWED_TAGS);
-        $html = preg_replace('/\s+on[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $html) ?? '';
-        $html = preg_replace_callback('/\s+style\s*=\s*([\'"])(.*?)\1/is', static function (array $match): string {
-            $css = preg_replace('/(?:expression\s*\(|javascript\s*:|@import|behavior\s*:|-moz-binding\s*:)/i', '', $match[2]) ?? '';
-            return $css === '' ? '' : ' style="' . htmlspecialchars($css, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
-        }, $html) ?? '';
-        $html = preg_replace('/\s+(href|src|action|formaction)\s*=\s*([\'"])\s*javascript:[^\'"]*\2/i', '', $html) ?? '';
-        $html = preg_replace_callback('#<iframe\b([^>]*)>#i', static function (array $match): string {
-            if (preg_match('/\bsrc\s*=\s*([\'"])(https?:\/\/[^\'"]+)\1/i', $match[1], $src) !== 1) {
-                return '';
-            }
-            return '<iframe src="' . htmlspecialchars($src[2], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" loading="lazy" referrerpolicy="strict-origin-when-cross-origin">';
-        }, $html) ?? '';
-
-        $html = preg_replace_callback('/<(video|audio|source|track)\b[^>]*>/i', static function (array $match): string {
-            if (!class_exists(\DOMDocument::class)) return '';
-            $dom = new \DOMDocument();
-            @$dom->loadHTML('<?xml encoding="utf-8" ?>' . $match[0], LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
-            $tag = strtolower($match[1]);
-            $node = $dom->getElementsByTagName($tag)->item(0);
-            if (!$node) return '';
-            $attributes = '';
-            foreach (['src', 'poster'] as $name) {
-                $value = $node->getAttribute($name);
-                if ($value !== '' && preg_match('#^(?:/(?!/)|https://)[^\s<>"\\\\]+$#iD', $value)) {
-                    $attributes .= ' ' . $name . '="' . htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
-                }
-            }
-            foreach (['type', 'kind', 'srclang', 'label', 'title', 'aria-label', 'width', 'height'] as $name) {
-                if ($node->hasAttribute($name)) $attributes .= ' ' . $name . '="' . htmlspecialchars($node->getAttribute($name), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
-            }
-            if ($node->hasAttribute('default') && $tag === 'track') $attributes .= ' default';
-            if (in_array($tag, ['video', 'audio'], true)) {
-                $preload = $node->getAttribute('preload');
-                $attributes .= ' controls preload="' . (in_array($preload, ['none', 'metadata', 'auto'], true) ? $preload : 'none') . '"';
-                foreach (['muted', 'loop', 'playsinline'] as $name) if ($node->hasAttribute($name)) $attributes .= ' ' . $name;
-            }
-            return '<' . $tag . $attributes . '>';
-        }, $html) ?? '';
-        return trim($html);
+        return SafeHtml::sanitize($html);
     }
 
     /** Safe summaries only: never include removed source or attribute values. */

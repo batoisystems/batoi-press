@@ -56,22 +56,23 @@ try {
         'client_id' => 'client-fixture',
         'aud' => 'https://press.example.test/mcp',
         'iat' => $now,
+        'jti' => 'resource-fixture-token',
         'nbf' => $now - 5,
         'exp' => $now + 300,
         'scope' => 'site:read content:read unknown:scope',
     ];
-    $jwt = JWT::encode($claims, $privateKey, 'RS256', 'oauth-test-key');
+    $jwt = JWT::encode($claims, $privateKey, 'RS256', 'oauth-test-key', ['typ' => 'at+jwt']);
     $request = new Request('GET', '/api/v2/site', [], [], ['REMOTE_ADDR' => '127.0.0.1', 'HTTP_AUTHORIZATION' => 'Bearer ' . $jwt]);
     $access = (new MachineAuthenticator($config))->authorize($request, ['site:read']);
     assertOAuth(($access['oauth'] ?? false) === true, 'valid issuer/audience JWT should authenticate as OAuth');
     assertOAuth(($access['scopes'] ?? []) === ['content:read', 'site:read'], 'OAuth scopes should be allowlisted and normalized');
     assertOAuth(!str_contains(json_encode($access), 'owner@example.test'), 'resolved OAuth access metadata should not expose the raw subject');
 
-    foreach (['sub', 'exp', 'client_id'] as $requiredClaim) {
+    foreach (['sub', 'exp', 'iat', 'jti', 'client_id'] as $requiredClaim) {
         $invalid = $claims;
         unset($invalid[$requiredClaim]);
         assertOAuthThrows(static fn () => (new MachineAuthenticator($config))->authorize(
-            new Request('GET', '/api/v2/site', [], [], ['REMOTE_ADDR' => '127.0.0.7', 'HTTP_AUTHORIZATION' => 'Bearer ' . JWT::encode($invalid, $privateKey, 'RS256', 'oauth-test-key')]),
+            new Request('GET', '/api/v2/site', [], [], ['REMOTE_ADDR' => '127.0.0.7', 'HTTP_AUTHORIZATION' => 'Bearer ' . JWT::encode($invalid, $privateKey, 'RS256', 'oauth-test-key', ['typ' => 'at+jwt'])]),
             ['site:read']
         ), 'OAuth tokens require a subject and expiry');
     }
@@ -79,14 +80,14 @@ try {
     $wrongAudience = $claims;
     $wrongAudience['aud'] = 'https://another.example.test/mcp';
     assertOAuthThrows(static fn () => (new MachineAuthenticator($config))->authorize(
-        new Request('GET', '/api/v2/site', [], [], ['REMOTE_ADDR' => '127.0.0.2', 'HTTP_AUTHORIZATION' => 'Bearer ' . JWT::encode($wrongAudience, $privateKey, 'RS256', 'oauth-test-key')]),
+        new Request('GET', '/api/v2/site', [], [], ['REMOTE_ADDR' => '127.0.0.2', 'HTTP_AUTHORIZATION' => 'Bearer ' . JWT::encode($wrongAudience, $privateKey, 'RS256', 'oauth-test-key', ['typ' => 'at+jwt'])]),
         ['site:read']
     ), 'OAuth tokens for another resource should fail closed');
     foreach (['iss', 'aud'] as $exactClaim) {
         $notExact = $claims;
         $notExact[$exactClaim] .= '/';
         assertOAuthThrows(static fn () => (new MachineAuthenticator($config))->authorize(
-            new Request('GET', '/api/v2/site', [], [], ['REMOTE_ADDR' => '127.0.0.8', 'HTTP_AUTHORIZATION' => 'Bearer ' . JWT::encode($notExact, $privateKey, 'RS256', 'oauth-test-key')]), ['site:read']
+            new Request('GET', '/api/v2/site', [], [], ['REMOTE_ADDR' => '127.0.0.8', 'HTTP_AUTHORIZATION' => 'Bearer ' . JWT::encode($notExact, $privateKey, 'RS256', 'oauth-test-key', ['typ' => 'at+jwt'])]), ['site:read']
         ), 'Issuer and audience must match exactly, including trailing slash');
     }
 

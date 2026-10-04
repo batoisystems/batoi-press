@@ -47,6 +47,21 @@ try {
     assertTemplate(!isset($templates['../unsafe']), 'unsafe page-template keys should be discarded');
     assertTemplate($manager->resolvePageLayout('demo', 'shop') === 'shop', 'declared shop template should resolve');
     assertTemplate($manager->resolvePageLayout('demo', 'missing') === 'page', 'unknown template should fall back to page');
+    $manifest=(new FileStore())->readJson($paths->themePath('demo/theme.json'));
+    assertTemplate($manager->normalizeManifest('demo',$manifest)['contract']==='1.0.0','Legacy manifests must inherit the stable contract.');
+    $contract=$manifest+['contract'=>'1.0.0','compatibility'=>['php'=>['min'=>'8.3.0','max_exclusive'=>'9.0.0'],'press'=>['min'=>'3.0.0','max_exclusive'=>'5.0.0']], 'tokens'=>['light'=>['primary_button'=>'#0E68B0']], 'partials'=>['email']];
+    (new FileStore())->writeJson($paths->themePath('demo/theme.json'),$contract);
+    assertTemplate(!$manager->validate('demo')['ok'],'Missing declared partial must fail compatibility.');
+    (new FileStore())->write($paths->themePath('demo/partials/email.php'),'<?php echo "Email";');
+    assertTemplate($manager->validate('demo')['ok'],'Supported contract/tokens/partial must validate.');
+    $future=$contract;$future['compatibility']['press']['min']='99.0.0';$future['compatibility']['press']['max_exclusive']='100.0.0';
+    (new FileStore())->writeJson($paths->themePath('demo/theme.json'),$future);
+    assertTemplate(!$manager->validate('demo')['ok'] && (new Theme($paths,['theme'=>'demo']))->render('page')->status()===503,'Incompatible runtime theme must not execute its templates.');
+    foreach([['contract'=>'2.0.0'],['tokens'=>['light'=>['primary_button'=>'red;url(evil)']]],['partials'=>['../unsafe']]] as $bad) {
+        $rejected=false;try{$manager->normalizeManifest('demo',array_replace($contract,$bad));}catch(RuntimeException){$rejected=true;}
+        assertTemplate($rejected,'Invalid theme contract, token or partial was accepted.');
+    }
+    (new FileStore())->writeJson($paths->themePath('demo/theme.json'),$manifest);
     (new FileStore())->write($root . '/radpress/theme/demo/assets/css/theme.css', 'body { color: #111; }');
     $assetUrl = $manager->assetUrl('demo', 'css/theme.css', false);
     assertTemplate(str_contains($assetUrl, '?v=1.0.0&h='), 'theme asset URLs should include version and content fingerprint');
@@ -74,11 +89,22 @@ try {
     $config = \Batoi\Press\Core\Config::load($root);
     $csrf = new \Batoi\Press\Security\Csrf(new \Batoi\Press\Security\Session('press_custom_theme_test', $config->paths()->dataPath('sessions')));
     $controller = new \Batoi\Press\Admin\ThemeTemplateController($config, $files, $csrf, new \Batoi\Press\Core\AuditLog($config->paths(), $files), ['username'=>'owner', 'role'=>'owner']);
+    foreach (\Batoi\Press\Core\ThemePartial::FILES as $key => $relative) {
+        $edit = $controller->edit('demo/' . $key);
+        assertTemplate($edit->status() === 200 && str_contains($edit->content(), '$escape'), 'Missing optional partial must open with documented starter source: ' . $key);
+    }
+    $viewer = new \Batoi\Press\Admin\ThemeTemplateController($config, $files, $csrf, new \Batoi\Press\Core\AuditLog($config->paths(), $files), ['username'=>'viewer', 'role'=>'viewer']);
+    assertTemplate($viewer->edit('demo/email')->status() === 403 && $viewer->edit('demo/block-posts')->status() === 403, 'Optional templates must retain source-editor permissions');
     $serverBefore = $_SERVER;
     try {
         $_SERVER['DOCUMENT_ROOT'] = $root;
         $_SERVER['SCRIPT_FILENAME'] = $root . '/testsite/public_html/index.php';
         foreach ([
+            'email' => ['partials/email.php', '<?php echo $escape($message); ?>'],
+            'block-posts' => ['partials/blocks/posts.php', '<?php foreach ($items as $item) echo $escape($item["title"]); ?>'],
+            'block-gallery' => ['partials/blocks/gallery.php', '<?php echo $body; ?>'],
+            'block-products' => ['partials/blocks/products.php', '<?php echo count($items); ?>'],
+            'block-widget' => ['partials/blocks/widget.php', '<?php echo $escape($title); ?>'],
             'header' => ['partials/header.php', '<?php echo "Header – café"; ?>'],
             'theme-css' => ['assets/css/theme.css', '.custom-header { color: #0e68b0; }'],
             'theme-js' => ['assets/js/theme.js', 'const preview = document.createElement("div"); preview.innerHTML = "<strong>café</strong>";'],
@@ -126,6 +152,47 @@ try {
         if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
     }
 
+    $paths = $config->paths();
+    $posts = new \Batoi\Press\Content\PostRepository($paths, $files, new HtmlContent());
+    $products = new \Batoi\Press\Content\ProductRepository($paths, $files, new HtmlContent());
+    $posts->save(['title'=>'Public <post>', 'slug'=>'public-post', 'body'=>'Public', 'status'=>'published', 'category'=>'news'], 'owner');
+    $posts->save(['title'=>'Private post', 'slug'=>'private-post', 'body'=>'Private', 'status'=>'draft', 'category'=>'news'], 'owner');
+    $posts->save(['title'=>'Other category', 'slug'=>'other-post', 'body'=>'Other', 'status'=>'published', 'category'=>'other'], 'owner');
+    $products->save(['title'=>'Public product', 'slug'=>'public-product', 'status'=>'published', 'category'=>'shop', 'price'=>'12.50'], 'owner');
+    $products->save(['title'=>'Private product', 'slug'=>'private-product', 'status'=>'draft', 'category'=>'shop'], 'owner');
+    $files->writeJson($paths->contentPath('widgets/sidebar.json'), ['widgets'=>[['title'=>'Test widget', 'type'=>'html', 'body'=>'<p>Widget body</p>']]]);
+    $blocks = [
+        ['type'=>'posts', 'title'=>'Posts', 'category'=>'news', 'limit'=>1],
+        ['type'=>'gallery', 'title'=>'Gallery', 'body'=>'<p>Gallery body</p>'],
+        ['type'=>'products', 'title'=>'Products', 'category'=>'shop', 'limit'=>1],
+        ['type'=>'widget', 'widget'=>'Test widget'],
+    ];
+    foreach (['posts','gallery','products','widget'] as $type) {
+        $source = '<?php echo "<section data-custom-block=\"' . $type . '\">" . $escape($title); '
+            . (in_array($type, ['posts','products'], true) ? 'foreach ($items as $item) echo "<a href=\"" . $escape($item["url"]) . "\">" . $escape($item["title"]) . "</a>";' : 'echo $body;')
+            . ' echo "</section>";';
+        $files->write($paths->themePath('demo/partials/blocks/' . $type . '.php'), $source);
+    }
+    $site = ['name'=>'Demo', 'theme'=>'demo', 'homepage'=>'blocks', 'base_url'=>'https://example.test/sub'];
+    $files->writeJson($paths->configPath('site.json'), $site);
+    $renderer = new \Batoi\Press\Core\PageBlockRenderer($paths, $posts, $products, $site);
+    $rendered = $renderer->render($blocks);
+    foreach (['posts','gallery','products','widget'] as $type) assertTemplate(str_contains($rendered, 'data-custom-block="' . $type . '"'), 'Each block must select the active-theme partial');
+    assertTemplate(str_contains($rendered, 'Public &lt;post&gt;') && !str_contains($rendered, 'Private') && !str_contains($rendered, 'Other category'), 'Template data must retain publication/category/limit checks and escaping');
+    assertTemplate(str_contains($rendered, 'Gallery body') && str_contains($rendered, 'Widget body'), 'Gallery and widget bodies must reach their presentation templates');
+    $fallback = (new \Batoi\Press\Core\PageBlockRenderer($paths, $posts, $products, ['theme'=>'default']))->render($blocks);
+    assertTemplate(str_contains($fallback, 'bp-post-grid') && str_contains($fallback, 'bp-content-gallery') && str_contains($fallback, 'bp-product-grid') && str_contains($fallback, 'bp-sidebar-widget'), 'Missing custom partials must preserve default block markup');
+    $files->write($paths->themePath('demo/layouts/page.php'), '<?php echo $page["body"];');
+    $pages = new PageRepository($paths, $files, new HtmlContent());
+    $pages->save(['title'=>'Blocks', 'slug'=>'blocks', 'status'=>'published', 'blocks'=>$blocks], 'owner');
+    $public = (new \Batoi\Press\Core\App($root))->handle(new \Batoi\Press\Core\Request('GET', '/blocks', [], [], []));
+    assertTemplate($public->status() === 200 && str_contains($public->content(), 'data-custom-block="posts"'), 'Public route must use the active-theme block partial');
+    $export = (new \Batoi\Press\Core\StaticExporter($paths, $pages, $posts, $site, $products))->export();
+    assertTemplate($export['ok'] ?? false, 'Custom block export must succeed');
+    $zip = new ZipArchive();
+    $zip->open($export['path']);
+    assertTemplate(str_contains((string)$zip->getFromName('index.html'), 'data-custom-block="products"'), 'Static export must use the same theme presentation');
+    $zip->close();
     echo "Theme page-template checks passed\n";
 } finally {
     removeTemplateFixture($root);

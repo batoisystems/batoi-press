@@ -107,6 +107,7 @@ final class SettingsController
         $integrations['mail_provider'] = in_array($request->input('mail_provider'), ['disabled', 'php_mail', 'mailgun'], true) ? $request->input('mail_provider') : 'disabled';
         $integrations['mail_from'] = trim($request->input('mail_from'));
         $integrations['mail_to'] = trim($request->input('mail_to'));
+        $integrations['mail_copy_to_sender'] = $request->input('mail_copy_to_sender') === '1';
         $integrations['mailgun_domain'] = trim($request->input('mailgun_domain'));
         $integrations['mailgun_region'] = $request->input('mailgun_region') === 'eu' ? 'eu' : 'us';
         $integrations['recaptcha_site_key'] = trim($request->input('recaptcha_site_key'));
@@ -308,8 +309,9 @@ final class SettingsController
         return '<div class="bp-form-grid">'
             . '<label>Mail provider <select name="mail_provider">' . $options . '</select></label>'
             . '<label>Default From email <input type="email" name="mail_from" value="' . $this->e((string)($integrations['mail_from'] ?? '')) . '"></label>'
-            . '<label>Default To email <input type="email" name="mail_to" value="' . $this->e((string)($integrations['mail_to'] ?? '')) . '"></label>'
-            . '<label>Mailgun domain <input type="text" name="mailgun_domain" value="' . $this->e((string)($integrations['mailgun_domain'] ?? '')) . '"></label>'
+            . '<div class="bp-check-stack"><label>Default To email <input type="email" name="mail_to" value="' . $this->e((string)($integrations['mail_to'] ?? '')) . '"></label>'
+            . '<label class="bp-check-option"><input type="checkbox" name="mail_copy_to_sender" value="1"' . (($integrations['mail_copy_to_sender'] ?? false) === true ? ' checked' : '') . '><span>Copy to Sender<small>Cc the person submitting the contact form. Both recipients can see each other’s email address.</small></span></label></div>'
+            . '<div><label>Mailgun domain <input type="text" name="mailgun_domain" value="' . $this->e((string)($integrations['mailgun_domain'] ?? '')) . '"></label></div>'
             . '<label>Mailgun region <select name="mailgun_region"><option value="us"' . (($integrations['mailgun_region'] ?? 'us') !== 'eu' ? ' selected' : '') . '>United States</option><option value="eu"' . (($integrations['mailgun_region'] ?? '') === 'eu' ? ' selected' : '') . '>Europe</option></select></label>'
             . '<label>Mailgun API key <input type="password" name="mailgun_api_key" value="" autocomplete="new-password" placeholder="' . ($mailgunSet ? 'Configured — leave blank to keep' : 'Enter private API key') . '"></label>'
             . ($mailgunSet ? '<label><input type="checkbox" name="remove_mailgun_api_key" value="1"> Remove saved Mailgun key</label>' : '')

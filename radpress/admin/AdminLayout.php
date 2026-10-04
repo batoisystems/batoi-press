@@ -61,7 +61,7 @@ final class AdminLayout
 
     public static function pageHeader(string $title, string $description = '', string $actions = ''): string
     {
-        $html = '<header class="bp-admin-page-header"><div><p class="bp-section-kicker">Admin Console</p><h1>' . self::e($title) . '</h1>';
+        $html = '<header class="bp-admin-page-header"><div><h1>' . self::e($title) . '</h1>';
         if ($description !== '') {
             $html .= '<p>' . self::e($description) . '</p>';
         }
@@ -96,7 +96,7 @@ final class AdminLayout
         $siteName = self::siteName();
         $logout = self::$csrf !== null ? '<form method="post" action="' . self::e(\bp_url('/admin/logout')) . '" class="bp-topbar-logout">' . self::$csrf->field() . self::submitButton('Log Out', 'logout', 'class="bp-button bp-button-secondary bp-button-danger"') . '</form>' : '';
         $updates = AdminAccess::canSeeNav(self::$user, '/admin/updates') ? self::buttonLink('Updates', \bp_url('/admin/updates'), 'refresh', true) : '';
-        return '<div class="bp-admin-shell"><aside class="bp-admin-sidebar"><div class="bp-admin-brand">' . self::brandMark() . '<div><span>' . self::e($siteName) . '</span><small>CMS Console</small></div></div>' . self::navigation() . '</aside><div class="bp-admin-workspace"><header class="bp-admin-topbar"><div class="bp-admin-topbar-title"><span>CMS Console</span><strong>' . self::e($siteName) . '</strong></div><nav aria-label="Admin actions">' . self::buttonLink('View site', \bp_url('/'), 'site', true) . $updates . $logout . '</nav></header><main class="' . self::e($mainClass) . '">' . $body . '</main></div></div>';
+        return '<a class="bp-skip-link" href="#bp-admin-content">Skip to content</a><div class="bp-admin-shell"><aside class="bp-admin-sidebar" id="bp-admin-navigation"><button type="button" class="bp-button bp-button-secondary" data-bp-admin-nav-close hidden>Close menu</button><div class="bp-admin-brand">' . self::brandMark() . '<div><span>' . self::e($siteName) . '</span><small>CMS Console</small></div></div>' . self::navigation() . '</aside><div class="bp-admin-workspace"><header class="bp-admin-topbar"><button type="button" class="bp-admin-nav-toggle bp-button bp-button-secondary" data-bp-admin-nav-toggle aria-controls="bp-admin-navigation" aria-expanded="false" hidden>Menu</button><div class="bp-admin-topbar-title"><span>Batoi Press</span><strong>' . self::e($siteName) . '</strong></div><nav aria-label="Admin actions">' . self::buttonLink('View site', \bp_url('/'), 'site', true) . $updates . $logout . '</nav></header><main id="bp-admin-content" tabindex="-1" class="' . self::e($mainClass) . '">' . $body . '</main></div></div>';
     }
 
     private static function authShell(string $title, string $body, string $mainClass): string
@@ -142,10 +142,12 @@ final class AdminLayout
                 ['label' => 'Media', 'href' => '/admin/media', 'icon' => 'image'],
                 ['label' => 'Menus', 'href' => '/admin/menus', 'icon' => 'menu'],
                 ['label' => 'Widgets', 'href' => '/admin/widgets', 'icon' => 'dashboard'],
+                ['label' => 'Forms', 'href' => '/admin/forms', 'icon' => 'file'],
             ],
             'Site' => [
                 ['label' => 'Settings', 'href' => '/admin/settings', 'icon' => 'settings'],
                 ['label' => 'Themes', 'href' => '/admin/themes', 'icon' => 'code'],
+                ['label' => 'Plugins', 'href' => '/admin/plugins', 'icon' => 'code'],
                 ['label' => 'Static Export', 'href' => '/admin/export-static', 'icon' => 'download'],
                 ['label' => 'Cache', 'href' => '/admin/cache', 'icon' => 'database'],
                 ['label' => 'Hosting Health', 'href' => '/admin/health', 'icon' => 'shield'],
@@ -201,7 +203,7 @@ final class AdminLayout
 
     private static function isAuthRoute(): bool
     {
-        return in_array(self::currentPath(), ['/admin/login', '/admin/forgot-password'], true);
+        return in_array(self::currentPath(), ['/admin/login', '/admin/login/mfa', '/admin/forgot-password'], true);
     }
 
     private static function siteName(): string

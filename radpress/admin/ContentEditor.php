@@ -9,6 +9,9 @@ final class ContentEditor
 {
     public static function render(Config $config, string $value, string $help, string $id, bool $sourceOnly = false, string $name = 'body'): string
     {
+        if (!\Batoi\Press\Core\RuntimeCapabilities::available('dom')) {
+            return '<div class="bp-field-wide"><label for="' . self::e($id) . '">Body text</label><textarea id="' . self::e($id) . '" name="' . self::e($name) . '" rows="18">' . self::e(html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8')) . '</textarea><p class="bp-notice">Rich HTML is unavailable on this host. New content is stored as escaped plain text. Enable PHP DOM to edit structured markup.</p></div>';
+        }
         $editor = $config->editor();
         $mode = (string)($editor['body_editor'] ?? 'rich_html');
         $toolbar = self::e((string)($editor['html_toolbar'] ?? 'undo redo bold italic underline strike heading quote code ul ol task link image table hr preview source'));

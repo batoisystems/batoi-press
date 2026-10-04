@@ -783,3 +783,41 @@ document.addEventListener('DOMContentLoaded', () => {
         activeEditor?.querySelector('.bp-editor-focus-toggle')?.click();
     });
 });
+
+// Navigation remains visible when JavaScript is unavailable.
+document.addEventListener('DOMContentLoaded', () => {
+    const toggle = document.querySelector('[data-bp-admin-nav-toggle]');
+    if (!toggle) return;
+    const small = window.matchMedia('(max-width: 720px)');
+    const close = document.querySelector('[data-bp-admin-nav-close]');
+    close?.addEventListener('click', () => { document.body.classList.remove('bp-admin-nav-open'); toggle.setAttribute('aria-expanded', 'false'); toggle.focus(); });
+    document.body.classList.add('bp-admin-nav-ready');
+    const sync = () => { toggle.hidden = !small.matches; if (close) close.hidden = !small.matches; if (!small.matches) { document.body.classList.remove('bp-admin-nav-open'); toggle.setAttribute('aria-expanded', 'false'); } };
+    toggle.addEventListener('click', () => { const open = document.body.classList.toggle('bp-admin-nav-open'); toggle.setAttribute('aria-expanded', String(open)); if (open) document.querySelector('#bp-admin-navigation a[aria-current]')?.focus(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && document.body.classList.contains('bp-admin-nav-open')) { document.body.classList.remove('bp-admin-nav-open'); toggle.setAttribute('aria-expanded', 'false'); toggle.focus(); } });
+    small.addEventListener('change', sync); sync();
+});
+
+// Field IDs are authored explicitly; adding a row never changes existing submission keys.
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-bp-form-builder]').forEach(builder => {
+        const list = builder.querySelector('[data-bp-form-fields]');
+        const add = builder.querySelector('[data-bp-add-form-field]');
+        if (!list || !add) return;
+        const sync = () => { add.disabled = list.children.length >= 20; };
+        add.hidden = false;
+        add.addEventListener('click', () => {
+            if (list.children.length >= 20) return;
+            const field = list.querySelector('fieldset')?.cloneNode(true);
+            if (!field) return;
+            field.querySelector('legend').textContent = `Field ${list.children.length + 1}`;
+            field.querySelectorAll('input,textarea').forEach(input => { input.value = input.type === 'number' ? '254' : ''; });
+            field.querySelectorAll('select').forEach(select => { select.selectedIndex = 0; });
+            list.append(field);
+            builder.querySelector('[data-bp-field-status]').textContent = `Field ${list.children.length} added. Enter a stable ID and label.`;
+            field.querySelector('input')?.focus();
+            sync();
+        });
+        sync();
+    });
+});

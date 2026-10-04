@@ -241,14 +241,16 @@ final class PageController
             if (is_array($block)) $rows .= $this->blockRow($block, $index, $sourceOnly || count($blocks) > 1);
         }
         $template = $this->blockRow(['type' => 'html', 'title' => '', 'body' => '', 'category' => '', 'limit' => 6, 'widget' => ''], 999, true);
-        return '<div class="bp-field-wide bp-page-blocks" data-bp-page-blocks><div class="bp-block-toolbar"><div><strong>Page content blocks</strong><p>Reorder HTML, blog posts, galleries, products, and configured widgets.</p></div><label>Add block <select data-bp-add-block-type><option value="html">HTML content</option><option value="posts">Blog posts</option><option value="gallery">Image gallery</option><option value="products">Products</option><option value="widget">Widget</option></select></label><button type="button" class="bp-button bp-button-secondary" data-bp-add-block>Add block</button></div><div class="bp-widget-rows" data-bp-reorder-list data-bp-block-list>' . $rows . '</div><template data-bp-block-template>' . $template . '</template></div>';
+        $presentation = in_array((string)($this->user['role'] ?? ''), ['owner', 'admin'], true)
+            ? '<p class="bp-field-help"><a href="/admin/theme-templates" target="_blank" rel="noopener">Edit block presentation in Theme Templates</a>. Changes apply to all matching blocks in the active theme; save page edits before switching.</p>' : '';
+        return '<div class="bp-field-wide bp-page-blocks" data-bp-page-blocks><div class="bp-block-toolbar"><div><strong>Page content blocks</strong><p>Reorder HTML, blog posts, galleries, products, and configured widgets.</p></div><label>Add block <select data-bp-add-block-type><option value="html">HTML content</option><option value="posts">Blog posts</option><option value="gallery">Image gallery</option><option value="products">Products</option><option value="widget">Widget</option><option value="form">Form</option><option value="plugin">Plugin block</option></select></label><button type="button" class="bp-button bp-button-secondary" data-bp-add-block>Add block</button></div><div class="bp-widget-rows" data-bp-reorder-list data-bp-block-list>' . $rows . '</div><template data-bp-block-template>' . $template . '</template>' . $presentation . '</div>';
     }
 
     private function blockRow(array $block, int $index, bool $sourceOnly): string
     {
-        $type = in_array(($block['type'] ?? ''), ['html', 'posts', 'gallery', 'products', 'widget'], true) ? (string)$block['type'] : 'html';
+        $type = in_array(($block['type'] ?? ''), ['html', 'posts', 'gallery', 'products', 'widget', 'form', 'plugin'], true) ? (string)$block['type'] : 'html';
         $options = '';
-        foreach (['html' => 'HTML content', 'posts' => 'Blog posts', 'gallery' => 'Image gallery', 'products' => 'Products', 'widget' => 'Widget'] as $value => $label) {
+        foreach (['html' => 'HTML content', 'posts' => 'Blog posts', 'gallery' => 'Image gallery', 'products' => 'Products', 'widget' => 'Widget', 'form' => 'Form', 'plugin'=>'Plugin block'] as $value => $label) {
             $options .= '<option value="' . $value . '"' . ($type === $value ? ' selected' : '') . '>' . $label . '</option>';
         }
         $editor = ContentEditor::render($this->config, (string)($block['body'] ?? ''), 'HTML and gallery markup is sanitized when saved.', 'bp-page-block-' . $index, $sourceOnly, 'block_body[]');
@@ -264,6 +266,8 @@ final class PageController
             . '<label data-bp-block-field="posts products">Items <input type="number" name="block_limit[]" min="1" max="24" value="' . max(1, min(24, (int)($block['limit'] ?? 6))) . '"></label>'
             . $postOptions
             . '<label data-bp-block-field="widget">Widget title <input type="text" name="block_widget[]" maxlength="160" value="' . $this->e((string)($block['widget'] ?? '')) . '"><span class="bp-field-help">Matches a widget configured in Widgets.</span></label>'
+            . '<label data-bp-block-field="form">Form ID <input name="block_form[]" maxlength="64" value="' . $this->e((string)($block['form'] ?? '')) . '"><span class="bp-field-help">Use the stable ID from Forms. Visitors open the secure form on its own page.</span></label>'
+            . '<label data-bp-block-field="plugin">Plugin block <input name="block_plugin[]" maxlength="129" value="' . $this->e((string)($block['plugin_block'] ?? '')) . '" placeholder="plugin-id:block-name"><span class="bp-field-help">Use a block registered by an enabled trusted package.</span></label>'
             . '</section>';
     }
 
@@ -280,7 +284,7 @@ final class PageController
         $widgets = (array)($input['block_widget'] ?? []);
         $blocks = [];
         foreach (array_slice($types, 0, 30) as $index => $type) {
-            $blocks[] = ['type' => (string)$type, 'title' => (string)($titles[$index] ?? ''), 'body' => (string)($bodies[$index] ?? ''), 'category' => (string)($categories[$index] ?? ''), 'limit' => (int)($limits[$index] ?? 6), 'widget' => (string)($widgets[$index] ?? '')];
+            $blocks[] = ['type' => (string)$type, 'title' => (string)($titles[$index] ?? ''), 'body' => (string)($bodies[$index] ?? ''), 'category' => (string)($categories[$index] ?? ''), 'limit' => (int)($limits[$index] ?? 6), 'widget' => (string)($widgets[$index] ?? ''), 'form' => (string)(((array)($input['block_form'] ?? []))[$index] ?? ''), 'plugin_block'=>(string)(((array)($input['block_plugin'] ?? []))[$index] ?? '')];
             foreach (['show_image', 'show_date', 'show_read_more'] as $field) {
                 $blocks[array_key_last($blocks)][$field] = ((array)($input['block_' . $field] ?? []))[$index] ?? '0';
             }

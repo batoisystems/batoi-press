@@ -162,7 +162,7 @@ final class PageRepository
 
     private function normalizeBlocks(mixed $value, string $fallbackBody): array
     {
-        $allowed = ['html', 'posts', 'gallery', 'products', 'widget'];
+        $allowed = ['html', 'posts', 'gallery', 'products', 'widget', 'form', 'plugin'];
         if (!is_array($value) || count($value) > 30) {
             throw new RuntimeException('Page blocks must be an array of at most 30 items.');
         }
@@ -182,6 +182,8 @@ final class PageRepository
                 'category' => substr(trim((string)($block['category'] ?? '')), 0, 100),
                 'limit' => max(1, min(24, (int)($block['limit'] ?? 6))),
                 'widget' => substr(trim((string)($block['widget'] ?? '')), 0, 160),
+                'form' => preg_match('/^[a-z][a-z0-9-]{0,63}$/D', (string)($block['form'] ?? '')) ? (string)$block['form'] : '',
+                'plugin_block' => is_string($block['plugin_block'] ?? null) && preg_match('/^[a-z][a-z0-9-]{0,63}:[a-z][a-z0-9-]{0,63}$/D', $block['plugin_block']) ? $block['plugin_block'] : '',
                 'show_image' => filter_var($block['show_image'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'show_date' => filter_var($block['show_date'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'show_read_more' => filter_var($block['show_read_more'] ?? false, FILTER_VALIDATE_BOOLEAN),

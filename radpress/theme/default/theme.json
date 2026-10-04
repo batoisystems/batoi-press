@@ -19,6 +19,12 @@
     "account": {"label": "Customer Account", "layout": "account"},
     "contact": {"label": "Contact", "layout": "contact"}
   },
+  "contract": "1.0.0",
+  "compatibility": {
+    "php": {"min": "8.3.0", "max_exclusive": "9.0.0"},
+    "press": {"min": "3.2.4", "max_exclusive": "5.0.0"}
+  },
+  "partials": ["email", "block-posts", "block-gallery", "block-products", "block-widget"],
   "assets": {
     "styles": [{"file": "css/theme.css", "media": "all"}],
     "scripts": [{"file": "js/theme.js", "defer": true}]

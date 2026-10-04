@@ -54,6 +54,10 @@ final class Router
 
     public function dispatch(Request $request): Response
     {
+        if (preg_match('#^/forms/([a-z][a-z0-9-]{0,63})$#D', $request->path, $formMatch)) {
+            if (!in_array($request->method, ['GET','POST'], true)) return Response::html('Method not allowed.', 405)->withHeader('Allow', 'GET, POST');
+            return (new \Batoi\Press\Application\FormController($this->config))->handle($formMatch[1], $request);
+        }
         if ($request->path === '/.well-known/oauth-protected-resource' || $request->path === '/.well-known/oauth-protected-resource/mcp') {
             return (new OAuthMetadataController($this->config))->handle($request);
         }
@@ -156,7 +160,7 @@ final class Router
         $limit = max(1, min(12, (int)($page['latest_posts_limit'] ?? 3)));
         $integrations = $this->config->integrations();
         if (is_array($page['blocks'] ?? null) && $page['blocks'] !== []) {
-            $page['body'] = (new PageBlockRenderer($this->config->paths(), $this->posts, $this->products()))->render($page['blocks']);
+            $page['body'] = (new PageBlockRenderer($this->config->paths(), $this->posts, $this->products(), $this->config->site()))->render($page['blocks']);
         }
         return [
             'page' => $page,
@@ -218,6 +222,16 @@ final class Router
                 'role' => AdminAccess::role($user),
             ]);
             return $this->forbidden($request->path);
+        }
+
+        if ($request->path === '/admin/plugins') return (new \Batoi\Press\Admin\PluginController($this->config, $csrf, $audit, $user))->handle($request);
+        if ($request->path === '/admin/forms') return (new \Batoi\Press\Admin\FormController($this->config, $csrf, $audit, $user))->handle($request);
+        if (preg_match('#^/admin/extensions/([a-z][a-z0-9-]{0,63})/(index|[a-z][a-z0-9-]{0,63})$#D', $request->path, $extension)) {
+            if (!in_array($request->method, ['GET','POST'], true)) return Response::html('Method not allowed.', 405)->withHeader('Allow','GET, POST');
+            if ($request->method === 'POST' && !$csrf->validate($request->input('csrf_token'))) return Response::html('Invalid request token.',400);
+            if (!(new RateLimiter($this->config->paths(),60,60))->consume('plugin-admin:' . $user['username'])) return Response::html('Too many extension requests.',429);
+            try { return (new PluginManager($this->config->paths()))->boot()->adminPage($extension[1] . '/' . $extension[2], $request, $csrf); }
+            catch (\Throwable) { $audit->record($user['username'],'plugin.page.failed',$extension[1],'','failed'); return Response::html('Extension page unavailable. Use Plugins to disable or recover it.',503); }
         }
 
         if ($request->path === '/admin') {

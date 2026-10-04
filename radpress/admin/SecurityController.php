@@ -88,7 +88,7 @@ final class SecurityController
         } catch (RuntimeException) {
             return $this->index('', 'Unable to read the protected authenticator setup.', 500);
         }
-        if (!Totp::verify($secret, $request->input('mfa_code'))) return $this->index('', 'Authenticator code is invalid or expired.', 422);
+        if (!$this->factorVerified($request, $secret)) return $this->index('', 'Authenticator code is invalid, expired or temporarily limited.', 422);
         $codes = is_array($recovery) ? array_values(array_map('strval', $recovery)) : [];
         $this->mfa()->enable($this->username(), $secret, $codes);
         $this->session->remove('mfa_enrollment');
@@ -102,7 +102,7 @@ final class SecurityController
     {
         if (!$this->csrf->validate($request->input('csrf_token'))) return $this->index('', 'Security token expired.', 400);
         if (!$this->passwordVerified($request)) return $this->index('', 'Current password verification failed.', 403);
-        if ($this->mfa()->verify($this->username(), $request->input('mfa_code')) === null) return $this->index('', 'Authenticator or recovery code is invalid.', 403);
+        if (!$this->factorVerified($request)) return $this->index('', 'Authenticator or recovery code is invalid or temporarily limited.', 403);
         $this->mfa()->disable($this->username());
         $this->audit->record($this->username(), 'security.mfa_disabled', $this->username(), $this->ip($request));
         return $this->index('Two-factor authentication was disabled.');
@@ -113,7 +113,7 @@ final class SecurityController
         if (!$this->csrf->validate($request->input('csrf_token'))) return $this->index('', 'Security token expired.', 400);
         if (!$this->passwordVerified($request)) return $this->index('', 'Current password verification failed.', 403);
         $fresh = $this->mfa()->findUser($this->username()) ?? $this->user;
-        if ($this->mfa()->enabled($fresh) && $this->mfa()->verify($this->username(), $request->input('mfa_code')) === null) {
+        if ($this->mfa()->enabled($fresh) && !$this->factorVerified($request)) {
             return $this->index('', 'Authenticator or recovery code is invalid.', 403);
         }
         $hash = strtolower(trim($request->input('session_id')));
@@ -192,9 +192,21 @@ final class SecurityController
     {
         $limiter = new RateLimiter($this->config->paths(), 5, 300);
         $key = 'security-reauth:' . $this->username() . ':' . $this->ip($request);
-        if ($limiter->tooManyAttempts($key)) return false;
+        if (!$limiter->consume($key)) return false;
         $ok = Password::verify($request->input('current_password'), (string)($this->user['password_hash'] ?? ''));
-        $ok ? $limiter->clear($key) : $limiter->hit($key);
+        if ($ok) $limiter->clear($key);
+        return $ok;
+    }
+
+    /** Password successes cannot reset this account-bound second-factor budget. */
+    private function factorVerified(Request $request, ?string $enrollmentSecret = null): bool
+    {
+        $limiter = new RateLimiter($this->config->paths(), 5, 300);
+        $key = 'security-mfa:' . $this->username();
+        $reservation = $limiter->reserve($key);
+        if ($reservation === null) return false;
+        $ok = $enrollmentSecret !== null ? Totp::verify($enrollmentSecret, $request->input('mfa_code')) : $this->mfa()->verify($this->username(), $request->input('mfa_code')) !== null;
+        if ($ok) $limiter->refund($key, $reservation);
         return $ok;
     }
 

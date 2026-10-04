@@ -246,7 +246,7 @@ final class ConnectionController
         if (!$this->oauthConfigured()) return $html . '<p>Provider setup is required before linking. An installation operator must configure the trusted issuer, resource audience, and keys; this form does not create an authorization server.</p></section>';
         $html .= '<details><summary>Link administrator and client</summary><form method="post" action="/admin/connections/oauth/link" class="bp-form">' . $this->csrf->field()
             . '<p>Issuer: <code>' . $this->e((string)($this->config->security()['oauth']['issuer'] ?? '')) . '</code>. Obtain the exact subject and client ID from your trusted provider. Do not paste access tokens or link by email unless it is the provider’s actual immutable subject.</p>'
-            . '<label>Name<input name="name" required maxlength="200"></label><label>Provider subject<input name="subject" required maxlength="200" autocomplete="off"></label><label>OAuth client ID<input name="client_id" required maxlength="200" autocomplete="off"></label>'
+            . '<label>Name<input name="name" required maxlength="200"></label><label>Provider subject<input name="subject" required maxlength="200" autocomplete="off"></label><label>OAuth client ID<input name="client_id" required maxlength="' . OAuthBindingRepository::MAX_CLIENT_ID_BYTES . '" autocomplete="off"><small>Exact verified client ID, including the full metadata URL when used. Maximum ' . OAuthBindingRepository::MAX_CLIENT_ID_BYTES . ' bytes; do not shorten or normalize it.</small></label>'
             . '<label>Local administrator<select name="principal">' . $this->principalOptions() . '</select></label>'
             . '<label>Profile<select name="profile"><option value="read">Read only (includes drafts)</option><option value="editor">Draft editor</option><option value="publisher">Publisher with Press review</option></select></label>'
             . '<label>Grant expires after<select name="expires_days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select></label>'
@@ -326,20 +326,20 @@ final class ConnectionController
     {
         $limiter = new RateLimiter($this->config->paths(), 5, 300);
         $key = 'connection-reauth:' . $this->username() . ':' . $this->ip($request);
-        if ($limiter->tooManyAttempts($key)) {
+        if (!$limiter->consume($key)) {
             return 'limited';
         }
         $password = $request->input('current_password');
         $hash = (string)($this->user['password_hash'] ?? '');
         if ($password !== '' && $hash !== '' && Password::verify($password, $hash)) {
             if ($this->mfaEnabled() && (new MfaRepository($this->config->paths()))->verify($this->username(), $request->input('mfa_code')) === null) {
-                $limiter->hit($key);
+
                 return 'invalid';
             }
             $limiter->clear($key);
             return 'ok';
         }
-        $limiter->hit($key);
+
         return 'invalid';
     }
 

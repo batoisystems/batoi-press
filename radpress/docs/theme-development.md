@@ -70,6 +70,14 @@ Template keys and layout names use lowercase letters, numbers, underscores, and 
 
 Bundled files resolve from `/theme-assets/{theme}/{path}`. Use `bp_theme_asset('images/example.webp')` inside a template instead of calculating filesystem or public paths. Keep site-owned logos and content images in the typed site asset store, and keep reusable third-party packages in Media Libraries.
 
+## Versioned compatibility contract
+
+`contract` defaults to `1.0.0` for legacy manifests; other contract versions are rejected until supported. Optional `compatibility.php` and `compatibility.press` use three-component `min` and `max_exclusive` bounds. An incompatible theme remains available for inspection but public rendering returns 503 before executing its layouts. Review compatibility in Themes and preview before activation.
+
+Optional `tokens.light` and `tokens.dark` provide palette defaults using the names in `Appearance::LABELS` and six-digit hexadecimal colors only. Site palette settings override theme defaults. Optional `partials` lists required names: `email`, `block-posts`, `block-gallery`, `block-products`, `block-widget`. Declared files must exist; undeclared partials retain bundled fallbacks. Their PHP paths are respectively `partials/email.php` and `partials/blocks/{posts,gallery,products,widget}.php`.
+
+For an existing custom theme, first retain its layouts/assets and omit new optional declarations. Add bounds after testing supported PHP/Press versions; add palette defaults and required partials incrementally. Theme upgrades do not rewrite site content, custom templates or palette settings. Native theme PHP is trusted executable code.
+
 ## Template Context
 
 `$branding` includes `display`, `site_name`, `logo_url`, `logo_alt`, and `favicon_url`. A theme should support `text`, `logo`, and `logo_with_text` display modes and fall back to the site name when no valid logo is available.
@@ -256,3 +264,44 @@ Video/audio embeds retain controls, safe URLs, caption tracks and fallback text;
 unspecified preload defaults to `none`. Autoplay is not enabled. Page saves report
 removed unsupported elements and unsafe attributes without displaying removed
 values. Arbitrary `<link>`, script or head markup is still not allowed in bodies.
+
+## Email and page-block presentation
+
+Theme Templates includes **Email Template**, **Blog Posts Block**, **Image Gallery
+Block**, **Products Block**, and **Widgets Block** cards. These optional PHP files
+can be created from bundled starter templates in existing custom themes. Source
+editing retains the normal owner/admin permission, CSRF validation, encoded
+transport, PHP syntax checking and prior-file snapshots. Duplicate the default
+theme before long-lived customization so a release does not replace its files.
+
+| Template | Relative theme file | Presentation context |
+| --- | --- | --- |
+| Email Template | `partials/email.php` | `$site`, `$name`, `$email`, `$subject`, `$message`, `$escape` |
+| Blog Posts Block | `partials/blocks/posts.php` | `$site`, `$title`, `$block`, `$items`, `$escape` |
+| Image Gallery Block | `partials/blocks/gallery.php` | `$site`, `$title`, `$block`, sanitized `$body`, `$escape` |
+| Products Block | `partials/blocks/products.php` | `$site`, `$title`, `$block`, `$items`, `$escape` |
+| Widgets Block | `partials/blocks/widget.php` | `$site`, `$title`, `$block`, `$widget`, rendered `$body`, `$escape` |
+
+`$escape($text)` escapes text and quoted HTML attributes. Email contact values are
+visitor text: escape them and use `nl2br($escape($message), false)` for line breaks.
+Use inline styles, presentation tables and absolute HTTPS URLs for email. The
+bundled email uses the site name in a Batoi-styled panel and identifies Batoi Press
+in the footer. Delivery provider, recipients, CAPTCHA and rate limiting stay in
+the application. Settings → Mail and integrations → **Copy to Sender** adds the
+validated submitter as Cc to the same message for either supported provider; it is
+off by default. The recipients can see each other's address. A sender already
+matching Default To is not added again. Mailgun retains its plain-text alternative.
+
+Post and product `$items` are already restricted to published records, the block's
+category and its limit. Each includes a backend-generated `url`; post items also
+include a validated `image_url`. Preserve escaping and the `show_image`,
+`show_date`, and `show_read_more` flags when changing markup. Gallery and widget
+bodies are prepared by the existing sanitization/rendering pipeline. Template
+changes apply to every matching block in that theme. Use page CSS for a
+page-specific variation. Public rendering, theme preview and static export use
+the same partials. A theme missing an optional file uses the bundled default;
+existing themes do not need a migration or new manifest capability.
+
+These remain trusted PHP source files with the same privileges as existing theme
+layouts. They separate presentation from repository logic; they are not a PHP
+sandbox. Do not insert credentials, delivery calls or content mutations into them.

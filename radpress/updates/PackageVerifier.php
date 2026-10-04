@@ -23,6 +23,7 @@ final class PackageVerifier
         if (!is_file($file)) {
             return 'The uploaded update package is no longer available.';
         }
+        if (filesize($file) > 104857600) return 'The update archive exceeds the 100 MiB limit.';
         if ((int)filesize($file) < 4) {
             return 'The uploaded ZIP is empty or incomplete. Download the official release package again.';
         }
@@ -61,8 +62,15 @@ final class PackageVerifier
             return false;
         }
 
+        if ($zip->numFiles < 1 || $zip->numFiles > 5000) { $zip->close(); return false; }
+        $total = 0; $seen = [];
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $name = str_replace('\\', '/', (string)$zip->getNameIndex($i));
+            $stat = $zip->statIndex($i);
+            $zip->getExternalAttributesIndex($i, $system, $attributes);
+            $identity = strtolower(rtrim($name, '/'));
+            if (!is_array($stat) || ($stat['encryption_method'] ?? 0) !== 0 || $stat['size'] > 20971520 || ($total += $stat['size']) > 314572800 || isset($seen[$identity]) || (($attributes >> 16) & 0170000) === 0120000) { $zip->close(); return false; }
+            $seen[$identity] = true;
             $trimmed = rtrim($name, '/');
             $segments = explode('/', $trimmed);
             if (

@@ -75,8 +75,24 @@ final class ThemeManager
         ), static fn(string $value): bool => preg_match('/^[a-z][a-z0-9_-]*$/', $value) === 1)));
 
         $assets = (array)($raw['assets'] ?? []);
+        $contract = $raw['contract'] ?? '1.0.0';
+        if ($contract !== '1.0.0') throw new RuntimeException('Unsupported theme contract version.');
+        $compatibility = $raw['compatibility'] ?? [];
+        if (!is_array($compatibility) || array_diff(array_keys($compatibility), ['php','press']) !== []) throw new RuntimeException('Invalid theme compatibility declarations.');
+        foreach ($compatibility as $range) {
+            if (!is_array($range) || !is_string($range['min'] ?? null) || !is_string($range['max_exclusive'] ?? null) || !preg_match('/^\d+\.\d+\.\d+$/D',$range['min']) || !preg_match('/^\d+\.\d+\.\d+$/D',$range['max_exclusive']) || version_compare($range['min'],$range['max_exclusive'],'>=')) throw new RuntimeException('Invalid theme compatibility bounds.');
+        }
+        $tokens = $raw['tokens'] ?? [];
+        if (!is_array($tokens) || array_diff(array_keys($tokens), ['light','dark']) !== []) throw new RuntimeException('Invalid theme token modes.');
+        foreach ($tokens as $mode => $palette) {
+            if (!is_array($palette) || array_diff(array_keys($palette), array_keys(Appearance::LABELS)) !== []) throw new RuntimeException('Unknown theme color token.');
+            foreach ($palette as $color) if (!is_string($color) || !preg_match('/^#[0-9a-f]{6}$/iD',$color)) throw new RuntimeException('Theme colors must use six-digit hex values.');
+        }
+        $partials = $raw['partials'] ?? [];
+        if (!is_array($partials) || !array_is_list($partials) || count(array_filter($partials,'is_string')) !== count($partials) || array_diff($partials,array_keys(ThemePartial::FILES)) !== []) throw new RuntimeException('Unknown theme partial contract.');
         return [
             'schema' => 1,
+            'contract'=>$contract, 'compatibility'=>$compatibility, 'tokens'=>$tokens, 'partials'=>$partials,
             'slug' => $slug,
             'name' => $name,
             'version' => $version,
@@ -105,6 +121,14 @@ final class ThemeManager
                 $errors[] = 'Missing required file: ' . $layout;
             }
         }
+        $update = $this->paths->configPath('update.json');
+        if (!is_file($update)) $update = dirname(__DIR__) . '/config/update.json';
+        $press = is_file($update) ? ($this->files->readJson($update)['current_version'] ?? '') : '';
+        foreach ($manifest['compatibility'] as $runtime => $range) {
+            $version = $runtime === 'php' ? PHP_VERSION : $press;
+            if (!is_string($version) || $version === '' || version_compare($version,$range['min'],'<') || version_compare($version,$range['max_exclusive'],'>=')) $errors[] = strtoupper($runtime) . ' requires >= ' . $range['min'] . ' and < ' . $range['max_exclusive'];
+        }
+        foreach ($manifest['partials'] as $key) if (!is_file($this->paths->themePath($slug . '/' . ThemePartial::FILES[$key]))) $errors[] = 'Missing declared theme partial: ' . ThemePartial::FILES[$key];
         foreach (['styles', 'scripts'] as $group) {
             foreach ($manifest['assets'][$group] as $entry) {
                 if ($this->resolveAsset($slug, (string)$entry['file']) === null) {

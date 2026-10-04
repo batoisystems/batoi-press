@@ -24,6 +24,8 @@ final class Theme
         $site = $this->site;
         extract($data, EXTR_SKIP);
         $theme = $manager->context($slug);
+        if (array_filter($theme['errors'] ?? [], static fn(string $error): bool => preg_match('/^(?:PHP requires|PRESS requires|.*theme (?:contract|compatibility|token|color|partial)|Theme colors)/i',$error) === 1)) return Response::html('The active theme requires compatibility review. Use Themes to select a compatible theme.',503);
+        foreach ($theme['tokens'] ?? [] as $mode => $palette) $site['palette_' . $mode] = array_replace($palette, (array)($site['palette_' . $mode] ?? []));
         $branding = (new BrandAssetManager($this->paths))->branding($site);
         $localizedAssets = (bool)($options['localized_assets'] ?? true);
         $previousResolver = $GLOBALS['bp_theme_asset_resolver'] ?? null;

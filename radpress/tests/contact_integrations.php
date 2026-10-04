@@ -112,6 +112,41 @@ try {
         unset($GLOBALS['contact_curl_init_failure']);
         assertContact($GLOBALS['contact_curl_executions'] === $executions, 'Failed initialization must not execute delivery');
     }
+    // Copies use one provider submission, and never enable implicitly for legacy config.
+    $GLOBALS['contact_mail_calls'] = [];
+    $copyConfig = ['mail_provider'=>'php_mail', 'mail_from'=>'site@example.com', 'mail_to'=>'owner@example.com'];
+    foreach ([false, true] as $copy) {
+        (new MailerService($config->paths(), $copyConfig + ['mail_copy_to_sender'=>$copy]))->sendContact('Sender', 'sender@example.com', 'Copy test', 'Body');
+        $call = end($GLOBALS['contact_mail_calls']);
+        assertContact(str_contains($call['headers'], 'Cc: sender@example.com') === $copy, 'Server-mail sender copy must follow its explicit setting');
+    }
+    assertContact(count($GLOBALS['contact_mail_calls']) === 2, 'Cc must not make a second delivery attempt');
+    (new MailerService($config->paths(), $copyConfig + ['mail_copy_to_sender'=>true]))->sendContact('Owner', 'OWNER@example.com', 'Same recipient', 'Body');
+    assertContact(!str_contains(end($GLOBALS['contact_mail_calls'])['headers'], 'Cc:'), 'Do not duplicate an existing primary recipient');
+    assertContactFailure(fn() => (new MailerService($config->paths(), $copyConfig + ['mail_copy_to_sender'=>true]))->sendContact('Bad', "bad@example.com\r\nCc:other@example.com", 'Bad', 'Body'), 'Sender-copy header injection must be refused');
+    assertContact(count($GLOBALS['contact_mail_calls']) === 3, 'Invalid copy recipient must fail before transport');
+    if (function_exists('curl_init')) {
+        foreach ([false, true] as $copy) {
+            (new MailerService($config->paths(), $mailConfig + ['mail_copy_to_sender'=>$copy]))->sendContact('Sender', 'sender@example.com', 'Copy test', 'Body');
+            $call = end($GLOBALS['contact_mailgun_calls']);
+            $fields = $call['options'][CURLOPT_POSTFIELDS];
+            assertContact(($fields['cc'] ?? null) === ($copy ? 'sender@example.com' : null), 'Mailgun sender copy must follow the same setting');
+        }
+        (new MailerService($config->paths(), $mailConfig + ['mail_copy_to_sender'=>true]))->sendContact('Owner', 'OWNER@example.com', 'Same recipient', 'Body');
+        assertContact(!isset(end($GLOBALS['contact_mailgun_calls'])['options'][CURLOPT_POSTFIELDS]['cc']), 'Mailgun must not duplicate the primary recipient');
+    }
+    // Active-theme email overrides work without coupling delivery to templates.
+    $files = new \Batoi\Press\Core\FileStore();
+    $files->writeJson($config->paths()->themePath('custom/theme.json'), ['name'=>'Custom']);
+    $files->writeJson($config->paths()->configPath('site.json'), ['theme'=>'custom','name'=>'Custom & Co']);
+    $files->write($config->paths()->themePath('custom/partials/email.php'), '<?php echo "CUSTOM " . $escape($name) . " " . $escape($subject) . " " . $escape($message);');
+    (new MailerService($config->paths(), $copyConfig))->sendContact('<Sender>', 'sender@example.com', '<Subject>', '<Body>');
+    assertContact(quoted_printable_decode(end($GLOBALS['contact_mail_calls'])['message']) === 'CUSTOM &lt;Sender&gt; &lt;Subject&gt; &lt;Body&gt;', 'Custom email template must receive the documented data and escaping helper');
+    $files->writeJson($config->paths()->configPath('site.json'), ['theme'=>'without-email','name'=>'Custom & Co']);
+    $files->writeJson($config->paths()->themePath('without-email/theme.json'), ['name'=>'Without email']);
+    (new MailerService($config->paths(), $copyConfig))->sendContact('Sender', 'sender@example.com', 'Fallback', 'Body');
+    $fallback = quoted_printable_decode(end($GLOBALS['contact_mail_calls'])['message']);
+    assertContact(str_contains($fallback, 'Powered by Batoi Press') && str_contains($fallback, 'Custom &amp; Co'), 'Legacy themes must receive a branded, escaped fallback email');
     echo "Contact integration checks passed\n";
 } finally { removeContact($root); }
 

@@ -46,8 +46,8 @@ assertSettings(str_contains($formHtml, 'name="posts_per_page"') && str_contains(
 assertSettings(str_contains($formHtml, 'name="appearance_mode"') && str_contains($formHtml, 'name="brand_primary_color"'), 'Settings should expose public light, dark, and brand color controls.');
 assertSettings(str_contains($formHtml, 'name="mail_provider"') && str_contains($formHtml, 'name="analytics_measurement_id"'), 'Settings should expose mail and analytics integrations.');
 $integrationFields = new ReflectionMethod($controller, 'integrationFields');
-$integrationHtml = (string)$integrationFields->invoke($controller, ['google_maps_embed'=>true,'recaptcha_custom_theme'=>true]);
-foreach (['google_maps_embed','recaptcha_custom_theme'] as $field) {
+$integrationHtml = (string)$integrationFields->invoke($controller, ['google_maps_embed'=>true,'recaptcha_custom_theme'=>true,'mail_copy_to_sender'=>true]);
+foreach (['google_maps_embed','recaptcha_custom_theme','mail_copy_to_sender'] as $field) {
     assertSettings(str_contains($integrationHtml, 'name="' . $field . '" value="1" checked'), 'Enabled integration declarations should remain checked.');
     assertSettings(str_contains($formHtml, 'name="' . $field . '" value="1">'), 'Absent integration declarations should default off.');
 }

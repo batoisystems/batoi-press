@@ -4,62 +4,62 @@ declare(strict_types=1);
 namespace Batoi\Press\Security;
 
 use Batoi\Press\Core\Paths;
+use Batoi\Press\Core\FileStore;
 
 final class RateLimiter
 {
-    public function __construct(
-        private readonly Paths $paths,
-        private readonly int $maxAttempts = 5,
-        private readonly int $windowSeconds = 300
-    ) {
+    public function __construct(private readonly Paths $paths, private readonly int $maxAttempts = 5, private readonly int $windowSeconds = 300) {}
+
+    public function reserve(string $key): ?string
+    {
+        $ticket = bin2hex(random_bytes(12));
+        $reserved = false;
+        try {
+            (new FileStore())->mutateJson($this->file($key), function (array $state) use ($ticket, &$reserved): array {
+                $attempts = $this->valid($state);
+                if (count($attempts) >= $this->maxAttempts) return $attempts;
+                $attempts[] = ['time' => time(), 'id' => $ticket];
+                $reserved = true;
+                return $attempts;
+            });
+        } catch (\RuntimeException) { return null; }
+        return $reserved ? $ticket : null;
     }
+
+    public function consume(string $key): bool { return $this->reserve($key) !== null; }
+    public function hit(string $key): void { $this->reserve($key); }
 
     public function tooManyAttempts(string $key): bool
     {
-        return count($this->attempts($key)) >= $this->maxAttempts;
+        try {
+            $state = is_file($this->file($key)) ? (new FileStore())->readJson($this->file($key)) : [];
+            return count($this->valid($state)) >= $this->maxAttempts;
+        } catch (\RuntimeException) { return true; }
     }
 
-    public function hit(string $key): void
+    public function refund(string $key, string $ticket): void
     {
-        $attempts = $this->attempts($key);
-        $attempts[] = time();
-        $this->write($key, $attempts);
+        (new FileStore())->mutateJson($this->file($key), function (array $state) use ($ticket): array {
+            return array_values(array_filter($this->valid($state), static fn(array $entry): bool => $entry['id'] !== $ticket));
+        });
     }
 
     public function clear(string $key): void
     {
-        $file = $this->file($key);
-        if (is_file($file)) {
-            unlink($file);
-        }
+        (new FileStore())->mutateJson($this->file($key), static fn(array $state): array => []);
     }
 
-    private function attempts(string $key): array
+    private function valid(array $state): array
     {
-        $file = $this->file($key);
-        if (!is_file($file)) {
-            return [];
+        if (!array_is_list($state)) throw new \RuntimeException('Invalid rate-limit state.');
+        $attempts = [];
+        foreach ($state as $entry) {
+            if (is_int($entry)) $entry = ['time' => $entry, 'id' => 'legacy'];
+            if (!is_array($entry) || !is_int($entry['time'] ?? null) || !is_string($entry['id'] ?? null)) throw new \RuntimeException('Invalid rate-limit state.');
+            if ($entry['time'] >= time() - $this->windowSeconds) $attempts[] = $entry;
         }
-
-        $decoded = json_decode((string)file_get_contents($file), true);
-        $attempts = is_array($decoded) ? array_filter($decoded, 'is_int') : [];
-        $cutoff = time() - $this->windowSeconds;
-
-        return array_values(array_filter($attempts, static fn (int $stamp): bool => $stamp >= $cutoff));
+        return $attempts;
     }
 
-    private function write(string $key, array $attempts): void
-    {
-        $dir = $this->paths->dataPath('tmp/rate');
-        if (!is_dir($dir)) {
-            mkdir($dir, 0775, true);
-        }
-
-        file_put_contents($this->file($key), json_encode(array_values($attempts), JSON_PRETTY_PRINT));
-    }
-
-    private function file(string $key): string
-    {
-        return $this->paths->dataPath('tmp/rate/' . hash('sha256', $key) . '.json');
-    }
+    private function file(string $key): string { return $this->paths->dataPath('tmp/rate/' . hash('sha256', $key) . '.json'); }
 }

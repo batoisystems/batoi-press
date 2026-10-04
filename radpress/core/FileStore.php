@@ -46,7 +46,7 @@ final class FileStore
         }
 
         $temporary = $path . '.tmp-' . bin2hex(random_bytes(6));
-        if (file_put_contents($temporary, $contents, LOCK_EX) === false) {
+        if (file_put_contents($temporary, $contents, LOCK_EX) !== strlen($contents)) {
             @unlink($temporary);
             throw new RuntimeException('Unable to write file: ' . $path);
         }
@@ -64,11 +64,37 @@ final class FileStore
 
     public function writeJson(string $path, array $data): void
     {
-        $this->write($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+        try { $encoded = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR); }
+        catch (\JsonException $error) { throw new RuntimeException('Unable to encode JSON data; existing storage was preserved.', 0, $error); }
+        $this->write($path, $encoded . "\n");
     }
 
     public function exists(string $path): bool
     {
         return is_file($path) || is_dir($path);
+    }
+
+    /** Serialize read/validate/write on a stable lock, not the renamed data inode. */
+    public function mutateJson(string $path, callable $change, array $initial = []): array
+    {
+        $directory = dirname($path);
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
+            throw new RuntimeException('Unable to prepare private storage.');
+        }
+        $lock = fopen($path . '.lock', 'c+');
+        if ($lock === false || !flock($lock, LOCK_EX)) {
+            if (is_resource($lock)) fclose($lock);
+            throw new RuntimeException('Unable to lock private storage.');
+        }
+        try {
+            $next = $change(is_file($path) ? $this->readJson($path) : $initial);
+            if (!is_array($next)) throw new RuntimeException('Invalid storage mutation.');
+            $this->writeJson($path, $next);
+            @chmod($path, 0600);
+            return $next;
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 }

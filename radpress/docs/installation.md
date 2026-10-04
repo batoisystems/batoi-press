@@ -22,9 +22,9 @@ The installer entrypoint is:
 public_html/install.php
 ```
 
-When `radpress/config/installed.lock` exists, the installer is disabled.
+When `radpress/config/installed.lock` or an owner account exists, the installer is disabled. Removing the lock alone does not permit replacing an owner. Corrupt account storage requires server recovery.
 
-To perform a fresh browser setup, remove the lock file manually on the server and open:
+For a genuinely fresh deployment with no owner and no installation lock, open:
 
 ```text
 /install.php
@@ -141,3 +141,56 @@ lengths, conditional responses and seeking in the browser after host changes.
 See [Apache mod_deflate](https://httpd.apache.org/docs/2.4/mod/mod_deflate.html)
 and [PHP zlib configuration](https://www.php.net/manual/en/zlib.configuration.php).
 No hosting configuration is automatically changed by this implementation.
+
+## Major-upgrade hosting contract
+
+This development line requires supported PHP 8.3+ with native JSON, sessions, hashing, filters, password hashing and secure random support. Reliable local locking and rename are required. No database, Composer command, Node, shell, cron, external identity provider or network access is required for local publishing. Release dependencies/assets arrive prebuilt; Firebase JWT loads only for optional OAuth.
+
+Installer and Hosting Health use the same capability registry. DOM enables rich HTML editing; without it new content is stored as escaped plain text with an editor notice. Fileinfo is required for new uploads; GD is optional for derivatives. ZIP enables package/archive features. Sodium is required for signed automatic updates; use verified manual deployment when unavailable, never unsigned update fallback. Encrypted-secret features require Sodium or OpenSSL AES-256-GCM. Existing Sodium v1 secrets still need Sodium. cURL enables remote adapters; mbstring improves multilingual case folding; neither is a core install requirement.
+
+Forms and Webhook delivery are optional, default-off modules under Admin → Plugins. Queued form email and webhook jobs require encrypted storage. Ordinary contact forms remain on their existing delivery path. An optional cron/CLI runner can process one queued job per invocation; without it use Forms → Process next delivery. Public requests never drain the queue.
+
+Private storage must remain outside the document root or be denied by verified server rules. On Nginx, set the root to public_html; Apache .htaccess protections are not Nginx protections. Do not assume a health screen proves HTTP access is denied. Test direct requests to configuration, sessions, logs and backups on the actual host.
+
+Plugin and form package contracts, recovery and delivery operation are documented in [Plugin SDK and custom forms](plugins.md).
+
+### Restricted-function verification profile
+
+`php radpress/tests/minimal_runtime.php` verifies local login, publishing, rendering and store-only forms using private synthetic data, and checks that optional Composer dependencies stay unloaded. A stricter local profile can run:
+
+```sh
+php -n -d pcre.jit=0 -d disable_functions=curl_init,sodium_crypto_sign_verify_detached,sodium_crypto_aead_xchacha20poly1305_ietf_encrypt,sodium_crypto_aead_xchacha20poly1305_ietf_decrypt,openssl_get_cipher_methods,openssl_encrypt,openssl_decrypt,imagecreatetruecolor,mb_strtolower,mb_stripos radpress/tests/minimal_runtime.php
+```
+
+This tests unavailable functions and fail-closed integration activation. It does not remove compiled-in DOM/Fileinfo/ZIP classes, replace shared-host filesystem tests, or establish measured coverage of the hosting market. Validate those environments separately before release.
+
+### Server configuration examples and migration
+
+The official [PHP support schedule](https://www.php.net/supported-versions.php), checked on 2026-10-04, lists PHP 8.3 security support through 2027-12-31, 8.4 through 2028-12-31 and 8.5 through 2029-12-31. Local focused fixtures pass on 8.3.30 and 8.5.2; the complete local suite runs on 8.4.17. This is not measured shared-host market coverage. Older sites should back up private content/configuration and custom code, switch both web and CLI PHP to a supported version, then follow the verified upgrade/recovery procedure. Keep the prior runtime and backup available for rollback.
+
+Apache should use the release's `public_html` as its document root, with its shipped rewrite rules enabled:
+
+```apache
+DocumentRoot /srv/press/public_html
+<Directory /srv/press/public_html>
+    Require all granted
+    AllowOverride All
+</Directory>
+```
+
+A corresponding Nginx server excerpt is below. Replace the root and PHP-FPM socket with host-provided values. Keep private `radpress` outside this root and do not create aliases into it.
+
+```nginx
+root /srv/press/public_html;
+index index.php;
+location / { try_files $uri $uri/ /index.php?$query_string; }
+location ~ ^/(index|admin|install)\.php$ {
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+}
+location ~ \.php$ { return 404; }
+location ~ /\. { deny all; }
+```
+
+These are configuration examples, not executed Apache/Nginx acceptance. On the actual installation verify public pages, authenticated administration and the installer lock, then confirm direct requests for configuration, session, submission, queue, log, backup and staged files return 403/404 with no private body. Test root/subdirectory routing and HTTPS cookie behavior after any proxy configuration change. Never expose private folders to make asset URLs work.

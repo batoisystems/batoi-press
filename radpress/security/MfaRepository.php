@@ -77,24 +77,21 @@ final class MfaRepository
         if (preg_match('/^[A-F0-9]{8}$/D', $normalized) !== 1) {
             return null;
         }
-        $matched = null;
-        foreach ((array)($mfa['recovery_hashes'] ?? []) as $index => $hash) {
-            if (is_string($hash) && password_verify($normalized, $hash)) {
-                $matched = (int)$index;
+        $consumed = false;
+        $this->mutateUser($username, function (array $record) use ($normalized, &$consumed): array {
+            if (!$this->enabled($record) || !empty($record['disabled'])) return $record;
+            $hashes = array_values((array)($record['mfa']['recovery_hashes'] ?? []));
+            foreach ($hashes as $index => $hash) {
+                if (!is_string($hash) || !password_verify($normalized, $hash)) continue;
+                unset($hashes[$index]);
+                $record['mfa']['recovery_hashes'] = array_values($hashes);
+                $record['mfa']['recovery_used_at'] = date(DATE_ATOM);
+                $consumed = true;
                 break;
             }
-        }
-        if ($matched === null) {
-            return null;
-        }
-        $this->mutateUser($username, static function (array $record) use ($matched): array {
-            $hashes = array_values((array)($record['mfa']['recovery_hashes'] ?? []));
-            unset($hashes[$matched]);
-            $record['mfa']['recovery_hashes'] = array_values($hashes);
-            $record['mfa']['recovery_used_at'] = date(DATE_ATOM);
             return $record;
         });
-        return 'recovery';
+        return $consumed ? 'recovery' : null;
     }
 
     private function users(): array

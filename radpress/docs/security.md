@@ -121,3 +121,14 @@ rate limits, audit attribution, atomic file replacement, revision preconditions,
 idempotency, and protocol tests. OAuth access for end-user Claude and ChatGPT
 connections uses an established external OAuth 2.1/PKCE authorization server;
 an Admin Console session or password is never an API credential.
+
+
+## Local upgrade review — 2026-10-04
+
+The scoped review of `radpress/security/` identified and remediated three transaction issues: session registration used the wrong user shape, MFA recovery codes could be consumed concurrently, and quota checks did not atomically reserve attempts. Actual login/revocation and concurrent recovery/quota fixtures cover the fixes. A subsequent Standard review covered first-party core/content, admin, application, AIF, API/MCP, updater, entrypoint, theme and release boundaries. It additionally found and fixed rejected-stage signature bypass, unbounded archive extraction, audit CSV formula injection and MFA step-up quota reset. Current-source independent rereviews and targeted regressions pass. Vendor/UIF manual review and real-host acceptance remain outside this assurance.
+
+Plugin packages require owner approval, verified signatures/inventories and explicit compatibility/capability declarations. Native PHP executes with application privileges; the SDK does not sandbox hostile code. Private settings/data use revision checks and bounded schemas. Declarative migrations snapshot state, reject conflicts and refuse incompatible rollback. Recovery markers disable optional loading before public boot; core admin avoids native plugin execution.
+
+Custom forms apply server validation, CSRF/nonces, quotas, escaping and configured CAPTCHA. Encrypted queued delivery is at least once with bounded leases/retries; receivers must deduplicate delivery IDs. Queued jobs and retained redacted submissions now commit in the same atomic JSON mutation; retry identities bind the original payload. Queue-capacity/fingerprint failure fixtures preserve existing storage. Actual low-disk/interrupted-process host behavior and direct private-path HTTP exposure remain release checks.
+
+`composer audit --locked --format=json --no-interaction` reported no known advisories and no abandoned packages on 2026-10-04. The current lock file contains `firebase/php-jwt` 7.1.0 under BSD-3-Clause. This is a point-in-time advisory check, not a guarantee that dependencies have no vulnerabilities. Optional JWT code is loaded only when used.

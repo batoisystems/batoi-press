@@ -16,10 +16,15 @@ final class App
 
     public function handle(Request $request): Response
     {
+        unset($GLOBALS['bp_plugin_context']);
         // Keep response middleware from the same code generation during an update request.
         class_exists(SecurityHeaders::class);
         class_exists(Response::class);
         $config = Config::load($this->root);
+        if (!str_starts_with($request->path, '/admin')) {
+            try { $GLOBALS['bp_plugin_context'] = (new PluginManager($config->paths()))->boot(); }
+            catch (\RuntimeException) { return SecurityHeaders::apply(Response::html('An optional extension is unavailable. Please try again later.', 503), $request, $config); }
+        }
         $maintenance = new MaintenanceMode($config->paths());
         if ($maintenance->active() && !str_starts_with($request->path, '/admin')) {
             return SecurityHeaders::apply($maintenance->response(), $request, $config);

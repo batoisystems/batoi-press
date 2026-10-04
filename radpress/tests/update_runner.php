@@ -17,13 +17,17 @@ try {
     file_put_contents($paths->dataPath('cache/page.html'), 'cached');
 
     file_put_contents($root . '/public_html/.htaccess', '# site-specific rewrite and compression');
+    mkdir($root . '/radpress/app/plugins/site-addon', 0700, true);
+    file_put_contents($root . '/radpress/app/plugins/site-addon/entry.php', '<?php // site-specific plugin');
     $package = createPackage($root, 'success', [
         'public_html/.htaccess' => '# packaged defaults',
         'README.md' => 'updated readme',
+        'radpress/app/plugins/site-addon/entry.php' => '<?php // packaged replacement',
         'radpress/config/aif.json' => '{"enabled":false}',
         'radpress/config/paths.json' => '{"public_root":"changed"}',
     ], [
         ['path' => 'README.md', 'sha256' => hash('sha256', 'updated readme')],
+        ['path' => 'radpress/app/plugins/site-addon/entry.php', 'sha256' => hash('sha256', '<?php // packaged replacement')],
         ['path' => 'public_html/.htaccess', 'sha256' => hash('sha256', '# packaged defaults')],
         ['path' => 'radpress/config/aif.json', 'sha256' => hash('sha256', '{"enabled":false}')],
         ['path' => 'radpress/config/paths.json', 'sha256' => hash('sha256', '{"public_root":"changed"}')],
@@ -34,6 +38,7 @@ try {
     $applied = $runner->apply((string)$stage['stage_dir']);
     assertTrue($applied['ok'] ?? false, 'successful package should apply');
     assertSame('updated readme', file_get_contents($root . '/README.md'), 'README should be updated');
+    assertSame('<?php // site-specific plugin', file_get_contents($root . '/radpress/app/plugins/site-addon/entry.php'), 'Installed site plugin must survive a core upgrade');
     assertSame('# site-specific rewrite and compression', file_get_contents($root . '/public_html/.htaccess'), 'hosting customizations survive upgrade');
     assertSame('{"enabled":true}', (string)file_get_contents($paths->configPath('aif.json')), 'existing AIF provider policy should be preserved during updates');
     assertTrue(str_contains((string)file_get_contents($paths->configPath('paths.json')), 'public_html'), 'existing deployment paths should be preserved during updates');
@@ -62,6 +67,23 @@ try {
     assertTrue($windowsApply['ok'] ?? false, 'Windows manifest separators should normalize during apply');
     assertSame('<?php echo "updated";', (string)file_get_contents($root . '/public_html/admin.php'), 'normalized Windows targets should install inside the application root');
 
+    // 1.8.0 rejected these runtime additions; every supported target must stage and apply.
+    $modernFiles = [];
+    $modernManifest = [];
+    foreach (['radpress/application/fixture.php','radpress/api/fixture.php','radpress/mcp/fixture.php','radpress/vendor/fixture.php','radpress/composer.json','radpress/composer.lock'] as $path) {
+        $body = str_ends_with($path, '.php') ? '<?php // runtime fixture' : '{}';
+        $modernFiles[$path] = $body;
+        $modernManifest[] = ['path'=>$path,'sha256'=>hash('sha256',$body)];
+    }
+    $modernStage = $runner->stage(createPackage($root, 'modern-paths', $modernFiles, $modernManifest));
+    assertTrue($modernStage['ok'] ?? false, 'Modern runtime paths must stage on the current updater');
+    assertTrue($runner->apply($modernStage['stage_dir'])['ok'] ?? false, 'Modern runtime paths must install without the legacy unsafe-path error');
+    foreach (['radpress/application/../config/site.json', '/radpress/application/file.php', 'radpress/config/site.json'] as $index=>$target) {
+        $invalid = $runner->stage(createPackage($root, 'bad-target-' . $index, ['README.md'=>'safe'], [['source'=>'README.md','target'=>$target]]));
+        assertTrue(!($invalid['ok'] ?? false) && str_contains($invalid['error'] ?? '', $target), 'Staging must reject and identify traversal, absolute and non-runtime targets');
+    }
+    assertTrue(!is_file($paths->dataPath('maintenance.json')), 'Invalid targets must fail staging before maintenance mode');
+
     $keypair = sodium_crypto_sign_keypair();
     $secretKey = sodium_crypto_sign_secretkey($keypair);
     $publicKey = base64_encode(sodium_crypto_sign_publickey($keypair));
@@ -79,6 +101,17 @@ try {
     ]);
     $unsignedRejected = $runner->stage($unsignedWhileRequired);
     assertTrue(!($unsignedRejected['ok'] ?? false) && str_contains((string)($unsignedRejected['error'] ?? ''), 'signature is required'), 'unsigned packages should fail when release signatures are required');
+    assertTrue(!in_array($unsignedRejected['stage_dir'], $runner->stagedPackages(), true), 'Rejected unsigned package must not be selectable.');
+    $beforeRejectedApply = file_get_contents($root . '/README.md');
+    assertTrue(!($runner->apply($unsignedRejected['stage_dir'])['ok'] ?? false), 'Direct apply must recheck signature policy.');
+    assertSame($beforeRejectedApply, file_get_contents($root . '/README.md'), 'Rejected apply must not mutate runtime files.');
+    file_put_contents($signedStage['stage_dir'] . '/README.md', 'tampered after verification');
+    assertTrue(!($runner->apply($signedStage['stage_dir'])['ok'] ?? false), 'Apply must reject post-stage file tampering.');
+    assertTrue(!in_array($signedStage['stage_dir'], $runner->stagedPackages(), true), 'Tampered package must not be selectable.');
+    $expanded = $root . '/expanded-limit.zip';
+    $bomb = new ZipArchive(); $bomb->open($expanded, ZipArchive::CREATE);
+    $bomb->addFromString('oversized.txt', str_repeat('x', 20971521)); $bomb->close();
+    assertTrue(!($runner->stage($expanded)['ok'] ?? false), 'Compressed package must obey expanded entry limits before extraction.');
 
     file_put_contents($paths->configPath('update.json'), json_encode(['current_version' => '0.1.0'], JSON_PRETTY_PRINT));
 

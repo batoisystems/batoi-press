@@ -11,13 +11,16 @@ final class PageBlockRenderer
     public function __construct(
         private readonly Paths $paths,
         private readonly PostRepository $posts,
-        private readonly ProductRepository $products
+        private readonly ProductRepository $products,
+        private readonly ?array $site = null
     ) {
     }
 
     public function render(array $blocks): string
     {
         $html = '';
+        $sitePath = $this->paths->configPath('site.json');
+        $site = $this->site ?? (is_file($sitePath) ? (new FileStore())->readJson($sitePath) : []);
         $posts = $this->posts->allPublished();
         $products = $this->products->published();
         $widgets = (new \Batoi\Press\Content\WidgetRepository($this->paths))->load()['widgets'];
@@ -29,48 +32,54 @@ final class PageBlockRenderer
             $type = (string)($block['type'] ?? 'html');
             $title = trim((string)($block['title'] ?? ''));
             $heading = $title !== '' ? '<h2>' . htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</h2>' : '';
+            if ($type === 'plugin') {
+                $body = ($GLOBALS['bp_plugin_context'] ?? null)?->renderBlock((string)($block['plugin_block'] ?? ''), $block) ?? '';
+                if ($body !== '') $html .= '<section class="bp-content-block">' . $heading . $body . '</section>';
+                continue;
+            }
 
-            if ($type === 'html' || $type === 'gallery') {
-                $class = $type === 'gallery' ? 'bp-content-block bp-content-gallery' : 'bp-content-block bp-prose';
-                $html .= '<section class="' . $class . '">' . $heading . (string)($block['body'] ?? '') . '</section>';
+            if ($type === 'form') {
+                try { $form = (new \Batoi\Press\Content\FormRepository($this->paths))->find((string)($block['form'] ?? '')); }
+                catch (\RuntimeException) { $form = null; }
+                if ($form !== null && $form['enabled'] && (new PluginManager($this->paths))->enabled('forms')) {
+                    $label = htmlspecialchars((string)$form['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                    $url = function_exists('bp_url') ? \bp_url('/forms/' . $form['id']) : '/forms/' . $form['id'];
+                    $html .= '<section class="bp-content-block">' . $heading . '<a class="bp-button" href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '">' . $label . '</a></section>';
+                }
                 continue;
             }
-            if ($type === 'posts') {
-                $html .= '<section class="bp-content-block">' . $heading . '<div class="bp-post-grid">';
-                foreach ($this->filterItems($posts, (string)($block['category'] ?? ''), (int)($block['limit'] ?? 6)) as $item) {
-                    $url = $this->posts->publicPath($item);
-                    $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                    $html .= '<article class="bp-post-card">';
+
+            if ($type === 'html') {
+                $html .= '<section class="bp-content-block bp-prose">' . $heading . (string)($block['body'] ?? '') . '</section>';
+                continue;
+            }
+            if ($type === 'gallery') {
+                $html .= ThemePartial::render($this->paths, $site, 'block-gallery', [
+                    'title' => $title, 'block' => $block, 'body' => (string)($block['body'] ?? ''),
+                ]);
+                continue;
+            }
+            if ($type === 'posts' || $type === 'products') {
+                $items = $this->filterItems($type === 'posts' ? $posts : $products, (string)($block['category'] ?? ''), (int)($block['limit'] ?? 6));
+                foreach ($items as &$item) {
+                    $item['url'] = $type === 'posts' ? $this->posts->publicPath($item) : '/product/' . rawurlencode((string)($item['slug'] ?? ''));
                     $image = (string)($item['featured_image'] ?? '');
-                    if (!empty($block['show_image']) && $image !== '' && (preg_match('#^https?://#i', $image) || (str_starts_with($image, '/') && !str_starts_with($image, '//')))) {
-                        $html .= '<a class="bp-post-card-media" href="' . $escape($url) . '"><img loading="lazy" src="' . $escape($image) . '" alt="' . $escape((string)($item['featured_image_alt'] ?? '')) . '"></a>';
-                    }
-                    if (!empty($block['show_date']) && !empty($item['published_at'])) {
-                        $date = (string)$item['published_at'];
-                        $html .= '<p class="bp-meta"><time datetime="' . $escape($date) . '">' . $escape(function_exists('bp_date') ? \bp_date($date) : substr($date, 0, 10)) . '</time></p>';
-                    }
-                    $html .= '<h3><a href="' . $escape($url) . '">' . $escape((string)($item['title'] ?? 'Untitled')) . '</a></h3><p>' . $escape((string)($item['seo_description'] ?? '')) . '</p>';
-                    if (!empty($block['show_read_more'])) $html .= '<a class="bp-text-link" href="' . $escape($url) . '">Read more <span aria-hidden="true">&rarr;</span></a>';
-                    $html .= '</article>';
+                    $item['image_url'] = (preg_match('#^https?://#i', $image) || (str_starts_with($image, '/') && !str_starts_with($image, '//'))) ? $image : '';
                 }
-                $html .= '</div></section>';
-                continue;
-            }
-            if ($type === 'products') {
-                $html .= '<section class="bp-content-block">' . $heading . '<div class="bp-product-grid">';
-                foreach ($this->filterItems($products, (string)($block['category'] ?? ''), (int)($block['limit'] ?? 6)) as $item) {
-                    $url = '/product/' . rawurlencode((string)($item['slug'] ?? ''));
-                    $html .= '<article class="bp-product-card"><h3><a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars((string)($item['title'] ?? 'Untitled'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</a></h3><p class="bp-price">' . htmlspecialchars((string)($item['currency'] ?? 'USD') . ' ' . (string)($item['price'] ?? '0.00'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p></article>';
-                }
-                $html .= '</div></section>';
+                unset($item);
+                $html .= ThemePartial::render($this->paths, $site, 'block-' . $type, [
+                    'title' => $title, 'block' => $block, 'items' => $items,
+                ]);
                 continue;
             }
             if ($type === 'widget') {
                 $wanted = trim((string)($block['widget'] ?? ''));
                 foreach ($widgets as $widget) {
                     if (is_array($widget) && $wanted !== '' && strcasecmp((string)($widget['title'] ?? ''), $wanted) === 0) {
-                        $widgetHeading = $heading !== '' ? $heading : '<h2>' . htmlspecialchars($wanted, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</h2>';
-                        $html .= '<section class="bp-content-block bp-sidebar-widget">' . $widgetHeading . $this->widgetBody($widget, $posts) . '</section>';
+                        $html .= ThemePartial::render($this->paths, $site, 'block-widget', [
+                            'title' => $title !== '' ? $title : $wanted, 'block' => $block,
+                            'widget' => $widget, 'body' => $this->widgetBody($widget, $posts),
+                        ]);
                         break;
                     }
                 }

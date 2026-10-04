@@ -189,7 +189,7 @@ final class ThemeCompatibilityInspector
             } catch (ParseError) {
                 $invalidPhp[] = $name;
             }
-            if (preg_match('#^(?:layouts|partials)/[^/]+\.php$#', $name) !== 1) {
+            if (preg_match('#^(?:layouts/[^/]+|partials/[^/]+|partials/blocks/(?:posts|gallery|products|widget))\.php$#', $name) !== 1) {
                 $restrictedPhp[] = $name;
             }
             if (preg_match('/\b(?:eval|assert|exec|shell_exec|system|passthru|proc_open|popen|pcntl_exec)\s*\(|`[^`]+`|\b(?:include|require)(?:_once)?\s*\(?\s*["\'](?:https?:)?\/\//i', $contents) === 1) {

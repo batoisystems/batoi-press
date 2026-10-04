@@ -26,10 +26,9 @@ final class ContactController
         $ip = (string)($request->server['REMOTE_ADDR'] ?? 'unknown');
         $limiter = new RateLimiter($this->config->paths(), 5, 600);
         $key = 'contact:' . $ip;
-        if ($limiter->tooManyAttempts($key)) {
+        if (!$limiter->consume($key)) {
             return $this->result('Too many contact attempts. Please wait and try again.', 429, $returnPath);
         }
-        $limiter->hit($key);
         if ($request->input('website') !== '') {
             return Response::redirect($returnPath . '?contact=sent');
         }
@@ -60,6 +59,11 @@ final class ContactController
             return $this->result('We could not send your message. Please try again later. Reference: ' . $request->requestId, 503, $returnPath);
         }
         return Response::redirect($returnPath . '?contact=sent');
+    }
+
+    public function verifyHuman(Request $request): bool
+    {
+        return $this->verifyRecaptcha($request->input('g-recaptcha-response'), (string)($request->server['REMOTE_ADDR'] ?? 'unknown'), $this->config->integrations());
     }
 
     private function contactPath(Request $request): string

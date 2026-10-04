@@ -36,8 +36,8 @@ final class UpdateRunner
         }
 
         $zip = new ZipArchive();
-        $zip->open($packagePath);
-        $zip->extractTo($stageDir);
+        if ($zip->open($packagePath) !== true) return ['ok'=>false, 'error'=>'Unable to open update archive.'];
+        if (!$zip->extractTo($stageDir)) { $zip->close(); return ['ok'=>false, 'error'=>'Unable to extract update archive.']; }
         $zip->close();
 
         $package = $this->findPackage($stageDir);
@@ -69,6 +69,17 @@ final class UpdateRunner
 
     public function apply(string $stageDir): array
     {
+        $directory = $this->paths->dataPath('tmp');
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) return ['ok'=>false, 'error'=>'Unable to prepare update storage.'];
+        $lock = fopen($directory . '/update-apply.lock', 'c+');
+        if ($lock === false) return ['ok'=>false, 'error'=>'Unable to lock update storage.'];
+        if (!flock($lock, LOCK_EX | LOCK_NB)) { fclose($lock); return ['ok'=>false, 'error'=>'Another update is already running. Please try again later.']; }
+        try { return $this->applyLocked($stageDir); }
+        finally { flock($lock, LOCK_UN); fclose($lock); }
+    }
+
+    private function applyLocked(string $stageDir): array
+    {
         if (!is_dir($stageDir)) {
             return ['ok' => false, 'error' => 'The selected staged package is no longer available. Stage the package again.'];
         }
@@ -83,6 +94,8 @@ final class UpdateRunner
         }
         $manifest = $package['manifest'];
         $packageRoot = $package['root'];
+        $verificationError = $this->verifyPackage($package);
+        if ($verificationError !== null) return ['ok'=>false, 'error'=>$verificationError];
 
         $files = $manifest['files'] ?? null;
         if (!is_array($files) || $files === []) {
@@ -112,7 +125,7 @@ final class UpdateRunner
             $target = $this->joinRelative($this->paths->root(), $targetRelative);
 
             if ($source === null || $target === null || !$this->isAllowedTarget($targetRelative)) {
-                return $this->failAndRollback('Release manifest contains an unsafe file path.', (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
+                return $this->failAndRollback('Release manifest contains an unsafe or unsupported file path: ' . $sourceRelative . ' → ' . $targetRelative . '. Use a compatible official package; do not disable path checks.', (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
             }
 
             if (!is_file($source)) {
@@ -176,7 +189,11 @@ final class UpdateRunner
     public function stagedPackages(): array
     {
         $dirs = glob($this->paths->dataPath('tmp/update-stage-*'), GLOB_ONLYDIR) ?: [];
-        $dirs = array_values(array_filter($dirs, fn (string $dir): bool => preg_match('/^update-stage-\d{8}-\d{6}(?:-[a-f0-9]{6})?$/', basename($dir)) === 1));
+        $dirs = array_values(array_filter($dirs, function(string $dir): bool {
+            if (is_link($dir) || preg_match('/^update-stage-\d{8}-\d{6}(?:-[a-f0-9]{6})?$/', basename($dir)) !== 1) return false;
+            $package = $this->findPackage($dir);
+            return $package !== null && $this->verifyPackage($package) === null;
+        }));
         rsort($dirs);
         return $dirs;
     }
@@ -209,6 +226,17 @@ final class UpdateRunner
         return is_array($decoded) ? $decoded : [];
     }
 
+    /** Recheck current trust policy and source inventory at the install boundary. */
+    private function verifyPackage(array $package): ?string
+    {
+        $config = $this->updateConfig();
+        $manifest = $package['manifest'];
+        try {
+            $error = ReleaseSignature::verify($manifest, (array)($config['release_public_keys'] ?? []), (bool)($config['require_signed_packages'] ?? false), 'package-manifest');
+            return $error ?? $this->verifyStagedFiles($package['root'], $manifest, (bool)($config['require_signed_packages'] ?? false) || ($manifest['trust']['signature_required'] ?? false) === true);
+        } catch (\RuntimeException $error) { return $error->getMessage(); }
+    }
+
     private function verifyStagedFiles(string $root, array $manifest, bool $checksumsRequired): ?string
     {
         $files = $manifest['files'] ?? null;
@@ -218,7 +246,10 @@ final class UpdateRunner
             $sourceRelative = (string)($file['source'] ?? $file['path'] ?? '');
             $targetRelative = (string)($file['target'] ?? $file['path'] ?? '');
             $source = $this->joinRelative($root, $sourceRelative);
-            if ($source === null || !$this->isAllowedTarget($targetRelative) || !is_file($source)) return 'Release manifest contains a missing or unsafe file path.';
+            if ($source === null || $this->joinRelative($this->paths->root(), $targetRelative) === null || !$this->isAllowedTarget($targetRelative)) {
+                return 'Release manifest contains an unsafe or unsupported file path: ' . $sourceRelative . ' → ' . $targetRelative . '. Use a compatible official package; do not disable path checks.';
+            }
+            if (!is_file($source)) return 'Staged file is missing: ' . $sourceRelative . '. Download and stage the official package again.';
             $checksum = strtolower((string)($file['sha256'] ?? ''));
             if ($checksum === '' && !$checksumsRequired) continue;
             if ($checksum === '' || !hash_equals($checksum, (string)hash_file('sha256', $source))) return 'Checksum failed for staged file: ' . $sourceRelative;
@@ -268,6 +299,7 @@ final class UpdateRunner
 
     private function preserveExistingTarget(string $relative): bool
     {
+        if (str_starts_with(trim(str_replace('\\', '/', $relative), '/'), 'radpress/app/')) return true;
         return in_array(trim(str_replace('\\', '/', $relative), '/'), ['radpress/config/aif.json', 'radpress/config/paths.json', 'public_html/.htaccess'], true);
     }
 

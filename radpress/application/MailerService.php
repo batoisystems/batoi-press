@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Batoi\Press\Application;
 
 use Batoi\Press\Core\Paths;
+use Batoi\Press\Core\FileStore;
+use Batoi\Press\Core\ThemePartial;
 use Batoi\Press\Security\SecretStore;
 use RuntimeException;
 
@@ -29,13 +31,19 @@ final class MailerService
         }
         $safeSubject = preg_replace('/[\r\n]+/', ' ', trim($subject)) ?: 'Website contact';
         $body = "Name: {$name}\nEmail: {$email}\n\n{$message}";
-        // Contact fields are visitor text, not trusted email markup.
-        $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $html = '<!doctype html><html><head><meta charset="utf-8"></head><body>'
-            . '<p><strong>Name:</strong> ' . $escape($name) . '<br><strong>Email:</strong> ' . $escape($email) . '</p>'
-            . '<p>' . nl2br($escape($message), false) . '</p></body></html>';
+        $sitePath = $this->paths->configPath('site.json');
+        $site = is_file($sitePath) ? (new FileStore())->readJson($sitePath) : [];
+        try {
+            $html = ThemePartial::render($this->paths, $site, 'email', [
+                'name' => $name, 'email' => $email, 'subject' => $safeSubject, 'message' => $message,
+            ]);
+        } catch (\Throwable $exception) {
+            throw new RuntimeException('The contact email template could not be rendered.', 0, $exception);
+        }
+        $copyToSender = ($this->config['mail_copy_to_sender'] ?? false) === true && strcasecmp($email, $to) !== 0;
         if ($provider === 'php_mail') {
             $headers = ['From: ' . $from, 'Reply-To: ' . $email, 'MIME-Version: 1.0', 'Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: quoted-printable'];
+            if ($copyToSender) $headers[] = 'Cc: ' . $email;
             if (!mail($to, $safeSubject, quoted_printable_encode($html), implode("\r\n", $headers))) {
                 throw new RuntimeException('The configured mail service did not accept the message.');
             }
@@ -58,12 +66,14 @@ final class MailerService
         if ($handle === false) {
             throw new RuntimeException('Mailgun transport could not be initialized.');
         }
+        $fields = ['from' => $from, 'to' => $to, 'h:Reply-To' => $email, 'subject' => $safeSubject, 'text' => $body, 'html' => $html];
+        if ($copyToSender) $fields['cc'] = $email;
         $configured = curl_setopt_array($handle, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => 15,
             CURLOPT_USERPWD => 'api:' . $apiKey,
             CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => ['from' => $from, 'to' => $to, 'h:Reply-To' => $email, 'subject' => $safeSubject, 'text' => $body, 'html' => $html],
+            CURLOPT_POSTFIELDS => $fields,
         ]);
         if (!$configured) {
             curl_close($handle);

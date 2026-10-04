@@ -11,6 +11,7 @@ use Batoi\Press\Security\Session;
 use Batoi\Press\Security\Totp;
 
 require dirname(__DIR__) . '/autoload.php';
+require dirname(__DIR__) . '/helpers/url.php';
 
 $root = sys_get_temp_dir() . '/batoi-press-mfa-' . bin2hex(random_bytes(5));
 foreach (['radpress/config', 'radpress/data/sessions'] as $directory) mkdir($root . '/' . $directory, 0775, true);
@@ -54,6 +55,14 @@ try {
     $auth->logout();
     assertMfa($auth->beginAttempt('owner', 'OwnerPassword!2026') === 'mfa_required', 'password should still begin MFA after recovery login');
     assertMfa($auth->completeMfa($recovery[0]) === null, 'used recovery code must not work twice');
+    $config=\Batoi\Press\Core\Config::load($root);$csrf=new \Batoi\Press\Security\Csrf($session);
+    $controller=new \Batoi\Press\Admin\SecurityController($config,$csrf,$session,new \Batoi\Press\Core\AuditLog($paths,$files),(array)$mfa->findUser('owner'));
+    for($i=0;$i<5;$i++) {
+        $request=new \Batoi\Press\Core\Request('POST','/admin/security/mfa/disable',[],['csrf_token'=>$csrf->token(),'current_password'=>'OwnerPassword!2026','mfa_code'=>'not-a-code'],['REMOTE_ADDR'=>'192.0.2.1']);
+        assertMfa($controller->disable($request)->status()===403,'Invalid step-up code was accepted.');
+    }
+    $limited=new \Batoi\Press\Core\Request('POST','/admin/security/mfa/disable',[],['csrf_token'=>$csrf->token(),'current_password'=>'OwnerPassword!2026','mfa_code'=>Totp::currentCode($secret)],['REMOTE_ADDR'=>'192.0.2.2']);
+    assertMfa($controller->disable($limited)->status()===403 && $mfa->enabled((array)$mfa->findUser('owner')),'Correct passwords or changing IP reset MFA guessing quota.');
 
     echo "MFA security checks passed\n";
 } finally {

@@ -97,12 +97,12 @@ final class ProposalController
         $username = (string)($this->user['username'] ?? '');
         $limiter = new RateLimiter($this->config->paths(), 5, 300);
         $key = 'proposal-review:' . $username . ':' . (string)($request->server['REMOTE_ADDR'] ?? '');
-        if ($limiter->tooManyAttempts($key)) return $this->response('<p class="bp-error">Too many attempts. Try again later.</p>', 429);
+        if (!$limiter->consume($key)) return $this->response('<p class="bp-error">Too many attempts. Try again later.</p>', 429);
         $current = (new MfaRepository($this->config->paths(), new FileStore()))->findUser($username);
         $mfa = new MfaRepository($this->config->paths());
         if ($current === null || !Password::verify($request->input('current_password'), (string)($current['password_hash'] ?? ''))
             || ($mfa->enabled($current) && $mfa->verify($username, $request->input('mfa_code')) === null)) {
-            $limiter->hit($key);
+
             return $this->response('<p class="bp-error">Password and any required second factor must be verified.</p>', 403);
         }
         $limiter->clear($key);

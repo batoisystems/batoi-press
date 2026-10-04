@@ -32,8 +32,10 @@ final class DashboardController
         $posts = $this->posts->allPublished();
         $allPages = $this->pages->all();
         $allPosts = $this->posts->all();
+        if (!\Batoi\Press\Security\AdminAccess::canAccess($this->user, '/admin/pages')) $allPages = $pages;
+        $allPosts = \Batoi\Press\Security\AdminAccess::role($this->user) === 'viewer' ? $posts : \Batoi\Press\Security\AdminAccess::filterManageablePosts($this->user, $allPosts);
 
-        $actions = AdminLayout::buttonLink('Create Page', '/admin/pages/new', 'plus') . AdminLayout::buttonLink('Create Post', '/admin/posts/new', 'edit', true);
+        $actions = (\Batoi\Press\Security\AdminAccess::canAccess($this->user,'/admin/pages/new') ? AdminLayout::buttonLink('Create Page', '/admin/pages/new', 'plus') : '') . (\Batoi\Press\Security\AdminAccess::canAccess($this->user,'/admin/posts/new') ? AdminLayout::buttonLink('Create Post', '/admin/posts/new', 'edit', true) : '');
         $body = AdminLayout::pageHeader(
             'Dashboard',
             'Manage publishing, site operations, users, updates, and governed Batoi AIF readiness.',
@@ -46,6 +48,12 @@ final class DashboardController
         $body .= AdminLayout::statCard('Posts', (string)count($posts), 'Published posts');
         $body .= AdminLayout::statCard('Version', (string)($update['current_version'] ?? '0.1.0'), (string)($update['channel'] ?? 'stable') . ' channel');
         $body .= '</dl>';
+
+        $recent = '<div class="bp-dashboard-columns">';
+        $recent .= $this->contentPanel('Recent Pages', $allPages, '/admin/pages/edit/');
+        $recent .= $this->contentPanel('Recent Posts', $allPosts, '/admin/posts/edit/');
+        $recent .= '</div>';
+        $body .= AdminLayout::section('Recent Content', $recent, 'Latest editable content records.');
 
         $body .= '<div class="bp-dashboard-columns">';
         $body .= $this->contentMixChart($allPages, $allPosts);
@@ -75,12 +83,6 @@ final class DashboardController
         $guidance .= '</div>';
         $body .= AdminLayout::section('Operating Guide', $guidance, 'Recommended admin-console rhythm for publishing and site operations.');
 
-        $recent = '<div class="bp-dashboard-columns">';
-        $recent .= $this->contentPanel('Recent Pages', $allPages, '/admin/pages/edit/');
-        $recent .= $this->contentPanel('Recent Posts', $allPosts, '/admin/posts/edit/');
-        $recent .= '</div>';
-        $body .= AdminLayout::section('Recent Content', $recent, 'Latest editable content records.');
-
         $operations = '<dl class="bp-admin-stats bp-admin-stats-compact">';
         $operations .= AdminLayout::statCard('Cache files', (string)(int)$cache['files'], ((bool)$cache['writable'] ? 'Writable' : 'Not writable'));
         $operations .= AdminLayout::statCard('Config', is_writable($paths->configPath()) ? 'Writable' : 'Locked', 'Configuration directory');
@@ -94,6 +96,7 @@ final class DashboardController
 
     private function actionCard(string $title, string $description, string $href, string $icon): string
     {
+        if (!\Batoi\Press\Security\AdminAccess::canSeeNav($this->user,$href)) return '';
         return '<a class="bp-admin-action-card" href="' . $this->e($href) . '"><em>' . AdminLayout::icon($icon) . '</em><strong>' . $this->e($title) . '</strong><span>' . $this->e($description) . '</span></a>';
     }
 
@@ -118,7 +121,8 @@ final class DashboardController
         $html .= '<ul class="bp-content-mini-list">';
         foreach (array_slice($items, 0, 4) as $item) {
             $slug = (string)($item['slug'] ?? '');
-            $html .= '<li><div><strong>' . $this->e((string)($item['title'] ?? 'Untitled')) . '</strong><span>' . $this->e((string)($item['status'] ?? 'draft')) . ' · ' . $this->e($this->formatDate((string)($item['updated_at'] ?? ''))) . '</span></div><a href="' . $this->e($editPrefix . rawurlencode($slug)) . '">Edit</a></li>';
+            $link = \Batoi\Press\Security\AdminAccess::canAccess($this->user,$editPrefix . $slug) ? '<a href="' . $this->e($editPrefix . rawurlencode($slug)) . '">Edit</a>' : '';
+            $html .= '<li><div><strong>' . $this->e((string)($item['title'] ?? 'Untitled')) . '</strong><span>' . $this->e((string)($item['status'] ?? 'draft')) . ' · ' . $this->e($this->formatDate((string)($item['updated_at'] ?? ''))) . '</span></div>' . $link . '</li>';
         }
         return $html . '</ul></section>';
     }

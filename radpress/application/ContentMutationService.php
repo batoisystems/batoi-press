@@ -918,5 +918,10 @@ final class ContentMutationService
             'revision' => ContentRevision::for($record),
             'change_summary' => $summary,
         ]);
+        $type = explode('.', $action)[0];
+        if (in_array($type, ['page','post'], true)) {
+            try { ($GLOBALS['bp_plugin_context'] ?? null)?->emit('content.changed', ['id'=>(string)($record['id'] ?? $record['slug']), 'type'=>$type, 'action'=>$action]); }
+            catch (\Throwable) { error_log('Batoi Press: optional content notification failed.'); }
+        }
     }
 }

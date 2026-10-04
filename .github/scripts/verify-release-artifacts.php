@@ -253,6 +253,8 @@ function allowedManifestTargetPrefixes(): array
 
 function isExcludedEntry(string $entry): bool
 {
+    if (str_starts_with($entry, 'radpress/app/plugins/') || str_starts_with($entry, 'radpress/content/forms/')) return true;
+    if (str_ends_with($entry, '.json.lock') || in_array(basename($entry), ['setup.lock','disabled.lock'], true) || str_contains(basename($entry), '.tmp-')) return true;
     if ($entry === 'radpress/tests' || str_starts_with($entry, 'radpress/tests/')) return true;
     if (str_starts_with($entry, 'radpress/content/menus/') && str_ends_with($entry, '.json.lock')) return true;
     if (in_array($entry, ['radpress/docs/release-management.md', 'radpress/docs/stable-readiness.md'], true)) {
@@ -284,6 +286,8 @@ function excludedPrefixes(): array
         'radpress/data/security/',
         'radpress/data/locks/',
         'radpress/data/integrations/',
+        'radpress/data/forms/',
+        'radpress/data/plugins/',
         'radpress/data/tmp/',
         'radpress/data/versions/',
     ];

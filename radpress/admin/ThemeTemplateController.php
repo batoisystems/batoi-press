@@ -14,6 +14,7 @@ use Batoi\Press\Core\Response;
 use Batoi\Press\Core\Theme;
 use Batoi\Press\Core\ThemeCompatibilityInspector;
 use Batoi\Press\Core\ThemeManager;
+use Batoi\Press\Core\ThemePartial;
 use Batoi\Press\Security\Csrf;
 use Batoi\Press\Security\UploadGuard;
 use RuntimeException;
@@ -22,6 +23,11 @@ use ZipArchive;
 final class ThemeTemplateController
 {
     private const EDITABLE_FILES = [
+        'email' => ['label' => 'Email Template', 'file' => ThemePartial::FILES['email'], 'type' => 'php', 'description' => 'Branded contact email for this theme. Escape visitor fields; delivery settings remain in Settings.'],
+        'block-posts' => ['label' => 'Blog Posts Block', 'file' => ThemePartial::FILES['block-posts'], 'type' => 'php', 'description' => 'Presentation of published, filtered blog posts in page blocks.'],
+        'block-gallery' => ['label' => 'Image Gallery Block', 'file' => ThemePartial::FILES['block-gallery'], 'type' => 'php', 'description' => 'Presentation of sanitized gallery content in page blocks.'],
+        'block-products' => ['label' => 'Products Block', 'file' => ThemePartial::FILES['block-products'], 'type' => 'php', 'description' => 'Presentation of published, filtered products in page blocks.'],
+        'block-widget' => ['label' => 'Widgets Block', 'file' => ThemePartial::FILES['block-widget'], 'type' => 'php', 'description' => 'Presentation of the selected widget in page blocks.'],
         'header' => ['label' => 'Public Header', 'file' => 'partials/header.php', 'type' => 'php', 'description' => 'Public header, brand link, and main navigation markup.'],
         'footer' => ['label' => 'Public Footer', 'file' => 'partials/footer.php', 'type' => 'php', 'description' => 'Public footer and shared closing page content.'],
         'base' => ['label' => 'Base Layout', 'file' => 'layouts/base.php', 'type' => 'php', 'description' => 'Document shell, asset loading, and wrapper around page content.'],
@@ -233,6 +239,10 @@ final class ThemeTemplateController
         $renderLayout = $layout;
         $data = ['title' => ucfirst($layout)];
         if (in_array($layout, $pageTargets, true) && is_array($page)) {
+            if (!empty($page['blocks']) && is_array($page['blocks'])) {
+                $products = new \Batoi\Press\Content\ProductRepository($this->config->paths(), $files, $html);
+                $page['body'] = (new \Batoi\Press\Core\PageBlockRenderer($this->config->paths(), $posts, $products, $site))->render($page['blocks']);
+            }
             $renderer = new Theme($this->config->paths(), $site);
             $renderLayout = $renderer->pageLayout((string)($page['template'] ?? 'page'));
             $data = ['page' => $page, 'title' => (string)($page['title'] ?? ucfirst($layout))];
@@ -438,6 +448,7 @@ final class ThemeTemplateController
         try {
             $this->snapshot($theme, $key, $path);
             $this->files->write($path, $source);
+            if ($template['type'] === 'php' && function_exists('opcache_invalidate')) opcache_invalidate($path, true);
         } catch (RuntimeException $exception) {
             return Response::html($this->layout('Theme Templates', '<p class="bp-error">' . 'Unable to save. Check theme and snapshot directory permissions.' . '</p><p>' . AdminLayout::buttonLink('Back to editor', '/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key), 'back', true) . '</p>'), 500);
         }
@@ -468,6 +479,7 @@ final class ThemeTemplateController
             $target = $this->templatePath($theme, $key);
             $this->snapshot($theme, $key, $target);
             $this->files->write($target, $this->files->read($snapshotPath));
+            if (str_ends_with($target, '.php') && function_exists('opcache_invalidate')) opcache_invalidate($target, true);
         } catch (RuntimeException $exception) {
             return Response::html($this->layout('Theme Templates', '<p class="bp-error">' . 'Unable to save. Check theme and snapshot directory permissions.' . '</p><p>' . AdminLayout::buttonLink('Back to editor', '/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key), 'back', true) . '</p>'), 400);
         }
@@ -988,7 +1000,14 @@ final class ThemeTemplateController
         $items .= '<div><dt>Theme</dt><dd>' . $this->e($theme) . '</dd></div>';
         $items .= '<div><dt>Template</dt><dd>' . $this->e($key) . '</dd></div>';
         $items .= '<div><dt>File</dt><dd><code>' . $this->e($relative) . '</code></dd></div>';
-        $items .= '<div><dt>Context</dt><dd><code>$site</code>, <code>$title</code>, <code>$page</code>, <code>$post</code>, and URL/escaping helpers from the active layout.</dd></div>';
+        $context = match ($key) {
+            'email' => '$site, $name, $email, $subject, $message, $escape. Visitor fields are plain text: escape before output. Use inline styles and absolute URLs for email.',
+            'block-posts', 'block-products' => '$site, $title, $block, $items, $escape. Items are published and filtered; each has url. Post items also have image_url. Escape dynamic text and attributes.',
+            'block-gallery' => '$site, $title, $block, $body, $escape. Body is already sanitized gallery HTML.',
+            'block-widget' => '$site, $title, $block, $widget, $body, $escape. Body is the rendered widget HTML.',
+            default => '$site, $title, $page, $post, and URL/escaping helpers from the active layout.',
+        };
+        $items .= '<div><dt>Context</dt><dd>' . $this->e($context) . '</dd></div>';
         $items .= '</dl><p class="bp-field-help">Avoid unescaped dynamic output. Use <code>bp_esc()</code> for text, <code>bp_attr()</code> for attributes, and <code>bp_url()</code> for local URLs.</p>';
         $snapshots = $this->snapshots($theme, $key);
         if ($snapshots === []) {
@@ -1039,11 +1058,12 @@ final class ThemeTemplateController
 
     private function isCreatable(string $key): bool
     {
-        return in_array($key, ['contact', 'theme-css', 'theme-js'], true);
+        return isset(ThemePartial::FILES[$key]) || in_array($key, ['contact', 'theme-css', 'theme-js'], true);
     }
 
     private function starterSource(string $key): string
     {
+        if (isset(ThemePartial::FILES[$key])) return $this->files->read(ThemePartial::bundledPath($key));
         $bundledContact = $this->config->paths()->themePath('default/layouts/contact.php');
         if ($key === 'contact' && is_file($bundledContact)) {
             return $this->files->read($bundledContact);

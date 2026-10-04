@@ -25,7 +25,7 @@ final class Session
         session_name($this->name);
         if ($this->savePath !== null) {
             if (!is_dir($this->savePath)) {
-                mkdir($this->savePath, 0775, true);
+                if (!mkdir($this->savePath, 0700, true) && !is_dir($this->savePath)) throw new \RuntimeException('Session storage is unavailable.');
             }
             session_save_path($this->savePath);
         }
@@ -36,7 +36,7 @@ final class Session
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
-        session_start();
+        if (!session_start()) throw new \RuntimeException('Session storage is unavailable.');
         if ($this->registry()?->isRevoked(session_id()) === true) {
             $_SESSION = [];
             session_regenerate_id(true);
@@ -133,7 +133,7 @@ final class Session
     private function touchRegistry(bool $force = false): void
     {
         $user = $_SESSION['auth_user'] ?? null;
-        $username = is_array($user) ? trim((string)($user['username'] ?? '')) : '';
+        $username = is_string($user) ? trim($user) : (is_array($user) ? trim((string)($user['username'] ?? '')) : '');
         $now = time();
         if ($username === '' || (!$force && $now - (int)($_SESSION['_bp_registry_seen_at'] ?? 0) < 60)) return;
         $_SESSION['_bp_registry_seen_at'] = $now;

@@ -11,6 +11,9 @@ use RuntimeException;
 /** Local consent records, separate from external authorization-server configuration. */
 final class OAuthBindingRepository
 {
+    /** Supports bounded URL-valued client IDs without normalizing their identity. */
+    public const MAX_CLIENT_ID_BYTES = 1900;
+
     public function __construct(private readonly Paths $paths, private readonly FileStore $files = new FileStore()) {}
 
     public function all(): array
@@ -33,8 +36,11 @@ final class OAuthBindingRepository
 
     public function link(string $name, string $subject, string $client, string $username, array $scopes, string $owner, int $days): array
     {
-        foreach ([$name, $subject, $client, $username] as $value) {
-            if (trim($value) === '' || strlen($value) > 200 || preg_match('/[\x00-\x1f\x7f]/', $value)) throw new InvalidArgumentException('Connection name, subject, client ID and administrator are required (up to 200 bytes each).');
+        foreach ([$name, $subject, $username] as $value) {
+            if (trim($value) === '' || strlen($value) > 200 || preg_match('/[\x00-\x1f\x7f]/', $value)) throw new InvalidArgumentException('Connection name, subject and administrator are required (up to 200 bytes each).');
+        }
+        if (trim($client) === '' || strlen($client) > self::MAX_CLIENT_ID_BYTES || preg_match('/[\x00-\x1f\x7f]/', $client)) {
+            throw new InvalidArgumentException('A verified OAuth client ID is required (up to ' . self::MAX_CLIENT_ID_BYTES . ' bytes).');
         }
         $security = $this->files->readJson($this->paths->configPath('security.json'));
         $oauth = (array)($security['oauth'] ?? []);

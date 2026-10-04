@@ -21,6 +21,18 @@ final class StaticExporter
 
     public function export(): array
     {
+        $previous = $GLOBALS['bp_plugin_context'] ?? null;
+        try {
+            $GLOBALS['bp_plugin_context'] = (new PluginManager($this->paths))->boot();
+            return $this->exportWithPlugins();
+        } finally {
+            if ($previous === null) unset($GLOBALS['bp_plugin_context']);
+            else $GLOBALS['bp_plugin_context'] = $previous;
+        }
+    }
+
+    private function exportWithPlugins(): array
+    {
         if (!class_exists(ZipArchive::class)) {
             return ['ok' => false, 'error' => 'ZipArchive is not available in this PHP installation.'];
         }
@@ -158,7 +170,7 @@ final class StaticExporter
             $layout = $theme->pageLayout((string)($page['template'] ?? 'page'));
             $latestPostsLimit = max(1, min(12, (int)($page['latest_posts_limit'] ?? 3)));
             if (is_array($page['blocks'] ?? null) && $page['blocks'] !== []) {
-                $page['body'] = (new PageBlockRenderer($this->paths, $this->posts, $this->products()))->render($page['blocks']);
+                $page['body'] = (new PageBlockRenderer($this->paths, $this->posts, $this->products(), $this->site))->render($page['blocks']);
             }
             $this->writeHtml($workDir, $target, $this->renderTheme($layout, [
                 'page' => $page,

@@ -24,35 +24,40 @@ final class MachineAuthenticator
         $ip = (string)($request->server['REMOTE_ADDR'] ?? 'unknown');
         $failureLimiter = new RateLimiter($this->config->paths(), 10, 300);
         $failureKey = 'machine-auth:' . $ip;
-        if ($failureLimiter->tooManyAttempts($failureKey)) {
+        $reservation = $failureLimiter->reserve($failureKey);
+        if ($reservation === null) {
             throw new MachineAccessException('Too many failed authentication attempts.', 429, 'rate_limited', ['Retry-After' => '300']);
         }
 
         $authorization = $request->header('Authorization');
         if (preg_match('/^Bearer\s+([^\s]+)$/Di', $authorization, $matches) !== 1) {
-            $failureLimiter->hit($failureKey);
             throw $this->unauthorized('A bearer access token is required.', $requiredScopes);
         }
 
         $access = $this->tokens->authenticate($matches[1]);
         if ($access === null) {
-            $access = (new OAuthTokenVerifier($this->config->paths(), $this->oauthConfiguration()))->verify($matches[1]);
+            $verifier = new OAuthTokenVerifier($this->config->paths(), $this->oauthConfiguration());
+            $access = $verifier->verify($matches[1]);
+            if ($access === null && $verifier->providerUnavailable()) {
+                $failureLimiter->refund($failureKey, $reservation);
+                // A provider outage is not a bad credential; preserve same-IP PAT recovery.
+                throw new MachineAccessException('OAuth provider verification is temporarily unavailable.', 503,
+                    'oauth_provider_unavailable', ['Retry-After' => '30']);
+            }
         }
         if ($access !== null) {
             $access = (new MachineAccessPolicy($this->config->paths()))->resolve($access);
         }
         if ($access === null) {
-            $failureLimiter->hit($failureKey);
             throw $this->unauthorized('The bearer access token is invalid, expired, revoked, or intended for another resource.', $requiredScopes);
         }
-        $failureLimiter->clear($failureKey);
+        $failureLimiter->refund($failureKey, $reservation);
 
         $requestLimiter = new RateLimiter($this->config->paths(), 240, 60);
         $requestKey = 'machine-token:' . (string)($access['id'] ?? 'unknown');
-        if ($requestLimiter->tooManyAttempts($requestKey)) {
+        if (!$requestLimiter->consume($requestKey)) {
             throw new MachineAccessException('Machine request limit exceeded.', 429, 'rate_limited', ['Retry-After' => '60']);
         }
-        $requestLimiter->hit($requestKey);
 
         $granted = is_array($access['scopes'] ?? null) ? $access['scopes'] : [];
         if (array_diff($requiredScopes, $granted) !== [] || ($anyScopes !== [] && array_intersect($anyScopes, $granted) === [])) {

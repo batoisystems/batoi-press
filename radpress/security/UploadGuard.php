@@ -13,6 +13,7 @@ final class UploadGuard
 
     public function validate(array $file): ?string
     {
+        if (!class_exists(\finfo::class)) return 'Enable PHP Fileinfo before uploading new files.';
         if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
             return 'Upload failed.';
         }

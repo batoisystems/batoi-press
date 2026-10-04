@@ -10,6 +10,7 @@ use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\HtmlContent;
 
 require dirname(__DIR__) . '/autoload.php';
+require dirname(__DIR__) . '/helpers/url.php';
 
 $root = sys_get_temp_dir() . '/batoi-press-editorial-workflow-' . bin2hex(random_bytes(5));
 foreach (['radpress/config', 'radpress/content/pages', 'radpress/content/posts', 'radpress/content/menus', 'radpress/data'] as $directory) {
@@ -57,6 +58,11 @@ try {
     $tagCounts = array_column((array)$taxonomies['tags'], 'count', 'slug');
     assertEditorial(($tagCounts['launch'] ?? 0) === 2 && ($tagCounts['product'] ?? 0) === 1, 'shared tags should aggregate consistently');
 
+    $csrf=new \Batoi\Press\Security\Csrf(new \Batoi\Press\Security\Session('editorial_dashboard_fixture',$config->paths()->dataPath('sessions')));
+    $viewer=(new \Batoi\Press\Admin\DashboardController($config,$pages,$posts,$csrf,['username'=>'viewer','role'=>'viewer']))->index()->content();
+    assertEditorial(!str_contains($viewer,'Reviewed Page') && !str_contains($viewer,'Future Post') && !str_contains($viewer,'Create Page') && !str_contains($viewer,'/admin/posts/edit/'),'Viewer dashboard exposed private records or unauthorized actions');
+    $author=(new \Batoi\Press\Admin\DashboardController($config,$pages,$posts,$csrf,['username'=>'author','role'=>'author']))->index()->content();
+    assertEditorial(!str_contains($author,'Future Post') && !str_contains($author,'Check Updates'),'Author dashboard exposed another author draft or owner operation');
     echo "Editorial workflow checks passed\n";
 } finally {
     removeEditorialFixture($root);

@@ -48,7 +48,7 @@ final class AuthController
                 $username = $request->input('username');
                 $key = 'login:' . $username . ':' . (string)($request->server['REMOTE_ADDR'] ?? 'local');
 
-                if ($this->rateLimiter->tooManyAttempts($key)) {
+                if (!$this->rateLimiter->consume($key)) {
                     $this->record($username, 'auth.login_failed', 'rate_limit', $request, 'blocked');
                     $error = 'Too many login attempts. Try again later.';
                 } else {
@@ -63,7 +63,7 @@ final class AuthController
                         $this->record($username, 'auth.mfa_required', 'admin', $request, 'success');
                         return Response::redirect('/admin/login/mfa');
                     }
-                    $this->rateLimiter->hit($key);
+
                     $this->record($username, 'auth.login_failed', 'credentials', $request, 'failed');
                     $error = 'Invalid username or password.';
                 }
@@ -100,7 +100,7 @@ final class AuthController
             if (!$this->csrf->validate($request->input('csrf_token'))) {
                 $error = 'Security token expired. Try again.';
                 $this->record($username, 'auth.mfa_failed', 'csrf', $request, 'blocked');
-            } elseif ($this->rateLimiter->tooManyAttempts($key)) {
+            } elseif (!$this->rateLimiter->consume($key)) {
                 $error = 'Too many verification attempts. Start sign-in again later.';
                 $this->record($username, 'auth.mfa_failed', 'rate_limit', $request, 'blocked');
             } else {
@@ -110,7 +110,7 @@ final class AuthController
                     $this->record($username, 'auth.login', 'admin', $request, 'success', ['mfa' => $method]);
                     return Response::redirect('/admin');
                 }
-                $this->rateLimiter->hit($key);
+
                 $error = 'Verification code is invalid or expired.';
                 $this->record($username, 'auth.mfa_failed', 'code', $request, 'failed');
             }

@@ -83,6 +83,23 @@ try {
     checkBinding($policy->resolve(array_replace($configuredRaw, ['client_id' => ''])) === null, 'legacy subject-only grants cannot authorize an unidentified client');
     checkBinding($bindings->revoke($configuredAccess['id']), 'configured grants can be revoked locally');
     checkBinding($policy->resolve($configuredRaw) === null && $policy->connection($configuredAccess['id']) === null, 'persisted revocation shadows the still-present configured grant');
+    $prefix = 'https://client.example.test/';
+    $longClient = $prefix . str_repeat('a', OAuthBindingRepository::MAX_CLIENT_ID_BYTES - strlen($prefix));
+    $longInput = array_replace($input, ['name' => 'URL client', 'client_id' => $longClient]);
+    $longResponse = $controller->oauthChange(new Request('POST', '/admin/connections/oauth/link', [], $longInput, []), false);
+    checkBinding($longResponse->status() === 200, 'verified owner can link bounded URL-valued client IDs');
+    checkBinding(str_contains($longResponse->content(), 'name="client_id" required maxlength="' . OAuthBindingRepository::MAX_CLIENT_ID_BYTES . '"'), 'link form uses the shared client bound');
+    $longRaw = array_replace($raw, ['subject' => 'owner-subject', 'client_id' => $longClient, 'scopes' => ['site:read', 'content:read']]);
+    $longAccess = $policy->resolve($longRaw);
+    checkBinding($longAccess !== null && $longAccess['principal'] === 'owner', 'long client retains exact local account authority');
+    checkBinding($policy->resolve(array_replace($longRaw, ['client_id' => substr($longClient, 0, -1) . 'b'])) === null, 'near-match URL client cannot borrow a grant');
+    $beforeOversized = $files->read($bindingPath);
+    try {
+        $bindings->link('Too long', 'owner-subject', $longClient . 'a', 'owner', ['content:read'], 'owner', 30);
+        throw new RuntimeException('Oversized client ID accepted');
+    } catch (InvalidArgumentException) {}
+    checkBinding($files->read($bindingPath) === $beforeOversized, 'oversized client denial preserves binding storage');
+    checkBinding($bindings->revoke($longAccess['id']) && $policy->resolve($longRaw) === null, 'long-client grants remain immediately locally revocable');
     echo "OAuth binding checks passed\n";
 } finally {
     $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);

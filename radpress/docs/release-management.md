@@ -39,7 +39,7 @@ distribution process and publish the ZIP before the index; do not treat the
 verification workflow's success as public deployment success.
 
 Before publication run `php .github/scripts/run-tests.php` (requires Node for JavaScript
-regressions). Push/PR CI runs the same standalone entrypoints on PHP 8.1, 8.3 and
+regressions). Push/PR CI runs the same standalone entrypoints on PHP 8.3, 8.4 and
 8.5. A local pass does not establish that the remote matrix has run.
 
 Prerelease versions (for example `3.0.0-rc.1`) use a signed `candidate.json` and `candidate.json.sig`, and a GitHub prerelease. Do not replace the stable `latest.json` pair until production acceptance is complete. Candidate installation uses the signed ZIP through Admin → Updates.
@@ -63,6 +63,8 @@ Prerelease versions (for example `3.0.0-rc.1`) use a signed `candidate.json` and
 - [ ] Publish the GitHub release and public Batoi manifest/package.
 
 ## Current Release Track
+
+- `4.0.0-rc.1`: major-upgrade testing candidate with PHP 8.3 minimum, plugin/form infrastructure, versioned theme contracts and security fixes. Stable remains 3.2.4 until acceptance gates pass. See [candidate notes](releases/v4.0.0-rc.1.md).
 
 - `3.2.3`: reCAPTCHA CSP compatibility, safe contact failures, private diagnostics and signed-release verification tooling. See [release notes](releases/v3.2.3.md).
 

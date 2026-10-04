@@ -75,7 +75,7 @@ final class AifController
 
         $limiter = new RateLimiter($this->config->paths(), 30, 3600);
         $limitKey = 'aif-assist:' . (string)($this->user['username'] ?? 'admin') . ':' . (string)($request->server['REMOTE_ADDR'] ?? '');
-        if ($limiter->tooManyAttempts($limitKey)) {
+        if (!$limiter->consume($limitKey)) {
             $this->record('aif.assist_failed', 'rate-limit', $request, 'blocked');
             return $this->assistResponse(['ok' => false, 'error' => 'Batoi AIF request limit reached. Try again later.', 'request_id' => $requestId], 429, $json, ['Retry-After' => '3600']);
         }
@@ -91,7 +91,7 @@ final class AifController
             $context[$field] = $request->input($field);
         }
         $prepared = AifContext::prepare($context);
-        $limiter->hit($limitKey);
+
         $result = (new AifManager($this->config->aif()))->assist($task, $context);
         $result['request_id'] = $requestId;
         $this->record(($result['ok'] ?? false) ? 'aif.assist' : 'aif.assist_failed', $task, $request, ($result['ok'] ?? false) ? 'success' : 'failed', [

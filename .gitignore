@@ -26,3 +26,12 @@ radpress/content/menus/*.json.lock
 !radpress/data/tmp/.gitkeep
 !radpress/data/versions/.gitkeep
 !radpress/data/security/.gitkeep
+
+# Private optional-module state and installed packages
+radpress/data/forms/
+radpress/data/plugins/
+radpress/content/forms/
+radpress/app/plugins/
+radpress/config/plugin-keys.json
+radpress/config/installed.lock
+radpress/config/setup.lock

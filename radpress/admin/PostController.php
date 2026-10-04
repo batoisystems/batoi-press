@@ -211,7 +211,7 @@ final class PostController
     private function categoryInput(string $selected): string
     {
         $categories = [];
-        foreach ($this->posts->all() as $post) {
+        foreach (AdminAccess::filterManageablePosts($this->user, $this->posts->all()) as $post) {
             $category = trim((string)($post['category'] ?? ''));
             if ($category !== '') {
                 $categories[$category] = true;
@@ -237,7 +237,7 @@ final class PostController
     private function parentSelect(string $selected, string $currentSlug): string
     {
         $options = '<option value="">Top level</option>';
-        foreach ($this->posts->all() as $post) {
+        foreach (AdminAccess::filterManageablePosts($this->user, $this->posts->all()) as $post) {
             $slug = (string)($post['slug'] ?? '');
             if ($slug === '' || $slug === $currentSlug) {
                 continue;

@@ -128,7 +128,7 @@ final class AuditLog
         }
         fputcsv($handle, ['time', 'user', 'action', 'outcome', 'target', 'ip', 'details'], ',', '"', '', "\n");
         foreach ($entries as $entry) {
-            fputcsv($handle, [
+            $cells = [
                 (string)$entry['time'],
                 (string)$entry['user'],
                 (string)$entry['action'],
@@ -136,7 +136,12 @@ final class AuditLog
                 (string)$entry['target'],
                 (string)$entry['ip'],
                 json_encode($entry['details'] ?? [], JSON_UNESCAPED_SLASHES),
-            ], ',', '"', '', "\n");
+            ];
+            $cells = array_map(static function(mixed $cell): string {
+                $text = (string)$cell;
+                return preg_match('/^[\x00-\x20]*[=+@-]/', $text) ? "'" . $text : $text;
+            }, $cells);
+            fputcsv($handle, $cells, ',', '"', '', "\n");
         }
         rewind($handle);
         $body = stream_get_contents($handle);

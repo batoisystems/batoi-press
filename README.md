@@ -4,7 +4,7 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 
 ## Features In This Build
 
-- Current stable release: **3.2.4**. See [release notes](radpress/docs/releases/v3.2.4.md) for update guidance and known hosting limitations.
+- Current testing release: **4.0.0-rc.1**. See [candidate release notes](radpress/docs/releases/v4.0.0-rc.1.md). Stable release remains **3.2.4**. See [release notes](radpress/docs/releases/v3.2.4.md) for update guidance and known hosting limitations.
 - Recoverable page/post Trash, OG/Twitter metadata, UIF footer icons and reliable progressive blog loading.
 - Configurable `public_html` web root.
 - RAD-aligned engine under `radpress/`.
@@ -26,7 +26,7 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 
 ## Requirements
 
-- PHP 8.1 or newer.
+- PHP 8.3 or newer for this major-upgrade development line. Optional extensions enable additional features; local publishing needs no database or Composer command on the server.
 - Apache with rewrite support for clean URLs, or query-string fallback through `index.php?route=/about`.
 - No database, Node.js, Docker, Composer, Git, or CLI access is required for runtime.
 
@@ -120,7 +120,7 @@ Operations are separated from publishing work. Static Export renders through the
 
 ## Installer Lifecycle
 
-After a successful install, `radpress/config/installed.lock` disables the installer. Remove that lock manually only when intentionally running setup again on a controlled installation.
+After a successful install, `radpress/config/installed.lock` disables the installer. An existing owner also closes setup, even if that lock is removed. Account recovery requires controlled server access; browser setup cannot replace an existing owner.
 
 ## Updates
 

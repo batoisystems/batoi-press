@@ -141,15 +141,102 @@ When enabled, Press publishes
 URL to bearer challenges, and declares per-tool OAuth schemes. JWT verification
 checks the signing key, issuer, exact MCP audience/resource, validity window,
 and allowlisted scopes. JWKS downloads require HTTPS, are size/time bounded,
-are host-pinned to the issuer or an explicit allowlist, and use a short cache
-with a bounded stale fallback. The bundled verifier is locked in
+are host-pinned to the issuer or an explicit allowlist. Credential-bearing URLs,
+fragments and redirects are rejected. The bundled verifier is locked in
 `radpress/composer.lock`; run `composer audit --working-dir=radpress --no-dev`
 as part of security review.
 
-JWTs require a nonempty subject, a future integer expiry, and a client identity
-in `client_id` or `azp` (if both exist, they must agree). Issuer and audience
-comparison is exact, including trailing slashes. Tokens larger than 16 KiB are
-rejected. Configure a direct, allowed HTTPS JWKS URL: redirects are not followed.
+OAuth now requires RS256 access JWTs with `typ: at+jwt` (or
+`application/at+jwt`), a nonempty signing-key `kid`, subject, `client_id` and
+`jti`, plus integer `iat` and future integer `exp`. An optional `nbf` must also
+be an integer; issuance/not-before cannot be in the future or at/after expiry.
+If `azp` is present it must equal `client_id`; it cannot replace it. Generic
+`JWT`, ID-token types and unsupported critical headers are rejected. This is an
+intentional OAuth compatibility change following the access-token separation in
+[RFC 9068](https://www.rfc-editor.org/rfc/rfc9068). Configure the provider's
+access-token profile before adopting this change; do not relabel ID tokens.
+Ordinary CMS login and Press PAT credentials do not use this JWT verifier.
+
+Client IDs are kept exact and may contain up to 1,900 bytes, including URL-valued
+metadata identifiers. This same bound applies to JWT verification, account links
+and the linking form. Never shorten or normalize an ID to fit; linking still
+requires an explicitly verified subject/client/local-administrator combination.
+
+Issuer and audience comparison is exact, including trailing slashes. Audience
+is a string or a nonempty list of strings. Scope names are case-sensitive; `scope`
+uses single-space-separated OAuth scope tokens, and `scp`, if used, is a list of
+scope strings. If both are supplied their sets must agree. Malformed claims are
+rejected rather than coerced. Only recognized Press scopes grant authority.
+Tokens larger than 16 KiB are rejected.
+
+Remote JWKS cache entries are bound to the exact issuer and configured JWKS URI;
+legacy unbound entries are refreshed, never reused. Known keys are cached for at
+most one hour. Key sets must be bounded lists with unique, nonempty key IDs.
+Verification uses only RSA keys compatible with RS256; if `use` or `key_ops`
+are present they must permit signature verification. Encryption-only keys do not
+authorize access. Malformed refresh responses never replace valid cached keys.
+Unknown keys trigger a serialized refresh, limited to one attempt
+per 30 seconds per trust source. Concurrent refresh requests fail closed instead
+of queuing network work. Fetch failure never authorizes through an expired cache;
+there is no one-day stale fallback. Rotation should publish new keys before using
+them and retain old keys until issued tokens expire. Removing a key takes effect
+after the next successful refresh, not instantly; a still-fresh cache can retain
+it for up to one hour. Inline operator-configured JWKS are not fetched or rotated
+automatically. Key-cache hardening alone does not check provider grant revocation.
+
+### Optional provider active-state verification
+
+The JWT remains mandatory. Operators can additionally configure
+`security.oauth.introspection` for per-request active-state verification using
+[OAuth token introspection](https://www.rfc-editor.org/rfc/rfc7662):
+
+```json
+"introspection": {
+  "required": true,
+  "endpoint": "https://identity.example.com/oauth/introspect",
+  "resource_id": "provider-registered-resource-uid",
+  "secret_encrypted": "operator-generated-encrypted-value"
+}
+```
+
+This is an opt-in strict response profile compatible with the draft Batoi
+provider, not automatic configuration or certification of any provider.
+The endpoint must be explicitly configured on the issuer's HTTPS authority
+(same host and port), without credentials, query or fragment. Redirects are
+never followed. Provision a resource-specific introspection credential, not an
+OAuth public-client secret. Generate its encrypted value through the installation's
+existing `SecretStore`, using secured operator input; never put plaintext credentials
+in JSON, prompts, command arguments or logs. Preserve the installation's encryption
+key during backup/migration. The placeholder above deliberately cannot decrypt.
+
+Once the `introspection` key is present, `required` must be the boolean `true`
+and all fields must be valid. Malformed/disabled profiles fail closed, not back
+to JWT-only authorization. With the key absent, signed-JWT/local-binding mode
+remains available but does **not** promise provider revocation awareness.
+
+Introspection uses a form-encoded POST with resource-specific Basic authentication,
+verified HTTPS, bounded time and a 32 KiB response limit. Success requires boolean
+`active: true`, `token_type: Bearer`, and an exact projection of the signed
+`iss`, `aud`, `sub`, `client_id`, `jti`, `iat`, `exp` and supplied scope claims.
+Providers omitting these fields need an explicitly reviewed adapter/profile,
+not a weakened generic `active` check. JWT expiry is checked again after the
+response; extra provider roles/scopes never create local authority.
+
+There is no positive active-state cache. Inactive tokens, provider outage, HTTP
+failure, malformed response, missing credentials or decryption failure deny
+OAuth access. PAT access and ordinary CMS login remain separate recovery paths;
+site-local roles, grants, revocation and approval rules still apply afterward.
+Inactive tokens receive the normal unauthorized response. Provider outages,
+invalid active-state responses or broken profiles return a neutral HTTP 503
+with bounded retry guidance; they do not increment the bad-credential IP counter.
+Existing credential-failure and request rate limits otherwise remain in force.
+Outbound checks have a separate 240-per-minute budget per issuer/resource/client/
+subject, counted atomically under a short local lock; changing the token JTI
+does not reset it. Budget or local-lock/storage failure denies OAuth access as
+unavailable without consuming PAT's credential-failure allowance.
+Removing this profile is an explicit operator decision to abandon provider
+revocation checks, not an outage workaround. Actual provider suspension,
+refresh/revocation and hosted-client acceptance must still be tested on staging.
 
 Owners use **Admin → Connections → OAuth account links** to link a provider's
 verified subject and client ID to an active local administrator, with a scoped,

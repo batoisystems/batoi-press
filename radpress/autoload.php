@@ -1,10 +1,16 @@
 <?php
 declare(strict_types=1);
 
-$composerAutoload = __DIR__ . '/vendor/autoload.php';
-if (is_file($composerAutoload)) {
-    require_once $composerAutoload;
-}
+// Optional integration libraries must not participate in core boot.
+spl_autoload_register(static function (string $class): void {
+    if (!str_starts_with($class, 'Firebase\\JWT\\')) return;
+    $composerAutoload = __DIR__ . '/vendor/autoload.php';
+    if (is_file($composerAutoload)) {
+        static $loader = null;
+        $loader ??= require $composerAutoload;
+        $loader->loadClass($class);
+    }
+});
 
 spl_autoload_register(static function (string $class): void {
     $prefix = 'Batoi\\Press\\';
