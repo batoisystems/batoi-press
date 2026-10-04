@@ -1,6 +1,6 @@
 {
-  "current_version": "4.0.0-rc.1",
-  "channel": "candidate",
+  "current_version": "4.0.0",
+  "channel": "stable",
   "stable_manifest_url": "https://www.batoi.com/pub/press/latest.json",
   "require_signed_packages": true,
   "release_public_keys": {

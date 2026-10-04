@@ -4,7 +4,7 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 
 ## Features In This Build
 
-- Current testing release: **4.0.0-rc.1**. See [candidate release notes](radpress/docs/releases/v4.0.0-rc.1.md). Stable release remains **3.2.4**. See [release notes](radpress/docs/releases/v3.2.4.md) for update guidance and known hosting limitations.
+- Current stable release: **4.0.0**. See [release notes](radpress/docs/releases/v4.0.0.md) for upgrade guidance, PHP requirements and remaining acceptance limitations.
 - Recoverable page/post Trash, OG/Twitter metadata, UIF footer icons and reliable progressive blog loading.
 - Configurable `public_html` web root.
 - RAD-aligned engine under `radpress/`.

@@ -64,7 +64,7 @@ Prerelease versions (for example `3.0.0-rc.1`) use a signed `candidate.json` and
 
 ## Current Release Track
 
-- `4.0.0-rc.1`: major-upgrade testing candidate with PHP 8.3 minimum, plugin/form infrastructure, versioned theme contracts and security fixes. Stable remains 3.2.4 until acceptance gates pass. See [candidate notes](releases/v4.0.0-rc.1.md).
+- `4.0.0`: stable major upgrade published at the project owner’s request, with PHP 8.3 minimum, plugin/form infrastructure, versioned theme contracts and security fixes. Hosting and external-service acceptance checks remain open. See [release notes](releases/v4.0.0.md).
 
 - `3.2.3`: reCAPTCHA CSP compatibility, safe contact failures, private diagnostics and signed-release verification tooling. See [release notes](releases/v3.2.3.md).
 
