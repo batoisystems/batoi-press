@@ -131,6 +131,39 @@ final class ContentMutationService
         });
     }
 
+    /** Copy one current record as a new private draft; never copy publication authority. */
+    public function duplicateFromAdmin(string $type, string $slug, string $revision, array $user): array
+    {
+        $type = $this->type($type);
+        return $this->locked($type, function () use ($type, $slug, $revision, $user): array {
+            $source = $this->repository($type)->findBySlug($slug);
+            if ($source === null) throw new ContentMutationException('Content not found.', 'not_found', 404);
+            $role = AdminAccess::role($user);
+            if (($type === 'page' && !in_array($role, ['owner', 'admin', 'editor'], true)) || ($type === 'post' && !AdminAccess::canManagePost($user, $source))) throw new ContentMutationException('You cannot manage this content.', 'forbidden', 403);
+            $this->assertRevision($source, $revision);
+            if (($source['status'] ?? '') === 'trashed') throw new ContentMutationException('Restore this content before duplicating it.', 'validation_failed', 422);
+            $input = $this->repositoryInput($type, $source);
+            // A short random suffix avoids collisions with routes in either repository.
+            $input['slug'] = substr($slug, 0, 140) . '-copy-' . bin2hex(random_bytes(6));
+            $title = substr((string)$source['title'], 0, 193);
+            while ($title !== '' && preg_match('//u', $title) !== 1) $title = substr($title, 0, -1);
+            $input['title'] = $title . ' (copy)';
+            $input['status'] = 'draft';
+            $input['parent_slug'] = '';
+            $input['published_at'] = '';
+            $input['publish_at'] = '';
+            $input['unpublish_at'] = '';
+            $input['reviewer'] = '';
+            // Canonical/sharing URLs for the source must not point the copy back to it.
+            unset($input['og_url']);
+            $prepared = $this->repository($type)->prepareSave($input, (string)$user['username']);
+            if (($prepared['base_revision'] ?? null) !== null) throw new ContentMutationException('Copy destination already exists. Retry duplication.', 'slug_conflict', 409);
+            $saved = (new ContentTransaction($this->config->paths()))->commit($type, $prepared);
+            $this->audit->record((string)$user['username'], 'content.' . $type . '.duplicated', (string)$source['id'], '', 'success', ['copy_slug' => (string)$saved['slug']]);
+            return $saved;
+        });
+    }
+
     /** Reversible deletion. The same transaction/revision boundary protects retained content. */
     public function trashFromAdmin(string $type, string $slug, string $revision, array $user, bool $restore = false): array
     {

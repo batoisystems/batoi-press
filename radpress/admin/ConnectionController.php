@@ -29,6 +29,8 @@ final class ConnectionController
         'media:read' => 'Read the media library and metadata without access to page/post drafts.',
         'media:write' => 'Propose bounded image/text uploads and metadata changes for administrator approval; also grant media:read.',
         'audit:read' => 'Read bounded recent activity reports without raw audit details (administrators only).',
+        'theme:read' => 'Read the UIF Theme Kit, validate definitions and inspect own theme drafts (owner principal only).',
+        'theme:write' => 'Create private data-only theme drafts for owner review; also grant theme:read. Cannot install or activate themes.',
     ];
 
     public function __construct(

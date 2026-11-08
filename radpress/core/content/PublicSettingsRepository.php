@@ -13,7 +13,7 @@ use RuntimeException;
 /** Public fields only. Raw configuration and secrets never enter a proposal or tool result. */
 final class PublicSettingsRepository
 {
-    public const CORE_FIELDS = ['name', 'tagline', 'locale', 'timezone', 'posts_per_page'];
+    public const CORE_FIELDS = ['name', 'tagline', 'locale', 'timezone', 'date_format', 'time_format', 'posts_per_page'];
     public const APPEARANCE_FIELDS = ['appearance_mode', 'show_theme_toggle', 'posts_load_more', 'palette_light', 'palette_dark', 'brand_primary_color', 'brand_accent_color', 'font_family', 'footer_text', 'footer_bottom_text', 'footer_icon_links', 'footer_top_columns', 'footer_bottom_columns'];
 
     public function __construct(private readonly Paths $paths) {}
@@ -52,6 +52,10 @@ final class PublicSettingsRepository
                 if (!is_string($value) || strlen($value) > $maximum || preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $value)) throw new \InvalidArgumentException('Invalid public settings text.');
                 $value = trim($value);
                 if ($key === 'name' && $value === '') throw new \InvalidArgumentException('The site name cannot be empty.');
+                if (in_array($key, ['date_format', 'time_format'], true)) {
+                    try { $value = \Batoi\Press\Core\DateFormat::validate($value); }
+                    catch (RuntimeException $error) { throw new \InvalidArgumentException($error->getMessage()); }
+                }
                 if ($key === 'timezone' && !in_array($value, \DateTimeZone::listIdentifiers(\DateTimeZone::ALL_WITH_BC), true)) throw new \InvalidArgumentException('Use a timezone supported by the server.');
                 if ($key === 'locale' && !preg_match('/^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,2}$/D', $value)) throw new \InvalidArgumentException('Use a supported locale identifier.');
                 if ($key === 'appearance_mode' && !in_array($value, ['light', 'dark', 'system'], true)) throw new \InvalidArgumentException('Use light, dark or system appearance.');

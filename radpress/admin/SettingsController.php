@@ -6,6 +6,8 @@ namespace Batoi\Press\Admin;
 use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\BrandAssetManager;
 use Batoi\Press\Core\Config;
+use Batoi\Press\Core\DateFormat;
+use Batoi\Press\Core\LocalFontManager;
 use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
@@ -47,7 +49,7 @@ final class SettingsController
         $body .= $this->section('Branding', 'Control the public header identity and browser favicon.', $this->brandingField($site));
         $body .= $this->section('Appearance', 'Set public color mode, brand colors, typography, and footer text.', $this->appearanceFields($site));
         $body .= $this->section('URLs', 'Canonical public URL used for links, feeds, and update metadata.', $this->input('Base URL', 'base_url', (string)($site['base_url'] ?? '')));
-        $body .= $this->section('Localization', 'Locale and timezone used for date formatting and future language-aware features.', '<div class="bp-form-grid">' . $this->input('Locale', 'locale', (string)($site['locale'] ?? 'en')) . $this->timezoneSelect((string)($site['timezone'] ?? 'UTC')) . '</div>');
+        $body .= $this->section('Localization', 'Choose the timezone and display formats used for site dates and times.', '<div class="bp-form-grid">' . $this->input('Locale', 'locale', (string)($site['locale'] ?? 'en')) . $this->timezoneSelect((string)($site['timezone'] ?? 'UTC')) . '</div>' . $this->dateFormatFields($site));
         $body .= $this->section('Posts', 'Control the public blog listing without changing individual posts.', '<div class="bp-form-grid"><label>Posts per page <input type="number" name="posts_per_page" min="1" max="48" value="' . $this->e((string)max(1, min(48, (int)($site['posts_per_page'] ?? 12)))) . '" required><span class="bp-field-help">The blog adds Previous and Next navigation when more posts are available.</span></label></div>');
         $body .= $this->section('Editor', 'Configure the body editor used by pages and posts.', '<div class="bp-form-grid">' . $this->editorSelect((string)($editor['body_editor'] ?? 'rich_html')) . $this->input('Editor Height', 'editor_html_height', (string)($editor['html_height'] ?? '24rem')) . '<label class="bp-field-wide">HTML Toolbar <input type="text" name="editor_html_toolbar" value="' . $this->e((string)($editor['html_toolbar'] ?? 'undo redo bold italic underline strike heading quote code ul ol task link image table hr preview source')) . '" required><span class="bp-field-help">Space-separated Batoi UIF editor commands.</span></label></div>');
         $body .= $this->section('Mail and integrations', 'Configure contact delivery, human verification, and analytics.', $this->integrationFields($integrations));
@@ -118,8 +120,11 @@ final class SettingsController
 
         $branding = new BrandAssetManager($this->config->paths());
         $newFiles = [];
+        $fonts = new LocalFontManager($this->config->paths());
+        $newFont = null;
         $siteCommitted = false;
         try {
+            $site = array_replace($site, $this->submittedFormats($request, $original));
             if (!$this->isSupportedTimezone((string)$site['timezone'])) {
                 throw new RuntimeException('Select a timezone supported by this server.');
             }
@@ -175,14 +180,24 @@ final class SettingsController
                 throw new RuntimeException('Upload a valid brand logo before selecting a logo display mode.');
             }
 
+            $newFont = $fonts->saveUpload((array)($_FILES['local_font'] ?? []));
+            if ($newFont !== null) $site['local_font'] = $newFont;
+            elseif ($request->input('remove_local_font') === '1') unset($site['local_font']);
+
             $this->files->writeJson($this->config->paths()->configPath('editor.json'), $editor);
             (new \Batoi\Press\Content\WebsiteDocumentStore($this->config->paths(), $this->files))->commit('site', $site, $request->input('expected_revision'));
             $siteCommitted = true;
             $this->files->writeJson($this->config->paths()->configPath('integrations.json'), $integrations);
         } catch (\Batoi\Press\Content\MenuConflictException $exception) {
+            if ($newFont !== null) $fonts->discardUpload($newFont);
             foreach ($newFiles as $newFile) $branding->removeOwned($newFile);
             return Response::html($this->layout('Settings', '<p class="bp-error">Site settings changed during this request. Reload before saving. Editor preferences may already have been saved.</p>'), 409);
         } catch (RuntimeException $exception) {
+            if (!$siteCommitted && $newFont !== null) {
+                $fonts->discardUpload($newFont);
+                if (isset($original['local_font'])) $site['local_font'] = $original['local_font'];
+                else unset($site['local_font']);
+            }
             foreach ($siteCommitted ? [] : $newFiles as $newFile) {
                 $branding->removeOwned($newFile);
             }
@@ -268,11 +283,11 @@ final class SettingsController
         $logoFields = '<label>Logo alt text <input type="text" name="brand_logo_alt" value="' . $this->e((string)($site['brand_logo_alt'] ?? $site['name'] ?? '')) . '"><span class="bp-field-help">Defaults to the site name.</span></label>'
             . '<label>Upload brand logo <input type="file" name="brand_logo" accept=".svg,.png,.jpg,.jpeg,.gif,.webp,image/svg+xml,image/png,image/jpeg,image/gif,image/webp"><span class="bp-field-help">SVG, PNG, JPG, GIF, or WebP up to 2 MB and 4096 x 4096.</span></label>';
         if ((string)($site['brand_logo'] ?? '') !== '') {
-            $logoFields .= '<label class="bp-field-wide"><input type="checkbox" name="remove_brand_logo" value="1"> Remove current brand logo</label>';
+            $logoFields .= '<label class="bp-field-wide bp-check-option"><input type="checkbox" name="remove_brand_logo" value="1"> Remove current brand logo</label>';
         }
         $logoFields .= '<label>Dark-mode logo <input type="file" name="brand_logo_dark" accept=".svg,.png,.jpg,.jpeg,.gif,.webp,image/svg+xml,image/png,image/jpeg,image/gif,image/webp"><span class="bp-field-help">Optional alternate logo used on dark surfaces.</span></label>';
         if ((string)($site['brand_logo_dark'] ?? '') !== '') {
-            $logoFields .= '<label><input type="checkbox" name="remove_brand_logo_dark" value="1"> Remove dark-mode logo</label>';
+            $logoFields .= '<label class="bp-check-option"><input type="checkbox" name="remove_brand_logo_dark" value="1"> Remove dark-mode logo</label>';
         }
 
         $favicon = (string)($site['favicon'] ?? '');
@@ -284,10 +299,61 @@ final class SettingsController
         $preview = '<div class="bp-favicon-current"><span>' . $this->e($previewLabel) . '</span><img src="' . $this->e($previewUrl) . '" alt="' . ($favicon !== '' ? 'Configured favicon preview' : 'Default Batoi Press favicon') . '">' . $notice . '</div>';
         $faviconFields = '<label class="bp-field-wide">Upload favicon <input type="file" name="favicon" accept=".ico,.png,.jpg,.jpeg,.webp,.svg,image/x-icon,image/png,image/jpeg,image/webp,image/svg+xml"><span class="bp-field-help">SVG, ICO, PNG, JPG, or WebP up to 1 MB. The admin favicon remains the Batoi Press logo.</span></label>';
         if ($favicon !== '') {
-            $faviconFields .= '<label class="bp-field-wide"><input type="checkbox" name="remove_favicon" value="1"> Restore default favicon</label>';
+            $faviconFields .= '<label class="bp-field-wide bp-check-option"><input type="checkbox" name="remove_favicon" value="1"> Restore default favicon</label>';
         }
 
         return '<div class="bp-form-grid">' . $logoPreview . $preview . $modes . $logoFields . $faviconFields . '</div>';
+    }
+
+    private function dateFormatFields(array $site): string
+    {
+        $sample = (new \DateTimeImmutable('now', DateFormat::timezone($site)))->format(DATE_ATOM);
+        $html = '<div class="bp-date-formats" data-bp-date-formats data-preview-url="' . $this->e(\bp_url('/admin/settings/date-preview')) . '">';
+        foreach (['date'=>DateFormat::DATES, 'time'=>DateFormat::TIMES] as $kind=>$presets) {
+            $current = DateFormat::preference($site, $kind);
+            $custom = !in_array($current, $presets, true);
+            $html .= '<fieldset><legend>' . ucfirst($kind) . ' Format</legend><div class="bp-date-format-options">';
+            foreach ($presets as $format) {
+                $preview = DateFormat::display($sample, array_replace($site, [$kind . '_format'=>$format]), $kind);
+                $html .= '<label class="bp-format-choice"><input type="radio" name="' . $kind . '_format" value="' . $this->e($format) . '"' . (!$custom && $current === $format ? ' checked' : '') . '><span>' . $this->e($preview) . '</span><code>' . $this->e($format) . '</code></label>';
+            }
+            $html .= '<div class="bp-format-custom"><label class="bp-format-choice"><input type="radio" name="' . $kind . '_format" value="custom"' . ($custom ? ' checked' : '') . '><span>Custom</span></label><label><span class="bp-field-help">Custom ' . $kind . ' format</span><input type="text" name="' . $kind . '_format_custom" value="' . $this->e($current) . '" maxlength="80" spellcheck="false" autocomplete="off"></label></div>';
+            $html .= '<p class="bp-field-help">Preview: <output data-bp-format-preview="' . $kind . '" aria-live="polite">' . $this->e(DateFormat::display($sample, $site, $kind)) . '</output></p></div></fieldset>';
+        }
+        return $html . '<p class="bp-field-help">Use PHP date-format characters, such as j F Y or g:i A. Escape literal letters with a backslash. Previews use the selected timezone; month and weekday names are in English. Display preferences do not change stored timestamps.</p><p class="bp-error" role="status" data-bp-format-error hidden></p></div>';
+    }
+
+    private function submittedFormats(Request $request, array $site): array
+    {
+        $formats = [];
+        foreach (['date'=>DateFormat::DATES, 'time'=>DateFormat::TIMES] as $kind=>$presets) {
+            $field = $kind . '_format';
+            if (!array_key_exists($field, $request->post)) {
+                $formats[$field] = DateFormat::preference($site, $kind);
+                continue;
+            }
+            $selected = $request->input($field);
+            if ($selected !== 'custom' && !in_array($selected, $presets, true)) throw new RuntimeException('Choose a supported ' . $kind . ' format or select Custom.');
+            $formats[$field] = DateFormat::validate($selected === 'custom' ? $request->input($field . '_custom') : $selected);
+        }
+        return $formats;
+    }
+
+    public function datePreview(Request $request): Response
+    {
+        if ($request->method !== 'POST') return Response::json(['ok'=>false], 405)->withHeader('Allow', 'POST');
+        if (!$this->csrf->validate($request->input('csrf_token'))) return Response::json(['ok'=>false, 'message'=>'Security token expired. Reload Settings.'], 400);
+        try {
+            $site = array_replace($this->config->site(), $this->submittedFormats($request, $this->config->site()));
+            $site['timezone'] = $request->input('timezone', (string)($site['timezone'] ?? 'UTC'));
+            if (!$this->isSupportedTimezone($site['timezone'])) throw new RuntimeException('Select a timezone supported by this server.');
+            $sample = (new \DateTimeImmutable('now'))->format(DATE_ATOM);
+            $examples = [];
+            foreach (['date'=>DateFormat::DATES, 'time'=>DateFormat::TIMES] as $kind=>$formats) {
+                foreach ($formats as $format) $examples[$kind][$format] = DateFormat::display($sample, array_replace($site, [$kind . '_format'=>$format]), $kind);
+            }
+            return Response::json(['ok'=>true, 'date'=>DateFormat::display($sample, $site), 'time'=>DateFormat::display($sample, $site, 'time'), 'examples'=>$examples]);
+        } catch (RuntimeException $error) { return Response::json(['ok'=>false, 'message'=>$error->getMessage()], 422); }
     }
 
     private function editorSelect(string $value): string
@@ -314,10 +380,10 @@ final class SettingsController
             . '<div><label>Mailgun domain <input type="text" name="mailgun_domain" value="' . $this->e((string)($integrations['mailgun_domain'] ?? '')) . '"></label></div>'
             . '<label>Mailgun region <select name="mailgun_region"><option value="us"' . (($integrations['mailgun_region'] ?? 'us') !== 'eu' ? ' selected' : '') . '>United States</option><option value="eu"' . (($integrations['mailgun_region'] ?? '') === 'eu' ? ' selected' : '') . '>Europe</option></select></label>'
             . '<label>Mailgun API key <input type="password" name="mailgun_api_key" value="" autocomplete="new-password" placeholder="' . ($mailgunSet ? 'Configured — leave blank to keep' : 'Enter private API key') . '"></label>'
-            . ($mailgunSet ? '<label><input type="checkbox" name="remove_mailgun_api_key" value="1"> Remove saved Mailgun key</label>' : '')
+            . ($mailgunSet ? '<label class="bp-check-option"><input type="checkbox" name="remove_mailgun_api_key" value="1"> Remove saved Mailgun key</label>' : '')
             . '<label>reCAPTCHA v2 checkbox site key <input type="text" name="recaptcha_site_key" value="' . $this->e((string)($integrations['recaptcha_site_key'] ?? '')) . '"><span class="bp-field-help">The built-in form supports v2 checkbox keys. Custom v3 forms need their own server-side action and score verification; do not configure a v3 key here.</span></label>'
             . '<label>reCAPTCHA secret key <input type="password" name="recaptcha_secret_key" value="" autocomplete="new-password" placeholder="' . ($recaptchaSet ? 'Configured — leave blank to keep' : 'Enter secret key') . '"></label>'
-            . ($recaptchaSet ? '<label><input type="checkbox" name="remove_recaptcha_secret_key" value="1"> Remove saved reCAPTCHA secret</label>' : '')
+            . ($recaptchaSet ? '<label class="bp-check-option"><input type="checkbox" name="remove_recaptcha_secret_key" value="1"> Remove saved reCAPTCHA secret</label>' : '')
             . '<label class="bp-field-wide bp-check-option"><input type="checkbox" name="recaptcha_custom_theme" value="1"' . (($integrations['recaptcha_custom_theme'] ?? false) === true ? ' checked' : '') . '><span>Allow reCAPTCHA used by a custom theme<small>Adds reCAPTCHA browser sources to the generated policy. Your custom theme must render the form and verify tokens on the server. This does not enable CAPTCHA on the built-in form.</small></span></label>'
             . '<label class="bp-field-wide bp-check-option"><input type="checkbox" name="google_maps_embed" value="1"' . (($integrations['google_maps_embed'] ?? false) === true ? ' checked' : '') . '><span>Allow Google Maps embeds<small>Allows Google Maps iframe embeds in the generated policy. Explicit custom policies and hosting policies must allow these sources separately.</small></span></label>'
             . '<label>Google Analytics measurement ID <input type="text" name="analytics_measurement_id" value="' . $this->e((string)($integrations['analytics_measurement_id'] ?? '')) . '" placeholder="G-XXXXXXXXXX"></label>'
@@ -340,10 +406,11 @@ final class SettingsController
             $paletteFields .= '</div></details>';
         }
         return '<div class="bp-form-grid"><label>Color mode <select name="appearance_mode">' . $options . '</select></label>'
-            . '<label><input type="checkbox" name="show_theme_toggle" value="1"' . (!empty($site['show_theme_toggle']) ? ' checked' : '') . '> Show visitor light/dark switch</label>'
-            . '<label><input type="checkbox" name="posts_load_more" value="1"' . (($site['posts_load_more'] ?? true) ? ' checked' : '') . '> Enable Load More on post archives (default theme)</label>' . $paletteFields
+            . '<label class="bp-check-option"><input type="checkbox" name="show_theme_toggle" value="1"' . (!empty($site['show_theme_toggle']) ? ' checked' : '') . '> Show visitor light/dark switch</label>'
+            . '<label class="bp-check-option"><input type="checkbox" name="posts_load_more" value="1"' . (($site['posts_load_more'] ?? true) ? ' checked' : '') . '> Enable Load More on post archives (default theme)</label>' . $paletteFields
             . '<label>Primary color <input type="color" name="brand_primary_color" value="' . $this->e((string)($site['brand_primary_color'] ?? '#0E68B0')) . '"></label>'
             . '<label>Accent color <input type="color" name="brand_accent_color" value="' . $this->e((string)($site['brand_accent_color'] ?? '#00B696')) . '"></label>'
+            . $this->localFontFields($site)
             . '<label>Font family <input type="text" name="font_family" value="' . $this->e((string)($site['font_family'] ?? 'proxima-nova')) . '" placeholder="proxima-nova"></label>'
             . '<label>Font stylesheet URL <input type="url" name="font_stylesheet_url" value="' . $this->e((string)($site['font_stylesheet_url'] ?? '')) . '" placeholder="https://fonts.googleapis.com/..."><span class="bp-field-help">Optional HTTPS Google Fonts or custom hosted stylesheet.</span></label>'
             . '<label>Top footer columns <input type="number" name="footer_top_columns" min="1" max="4" value="' . max(1,min(4,(int)($site['footer_top_columns'] ?? 2))) . '"><span class="bp-field-help">Arrange top-level Footer menu groups. Mobile layouts stack.</span></label>'
@@ -351,6 +418,18 @@ final class SettingsController
             . '<label class="bp-field-wide">Bottom footer text <textarea name="footer_bottom_text" rows="2" maxlength="500">' . $this->e((string)($site['footer_bottom_text'] ?? '')) . '</textarea></label>'
             . '<label class="bp-field-wide">Bottom footer icon links <textarea name="footer_icon_links" rows="4" maxlength="4000">' . $this->e((string)($site['footer_icon_links'] ?? '')) . '</textarea><span class="bp-field-help">One link per line: label | HTTPS URL or /local-path | UIF icon name or symbol. Example: RSS | /feed.xml | uif:rss-feed. You can also use a literal symbol such as ↗; HTML is not accepted. Labels stay visible for accessibility. Up to 12 links.</span></label>'
             . '<label class="bp-field-wide">Footer text <textarea name="footer_text" rows="3" maxlength="500">' . $this->e((string)($site['footer_text'] ?? '')) . '</textarea></label></div>';
+    }
+
+    private function localFontFields(array $site): string
+    {
+        $url = is_string($site['local_font'] ?? null) ? $site['local_font'] : '';
+        $active = (new LocalFontManager($this->config->paths()))->resolve($url) !== null;
+        $html = '<div class="bp-field-wide bp-local-font-fields"><label>Upload local font <input type="file" name="local_font" accept=".woff2,.woff,.ttf,.otf"><span class="bp-field-help">WOFF2, WOFF, TTF or OTF, up to 5 MB. Save Settings to use this font on the public site. It takes precedence over the font family and external stylesheet below.</span></label>';
+        if ($url !== '') {
+            $html .= '<p class="bp-field-help">' . ($active ? 'Current local font: <a href="' . $this->e(\bp_url($url)) . '">' . 'Download ' . $this->e(strtoupper(pathinfo($url, PATHINFO_EXTENSION))) . '</a>' : 'The configured local font is unavailable. Upload another font or use the fallback settings.') . '</p>';
+            $html .= '<label class="bp-check-option"><input type="checkbox" name="remove_local_font" value="1"><span>Stop using the local font<small>The file stays in Media. Replacing a font also retains the previous file.</small></span></label>';
+        }
+        return $html . '<p class="bp-field-help">Upload a font licensed for web use. Use a regular face; the browser synthesizes bold and italic. Themes must honor the site font setting.</p></div>';
     }
 
     private function section(string $title, string $description, string $body): string

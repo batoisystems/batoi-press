@@ -29,6 +29,8 @@ radpress/content/menus/*.json.lock
 
 # Private optional-module state and installed packages
 radpress/data/forms/
+radpress/data/commerce/
+radpress/data/editor-recovery/
 radpress/data/plugins/
 radpress/content/forms/
 radpress/app/plugins/

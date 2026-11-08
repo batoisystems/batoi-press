@@ -73,10 +73,39 @@ final class MediaController
         return Response::html($this->layout('Media', $body));
     }
 
-    public function upload(): Response
+    public function picker(Request $request): Response
     {
+        if (!AdminAccess::canAccess($this->user,'/admin/media/picker')) return Response::json(['error'=>'Media access requires an editor or administrator.'],403);
+        try {
+            $query = substr($request->input('q'),0,160);
+            $files = $this->filterFiles((new AssetManager($this->config->paths()))->all(),['q'=>$query,'type'=>'images','sort'=>'newest']);
+            $files = array_values(array_filter($files,static fn(array $file): bool => in_array(strtolower(pathinfo($file['relative'],PATHINFO_EXTENSION)),['jpg','jpeg','png','webp','avif','gif'],true) && $file['size'] <= AssetManager::DEFAULT_MAX_BYTES));
+            $selected = $request->input('id');
+            if ($selected !== '') {
+                if (!preg_match('/^asset_[a-f0-9]{24}$/D',$selected)) return Response::json(['error'=>'Invalid image identity.'],422);
+                $files = array_values(array_filter($files,static fn(array $file): bool => MediaRepository::assetId($file) === $selected));
+            }
+            $total = count($files); $pages = max(1,(int)ceil($total / 24));
+            $page = max(1,min($pages,(int)$request->input('page','1')));
+            $repository = new MediaRepository($this->config->paths()); $items = [];
+            foreach (array_slice($files,($page - 1) * 24,24) as $file) {
+                $dimensions = @getimagesize($file['path']);
+                if (!is_array($dimensions) || !in_array($dimensions['mime'] ?? '',['image/jpeg','image/png','image/webp','image/avif','image/gif'],true)) continue;
+                $id = MediaRepository::assetId($file);
+                $url = function_exists('bp_url') ? \bp_url($file['url']) : $file['url'];
+                $srcset = $selected === '' ? '' : (new \Batoi\Press\Core\ImageVariants($this->config->paths()))->srcset(['url'=>$file['url'],'path'=>$file['path'],'width'=>(int)$dimensions[0]],function_exists('bp_url'));
+                $items[] = ['id'=>$id,'name'=>$file['name'],'url'=>$url,'width'=>(int)$dimensions[0],'height'=>(int)$dimensions[1],'size'=>$file['size'],'metadata'=>$repository->metadata($id),'srcset'=>$srcset];
+            }
+            return Response::json(['items'=>$items,'page'=>$page,'pages'=>$pages,'total'=>$total,'max_upload_bytes'=>AssetManager::effectiveMaxBytes((int)($this->config->security()['uploads']['max_bytes'] ?? 0))],200,['Cache-Control'=>'private, no-store']);
+        } catch (\Throwable) { return Response::json(['error'=>'The image library is unavailable. Keep the editor open and try again.'],503,['Cache-Control'=>'private, no-store']); }
+    }
+
+    public function upload(?Request $request = null): Response
+    {
+        $json = $request !== null && str_contains($request->header('Accept'),'application/json');
+        $failure = fn(string $message,int $status = 400): Response => $json ? Response::json(['error'=>$message],$status,['Cache-Control'=>'private, no-store']) : $this->message($message,true,$status);
         if (!$this->csrf->validate((string)($_POST['csrf_token'] ?? ''))) {
-            return Response::html($this->layout('Media', '<p class="bp-error">Security token expired.</p>'), 400);
+            return $failure('Security token expired.');
         }
 
         $uploadConfig = $this->config->security()['uploads'] ?? [];
@@ -86,21 +115,21 @@ final class MediaController
         );
         $files = $this->normalizeUploads($_FILES['media'] ?? []);
         if ($files === [] || count($files) > 20) {
-            return Response::html($this->layout('Media', '<p class="bp-error">Choose between 1 and 20 files.</p><p><a href="/admin/media">Back to media</a></p>'), 400);
+            return $failure('Choose between 1 and 20 files.');
         }
         $manager = new AssetManager($this->config->paths());
         $prepared = [];
         foreach ($files as $file) {
             $error = $guard->validate($file);
             if ($error !== null) {
-                return Response::html($this->layout('Media', '<p class="bp-error">' . $this->e((string)($file['name'] ?? 'File')) . ': ' . $this->e($error) . '</p><p><a href="/admin/media">Back to media</a></p>'), 400);
+                return $failure((string)($file['name'] ?? 'File') . ': ' . $error);
             }
             $name = $guard->safeName((string)$file['name']);
             $relative = $manager->relativeUploadPath($name);
             try {
                 $prepared[] = ['file' => $file, 'relative' => $relative, 'target' => $manager->prepareTarget($relative)];
             } catch (RuntimeException $exception) {
-                return $this->message($exception->getMessage(), true, 500);
+                return $failure($exception->getMessage(),500);
             }
         }
 
@@ -112,7 +141,7 @@ final class MediaController
                         unlink($target);
                     }
                 }
-                return Response::html($this->layout('Media', '<p class="bp-error">Unable to save all selected files. No files from this upload were retained.</p>'), 500);
+                return $failure('Unable to save all selected files. No files from this upload were retained.',500);
             }
             $saved[] = (string)$upload['target'];
         }
@@ -125,6 +154,7 @@ final class MediaController
             }
             $this->audit->record((string)($this->user['username'] ?? 'admin'), 'asset.uploaded', (string)$upload['relative'], (string)($_SERVER['REMOTE_ADDR'] ?? ''));
         }
+        if ($json) return Response::json(['ok'=>true,'uploaded'=>count($saved),'variants'=>$variantCount],200,['Cache-Control'=>'private, no-store']);
         if (($_POST['generate_variants'] ?? '') === '1') return $this->message('Original uploads saved. Generated ' . $variantCount . ' responsive copies. Unsupported encoders, large images or insufficient memory skip optional conversion.');
         return Response::redirect('/admin/media');
     }
@@ -452,7 +482,7 @@ final class MediaController
 
     private function modified(int $time): string
     {
-        return $time ? date('M j, Y H:i', $time) : 'Unknown';
+        return $time ? \Batoi\Press\Core\DateFormat::display('@' . $time, $this->config->site(), 'datetime') : 'Unknown';
     }
 
     private function uploadPolicy(array $extensions): string

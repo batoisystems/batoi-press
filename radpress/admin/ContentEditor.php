@@ -7,6 +7,19 @@ use Batoi\Press\Core\Config;
 
 final class ContentEditor
 {
+    public static function recoveryAttributes(string $type, string $identifier, bool $recovered = false): string
+    {
+        $url = function_exists('bp_url') ? \bp_url('/admin/editor-recovery/save') : '/admin/editor-recovery/save';
+        return ' data-bp-recovery="' . self::e($type) . '" data-bp-recovery-identifier="' . self::e($identifier) . '" data-bp-recovery-url="' . self::e($url) . '" data-bp-recovered="' . ($recovered ? 'true' : 'false') . '" data-bp-recovery-enabled="' . (\Batoi\Press\Core\RuntimeCapabilities::available('encryption') ? 'true' : 'false') . '" data-bp-recovery-fields="' . self::e(json_encode(\Batoi\Press\Application\EditorRecovery::FIELDS,JSON_THROW_ON_ERROR)) . '"';
+    }
+
+    public static function recoveryControls(string $type, string $identifier, bool $recovered = false): string
+    {
+        $path = '/admin/editor-recovery/list?' . http_build_query(['type'=>$type,'identifier'=>$identifier,'format'=>'html']);
+        $url = function_exists('bp_url') ? \bp_url($path) : $path;
+        return '<div class="bp-editor-recovery bp-field-wide"><span role="status" aria-live="polite" data-bp-recovery-status>' . ($recovered ? 'Recovery opened. Review the form before saving.' : 'Use the save action to apply your changes.') . '</span><button type="button" class="bp-button bp-button-secondary" data-bp-recovery-retry hidden>Retry recovery</button><a href="' . self::e($url) . '" target="_blank" rel="noopener" data-bp-recovery-review>Review recovery copies</a><span class="bp-field-help">Private recovery covers content, blocks and metadata. Publishing settings and page code require the normal save action.</span></div>';
+    }
+
     public static function render(Config $config, string $value, string $help, string $id, bool $sourceOnly = false, string $name = 'body'): string
     {
         if (!\Batoi\Press\Core\RuntimeCapabilities::available('dom')) {
@@ -30,9 +43,9 @@ final class ContentEditor
             ? '<div class="bp-text-only-notice"><strong>HTML source editing</strong><p>The source is submitted directly to Batoi Press so supported embeds, inline styles, and structured markup are not altered by the visual editor. Unsafe scripts, event handlers, and URLs are still removed when saving.</p></div>'
             : '';
 
-        $guide = '<div class="bp-editor-assistance" aria-labelledby="' . $fieldId . '-image-help"><div><strong id="' . $fieldId . '-image-help">Insert an image</strong><p>Use the Image tool with the stable public URL shown in Media, or paste the copied HTML snippet in Source mode.</p></div>'
-            . '<ol><li>Upload or locate an image in Media.</li><li>Copy its URL or HTML snippet.</li><li>Add meaningful alt text and preview before saving.</li></ol>'
-            . '<a class="bp-button bp-button-secondary bp-editor-media-link" data-bp-editor-media href="/admin/media?type=images" target="_blank" rel="noopener">' . AdminLayout::icon('image') . '<span>Open Media</span></a></div>'
+        $guide = '<div class="bp-editor-assistance" aria-labelledby="' . $fieldId . '-image-help"><div><strong id="' . $fieldId . '-image-help">Insert an image</strong><p>Choose Insert from Media to select or upload an image at the current cursor position. Without JavaScript, Media provides a URL and HTML snippet.</p></div>'
+            . '<ol><li>Upload or locate an image in Media.</li><li>Review the caption and mark purely decorative images.</li><li>Add meaningful alt text and preview before saving.</li></ol>'
+            . '<a class="bp-button bp-button-secondary bp-editor-media-link" data-bp-editor-media data-bp-picker-url="' . self::e(function_exists('bp_url') ? \bp_url('/admin/media/picker') : '/admin/media/picker') . '" data-bp-upload-url="' . self::e(function_exists('bp_url') ? \bp_url('/admin/media/upload') : '/admin/media/upload') . '" href="/admin/media?type=images" target="_blank" rel="noopener">' . AdminLayout::icon('image') . '<span>Insert from Media</span></a></div>'
             . '<div class="bp-editor-assistance bp-editor-technical-help" aria-labelledby="' . $fieldId . '-technical-help"><div><strong id="' . $fieldId . '-technical-help">Technical content</strong><p>Insert accessible LaTeX delimiters or a semantic code block at the current editor position.</p></div>'
             . '<p>Inline math uses <code>\( … \)</code>; display math uses <code>\[ … \]</code>. Code blocks use <code>&lt;pre&gt;&lt;code&gt;</code> and receive public copy controls automatically.</p>'
             . '<div class="bp-editor-helper-actions"><button type="button" class="bp-button bp-button-secondary" data-bp-editor-insert="inline-math">Inline math</button><button type="button" class="bp-button bp-button-secondary" data-bp-editor-insert="display-math">Display math</button><button type="button" class="bp-button bp-button-secondary" data-bp-editor-insert="code-block">Code block</button></div></div>';

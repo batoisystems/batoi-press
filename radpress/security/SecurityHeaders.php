@@ -76,7 +76,7 @@ final class SecurityHeaders
             "base-uri 'self'",
             "object-src 'none'",
             "frame-ancestors 'none'",
-            "form-action 'self'",
+            "form-action 'self'" . ((new \Batoi\Press\Commerce\StoreSettings($config))->read()['enabled'] ? ' https://checkout.stripe.com' : ''),
             "img-src 'self' data: https:",
             'font-src ' . implode(' ', array_unique($fontSources)),
             'style-src ' . implode(' ', array_unique($styleSources)),

@@ -58,6 +58,11 @@ final class SafeHtml
                 if (strlen($value) > 8192) continue;
                 $attributes .= ' ' . $name . '="' . self::e($value) . '"';
             }
+            // Rebuild only the native presentation widget contract. Do not pass
+            // through arbitrary UIF attributes (requests, routes, actions, etc.).
+            foreach (self::presentationAttributes($child) as $name => $value) {
+                $attributes .= ' ' . $name . '="' . self::e($value) . '"';
+            }
             if ($tag === 'a') $attributes .= ' rel="noopener noreferrer"';
             if ($tag === 'iframe') {
                 if (!$child->hasAttribute('src') || !self::url($child->getAttribute('src')) || !str_starts_with(strtolower($child->getAttribute('src')), 'https://')) continue;
@@ -75,6 +80,137 @@ final class SafeHtml
         return $html;
     }
 
+    /** Native presentation only: never admit arbitrary UIF actions or configuration. */
+    private static function presentationAttributes(\DOMElement $element): array
+    {
+        $attributes = self::galleryAttributes($element);
+        $tag = strtolower($element->tagName);
+        $icon = $element->getAttribute('data-uif-icon');
+        if (in_array($tag, ['span', 'i'], true) && preg_match('/^[a-z][a-z0-9-]{0,63}$/D', $icon)) {
+            $attributes['data-uif-icon'] = $icon;
+            foreach (['title', 'class'] as $suffix) {
+                $value = $element->getAttribute('data-uif-icon-' . $suffix);
+                if ($value !== '' && strlen($value) <= 512 && ($suffix !== 'class' || preg_match('/^[a-z0-9_ -]+$/iD', $value))) $attributes['data-uif-icon-' . $suffix] = $value;
+            }
+            $size = $element->getAttribute('data-uif-icon-size');
+            if (preg_match('/^[1-9]\d{0,2}$/D', $size) && (int)$size <= 256) $attributes['data-uif-icon-size'] = $size;
+            $hidden = $element->getAttribute('data-uif-icon-hidden');
+            if (in_array($hidden, ['true', 'false'], true)) $attributes['data-uif-icon-hidden'] = $hidden;
+        }
+
+        $root = $element;
+        while (($kind = self::presentationRoot($root)) === null) {
+            if (self::galleryRoot($root)) return $attributes;
+            if (!$root->parentNode instanceof \DOMElement) return $attributes;
+            $root = $root->parentNode;
+        }
+        if ($element === $root) {
+            $attributes['data-uif'] = $kind;
+            $states = $kind === 'accordion' ? ['expanded', 'collapsed'] : [];
+            $state = $root->getAttribute('data-uif-state');
+            if (in_array($state, $states, true)) $attributes['data-uif-state'] = $state;
+            if ($kind === 'carousel') {
+                foreach (['data-uif-items-per-slide', 'data-uif-step'] as $name) {
+                    $value = $root->getAttribute($name);
+                    if (preg_match('/^[1-9]\d{0,2}$/D', $value) && (int)$value <= 100) $attributes[$name] = $value;
+                }
+            }
+            return $attributes;
+        }
+        $role = $element->getAttribute('data-uif-role');
+        if ($kind === 'carousel') {
+            if (in_array($tag, ['article', 'div', 'figure', 'li'], true) && ($role === 'slide' || self::hasClass($element, 'uif-carousel-slide'))) {
+                $attributes['data-uif-role'] = 'slide';
+                $state = $element->getAttribute('data-uif-state');
+                if (in_array($state, ['active', 'inactive'], true)) {
+                    $attributes['data-uif-state'] = $state;
+                    if ($state === 'inactive') $attributes['hidden'] = '';
+                }
+            }
+            if (in_array($tag, ['p', 'span', 'div'], true) && $role === 'status') $attributes['data-uif-role'] = 'status';
+            if ($tag === 'button') {
+                $index = $element->getAttribute('data-uif-slide-to');
+                if (preg_match('/^(?:0|[1-9]\d{0,3})$/D', $index)) $attributes['data-uif-slide-to'] = $index;
+                elseif ($element->parentNode instanceof \DOMElement && self::hasClass($element->parentNode, 'uif-carousel-indicators')) {
+                    $index = 0;
+                    for ($sibling = $element->previousElementSibling; $sibling !== null; $sibling = $sibling->previousElementSibling) if (strtolower($sibling->tagName) === 'button') $index++;
+                    $attributes['data-uif-slide-to'] = (string)$index;
+                }
+                $action = $element->getAttribute('data-uif-action') ?: strtolower(trim($element->textContent));
+                if (in_array($action, ['previous', 'next'], true)) $attributes['data-uif-action'] = $action;
+            }
+        } else {
+            if ($tag === 'button' && ($role === 'trigger' || self::hasClass($element, 'uif-accordion-trigger') || $element->parentNode === $root)) $attributes['data-uif-role'] = 'trigger';
+            $followsTrigger = $element->parentNode === $root && $element->previousElementSibling instanceof \DOMElement && strtolower($element->previousElementSibling->tagName) === 'button';
+            if (in_array($tag, ['div', 'section'], true) && ($role === 'panel' || self::hasClass($element, 'uif-accordion-panel') || $followsTrigger)) {
+                $attributes['data-uif-role'] = 'panel';
+                if ($root->getAttribute('data-uif-state') !== 'expanded') $attributes['hidden'] = '';
+            }
+        }
+        return $attributes;
+    }
+
+    private static function presentationRoot(\DOMElement $element): ?string
+    {
+        if (!in_array(strtolower($element->tagName), ['div', 'section', 'article'], true)) return null;
+        if (self::hasClass($element, 'uif-carousel') || $element->getAttribute('data-uif') === 'carousel') return 'carousel';
+        if (self::hasClass($element, 'uif-accordion') || self::hasClass($element, 'component-accordion') || $element->getAttribute('data-uif') === 'accordion') return 'accordion';
+        return null;
+    }
+
+    /** Restore legacy galleries, including bodies previously saved without data attributes. */
+    private static function galleryAttributes(\DOMElement $element): array
+    {
+        $root = $element;
+        while (!self::galleryRoot($root)) {
+            if (!$root->parentNode instanceof \DOMElement) return [];
+            $root = $root->parentNode;
+        }
+        $tag = strtolower($element->tagName);
+        if ($element === $root) return ['data-uif' => 'lightbox'];
+
+        $role = strtolower($element->getAttribute('data-uif-role'));
+        if ($tag === 'div' && (self::hasClass($element, 'uif-lightbox-dialog') || $role === 'dialog')) {
+            return ['data-uif-role' => 'dialog', 'hidden' => ''];
+        }
+        if ($tag === 'img' && (self::hasClass($element, 'uif-lightbox-image') || $role === 'image')) {
+            return ['data-uif-role' => 'image'];
+        }
+        if (in_array($tag, ['p', 'div', 'span'], true) && ($role === 'caption' || self::hasClass($element, 'uif-lightbox-caption'))) {
+            return ['data-uif-role' => 'caption'];
+        }
+        if ($tag === 'a' && ($role === 'item' || ($element->parentNode instanceof \DOMElement && self::hasClass($element->parentNode, 'uif-masonry-item')))) {
+            $attributes = ['data-uif-role' => 'item'];
+            foreach (['data-uif-caption', 'data-uif-alt', 'data-uif-src'] as $name) {
+                $value = $element->getAttribute($name);
+                if ($element->hasAttribute($name) && strlen($value) <= 8192 && ($name !== 'data-uif-src' || self::url($value))) $attributes[$name] = $value;
+            }
+            return $attributes;
+        }
+        if ($tag === 'button') {
+            $parent = $element->parentNode;
+            while ($parent instanceof \DOMElement && $parent !== $root) {
+                if (self::hasClass($parent, 'uif-lightbox-dialog') || $parent->getAttribute('data-uif-role') === 'dialog') {
+                    $action = strtolower($element->getAttribute('data-uif-action') ?: trim($element->textContent));
+                    return in_array($action, ['previous', 'close', 'next'], true) ? ['data-uif-action' => $action] : [];
+                }
+                $parent = $parent->parentNode;
+            }
+        }
+        return [];
+    }
+
+    private static function galleryRoot(\DOMElement $element): bool
+    {
+        return in_array(strtolower($element->tagName), ['div', 'section', 'figure'], true)
+            && (self::hasClass($element, 'uif-lightbox') || $element->getAttribute('data-uif') === 'lightbox');
+    }
+
+    private static function hasClass(\DOMElement $element, string $class): bool
+    {
+        return in_array($class, preg_split('/\s+/', trim($element->getAttribute('class'))) ?: [], true);
+    }
+
     private static function url(string $value, bool $link = false): bool
     {
         if ($value === '' || preg_match('/[\x00-\x20\x7f<>"\\\\]/', $value)) return false;
@@ -89,17 +225,23 @@ final class SafeHtml
     {
         // CSS escapes/comments and active legacy constructs are never accepted.
         if (preg_match('/[\\\\<>\x00-\x1f]|\/\*|expression|javascript|vbscript|@|behavior|-moz-binding/i', $value)) return '';
+        $safe = [];
         foreach (explode(';', $value) as $declaration) {
             if (trim($declaration) === '') continue;
-            if (preg_match('/^\s*([a-z-]+)\s*:(.*)$/iD', $declaration, $parts) !== 1) return '';
-            if (!preg_match('/^(?:color|background(?:-color|-image)?|font(?:-size|-weight|-style|-family)?|text(?:-align|-decoration|-transform)|line-height|letter-spacing|white-space|display|width|height|max-width|min-height|margin(?:-(?:top|bottom|left|right))?|padding(?:-(?:top|bottom|left|right))?|border(?:-(?:color|width|style|radius|left|right|top|bottom))?|gap|grid-template-columns|align-items|justify-content|flex(?:-direction|-wrap)?|object-fit)$/D', strtolower($parts[1]))) return '';
+            if (preg_match('/^\s*([a-z-]+)\s*:(.*)$/iD', $declaration, $parts) !== 1) continue;
+            $property = strtolower($parts[1]);
+            if (!preg_match('/^(?:color|background(?:-color|-image|-size|-position|-repeat|-attachment|-origin|-clip)?|position|z-index|font(?:-size|-weight|-style|-family)?|text(?:-align|-decoration|-transform)|line-height|letter-spacing|white-space|display|width|height|max-width|min-height|margin(?:-(?:top|bottom|left|right))?|padding(?:-(?:top|bottom|left|right))?|border(?:-(?:color|width|style|radius|left|right|top|bottom))?|gap|grid-template-columns|align-items|justify-content|flex(?:-direction|-wrap)?|object-fit)$/D', $property)) continue;
+            if ($property === 'position' && !in_array(trim(strtolower($parts[2])), ['static', 'relative'], true)) continue;
+            if ($property === 'z-index' && !preg_match('/^\s*(?:auto|-?\d{1,2}|100|-100)\s*$/D', $parts[2])) continue;
+            $valid = true;
             if (preg_match_all('/url\(\s*([\'"]?)(.*?)\1\s*\)/i', $parts[2], $urls, PREG_SET_ORDER)) {
-                foreach ($urls as $url) if (!self::url($url[2])) return '';
+                foreach ($urls as $url) if (!self::url($url[2])) $valid = false;
             }
             $withoutUrls = preg_replace('/url\([^)]*\)/i', '', $parts[2]) ?? '';
-            if (!preg_match('/^[a-z0-9\s#.,%()\'"+\/-]*$/iD', $withoutUrls)) return '';
+            if (!$valid || !preg_match('/^[a-z0-9\s#.,%()\'"+\/-]*$/iD', $withoutUrls)) continue;
+            $safe[] = $declaration;
         }
-        return $value;
+        return implode(';', $safe);
     }
 
     private static function e(string $value): string

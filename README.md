@@ -4,7 +4,8 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 
 ## Features In This Build
 
-- Current stable release: **4.0.0**. See [release notes](radpress/docs/releases/v4.0.0.md) for upgrade guidance, PHP requirements and remaining acceptance limitations.
+- Development toward **5.0** now includes default-off Stripe Checkout commerce, transactional product pricing/stock, a portable UIF theme generator and plugin developer tooling. Start with the [documentation index](radpress/docs/README.md). These changes remain in development and have not been published as a 5.0 release.
+- Current release: **4.0.1**. See [release notes](radpress/docs/releases/v4.0.1.md) for upgrade guidance, preview features and remaining acceptance limitations.
 - Recoverable page/post Trash, OG/Twitter metadata, UIF footer icons and reliable progressive blog loading.
 - Configurable `public_html` web root.
 - RAD-aligned engine under `radpress/`.

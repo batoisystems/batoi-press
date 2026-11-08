@@ -336,15 +336,15 @@ final class UserController
         $username = (string)($user['username'] ?? '');
         $encoded = rawurlencode($username);
         $html = '<div class="bp-table-actions">';
-        $html .= '<a href="/admin/users/edit/' . $this->e($encoded) . '">Edit</a>';
-        $html .= '<a href="/admin/users/reset/' . $this->e($encoded) . '">Reset password</a>';
+        $html .= AdminLayout::buttonLink('Edit', '/admin/users/edit/' . $encoded, 'edit');
+        $html .= AdminLayout::buttonLink('Reset password', '/admin/users/reset/' . $encoded, 'refresh');
         $html .= '<form method="post" action="/admin/users/toggle" class="bp-inline-form">';
         $html .= $this->csrf->field();
         $html .= '<input type="hidden" name="username" value="' . $this->e($username) . '">';
         if ($this->isDisabled($user)) {
-            $html .= '<input type="hidden" name="action" value="reactivate"><button type="submit" class="bp-link-button">Reactivate</button>';
+            $html .= '<input type="hidden" name="action" value="reactivate">' . AdminLayout::submitButton('Reactivate', 'check', 'class="bp-button bp-button-secondary"');
         } else {
-            $html .= '<input type="hidden" name="action" value="disable"><button type="submit" class="bp-link-button bp-link-danger">Disable</button>';
+            $html .= '<input type="hidden" name="action" value="disable">' . AdminLayout::submitButton('Disable', 'shield', 'class="bp-button bp-button-secondary"');
         }
         return $html . '</form></div>';
     }
@@ -486,7 +486,6 @@ final class UserController
             return '<span class="bp-muted">Unknown</span>';
         }
 
-        $timestamp = strtotime($value);
-        return $timestamp ? $this->e(date('M j, Y H:i', $timestamp)) : $this->e($value);
+        return $this->e(\Batoi\Press\Core\DateFormat::display($value, $this->config->site(), 'datetime'));
     }
 }

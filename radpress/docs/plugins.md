@@ -140,3 +140,41 @@ This is a generic adapter contract, not a verified Batoi Flow API. Connect anoth
 ## Conformance fixtures
 
 Run `php radpress/tests/plugin_packages.php`, `php radpress/tests/major_upgrade.php`, `php radpress/tests/forms_admin.php` and `php radpress/tests/plugin_state.php`. They use synthetic signing keys, private temporary stores and injected transports. They do not send real mail or webhooks. The package fixture covers incompatible activation, signature/inventory rejection, disabled upgrades, verified rollback and recovery. Form fixtures cover CSRF/nonces, validation, quota concurrency, redaction, encrypted queue idempotency, publication preflight, private filtering/pagination and CSV export authorization.
+
+## Developer starter workflow
+
+The bundled CLI helper creates a native notice block, computes inventories,
+signs packages and validates them without executing their PHP. Run it from a
+local developer checkout; no CLI is required on the website host.
+
+```sh
+php radpress/docs/examples/plugin-tool.php create example-notice /tmp/example-notice
+php radpress/docs/examples/plugin-tool.php keygen /tmp/example-author.key
+php radpress/docs/examples/plugin-tool.php sign /tmp/example-notice /tmp/example-author.key example-author
+php radpress/docs/examples/plugin-tool.php validate /tmp/example-notice BASE64_PUBLIC_KEY
+php radpress/docs/examples/plugin-tool.php package /tmp/example-notice /tmp/example-notice.zip BASE64_PUBLIC_KEY
+```
+
+Replace `BASE64_PUBLIC_KEY` with the public value printed by key generation.
+Keep the private key outside plugin/source/website directories. For a disposable
+local development site, deliberately trust that development public key under
+`config/plugin-keys.json` using the signed-package format above. Production
+operators must review and trust the actual publisher separately; the tool never
+alters a site's trust configuration or activates a package.
+
+Upload the signed ZIP through Plugins, configure its **Notice text**, then enable
+it after review. Add the page block `example-notice:notice`. The example requests
+only `blocks.render`; it escapes the configured text before returning HTML.
+
+`create`, `keygen` and `package` refuse to replace existing destinations.
+Validation checks signatures, exact file inventories, manifest semantics and PHP
+syntax without executing entrypoints. Package ZIP entries have stable ordering
+and timestamps. Changing source after signing makes validation fail. Regenerate
+hashes/signatures after deliberate changes. The [authoring schema](schemas/plugin.schema.json)
+is a reference, not a replacement for runtime verification.
+
+The complete local workflow and tamper rejection are exercised by
+`php radpress/tests/plugin_development.php`. Native PHP remains trusted code;
+capability declarations and this helper do not sandbox it. Event delivery,
+additional examples and a useful declarative extension runtime remain separate
+5.0 tasks.

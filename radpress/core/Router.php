@@ -54,6 +54,9 @@ final class Router
 
     public function dispatch(Request $request): Response
     {
+        if ($request->path === '/commerce' || str_starts_with($request->path, '/commerce/')) {
+            return (new \Batoi\Press\Commerce\StorefrontController($this->config, $this->theme))->handle($request);
+        }
         if (preg_match('#^/forms/([a-z][a-z0-9-]{0,63})$#D', $request->path, $formMatch)) {
             if (!in_array($request->method, ['GET','POST'], true)) return Response::html('Method not allowed.', 405)->withHeader('Allow', 'GET, POST');
             return (new \Batoi\Press\Application\FormController($this->config))->handle($formMatch[1], $request);
@@ -121,7 +124,7 @@ final class Router
         if (str_starts_with($request->path, '/product/')) {
             $product = $this->products()->findBySlug(Slug::normalize(rawurldecode(substr($request->path, 9))));
             return $product !== null && ($product['status'] ?? '') === 'published'
-                ? $this->theme->render('product', ['product' => $product, 'title' => (string)$product['title']])
+                ? $this->theme->render('product', ['product' => $product, 'title' => (string)$product['title'], 'commerceEnabled' => (new \Batoi\Press\Commerce\StoreSettings($this->config))->read()['enabled']])
                 : $this->notFound();
         }
 
@@ -187,6 +190,8 @@ final class Router
         );
         $csrf = new Csrf($session);
         AdminLayout::setCsrf($csrf);
+        AdminLayout::setSite($this->config->site());
+        AdminLayout::setCommerce((new \Batoi\Press\Commerce\StoreSettings($this->config))->read()['enabled'] || is_dir($this->config->paths()->dataPath('commerce/orders')));
         AdminLayout::setUser([]);
         $files = new FileStore();
         $audit = new AuditLog($this->config->paths(), $files);
@@ -214,6 +219,7 @@ final class Router
         if ($user === null) {
             return Response::redirect('/admin/login');
         }
+        $user['_commerce_active'] = (new \Batoi\Press\Commerce\StoreSettings($this->config))->read()['enabled'] || is_file($this->config->paths()->dataPath('commerce/state.json')) || is_dir($this->config->paths()->dataPath('commerce/orders'));
         $audit->recordRequest($user, $request);
         AdminLayout::setUser($user);
 
@@ -223,6 +229,8 @@ final class Router
             ]);
             return $this->forbidden($request->path);
         }
+
+        if (str_starts_with($request->path,'/admin/editor-recovery/')) return (new \Batoi\Press\Admin\EditorRecoveryController($this->config,$csrf,$audit,$user))->handle($request);
 
         if ($request->path === '/admin/plugins') return (new \Batoi\Press\Admin\PluginController($this->config, $csrf, $audit, $user))->handle($request);
         if ($request->path === '/admin/forms') return (new \Batoi\Press\Admin\FormController($this->config, $csrf, $audit, $user))->handle($request);
@@ -272,6 +280,9 @@ final class Router
         if ($request->path === '/admin/pages/save' && $request->method === 'POST') {
             return (new PageController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->save($request);
         }
+        if ($request->path === '/admin/pages/duplicate' && $request->method === 'POST') {
+            return (new PageController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->duplicate($request);
+        }
         if ($request->path === '/admin/pages/trash' && $request->method === 'POST') {
             return (new PageController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->trash($request);
         }
@@ -291,12 +302,27 @@ final class Router
         if ($request->path === '/admin/posts/save' && $request->method === 'POST') {
             return (new PostController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->save($request);
         }
+        if ($request->path === '/admin/posts/duplicate' && $request->method === 'POST') {
+            return (new PostController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->duplicate($request);
+        }
         if ($request->path === '/admin/posts/trash' && $request->method === 'POST') {
             return (new PostController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->trash($request);
         }
 
         if ($request->path === '/admin/products') {
-            return (new ProductController($this->config, $this->products(), $csrf, $audit, $user))->index();
+            return (new ProductController($this->config, $this->products(), $csrf, $audit, $user))->index($request);
+        }
+
+        if ($request->path === '/admin/themes/uif-kit') return (new \Batoi\Press\Admin\ThemeKitController($this->config, $csrf, $audit, $user))->handle($request);
+
+        if ($request->path === '/admin/commerce' && $request->method === 'GET') return (new \Batoi\Press\Admin\CommerceController($this->config, $csrf, $audit, $user))->settings();
+        if ($request->path === '/admin/commerce/save' && $request->method === 'POST') return (new \Batoi\Press\Admin\CommerceController($this->config, $csrf, $audit, $user))->save($request);
+        if ($request->path === '/admin/orders' && $request->method === 'GET') return (new \Batoi\Press\Admin\CommerceController($this->config, $csrf, $audit, $user))->index($request);
+        if (preg_match('#^/admin/orders/(ord_[a-f0-9]{32})(?:/(fulfil|reconcile))?$#D', $request->path, $orderMatch)) {
+            $controller = new \Batoi\Press\Admin\CommerceController($this->config, $csrf, $audit, $user);
+            if (isset($orderMatch[2]) && $request->method === 'POST') return $controller->action($request, $orderMatch[1], $orderMatch[2]);
+            if (!isset($orderMatch[2]) && $request->method === 'GET') return $controller->detail($orderMatch[1]);
+            return Response::html('Method not allowed.', 405);
         }
         if ($request->path === '/admin/products/new') {
             return (new ProductController($this->config, $this->products(), $csrf, $audit, $user))->edit();
@@ -313,8 +339,9 @@ final class Router
         }
 
         if ($request->path === '/admin/media/upload' && $request->method === 'POST') {
-            return (new MediaController($this->config, $csrf, $audit, $user))->upload();
+            return (new MediaController($this->config, $csrf, $audit, $user))->upload($request);
         }
+        if ($request->path === '/admin/media/picker' && $request->method === 'GET') return (new MediaController($this->config,$csrf,$audit,$user))->picker($request);
 
         if ($request->path === '/admin/media/edit' && $request->method === 'GET') {
             return (new MediaController($this->config, $csrf, $audit, $user))->edit($request);
@@ -365,6 +392,10 @@ final class Router
             return (new SettingsController($this->config, $files, $csrf, $audit, $user))->edit();
         }
 
+        if ($request->path === '/admin/settings/date-preview' && $request->method === 'POST') {
+            return (new SettingsController($this->config, $files, $csrf, $audit, $user))->datePreview($request);
+        }
+
         if ($request->path === '/admin/settings/save' && $request->method === 'POST') {
             return (new SettingsController($this->config, $files, $csrf, $audit, $user))->save($request);
         }
@@ -409,7 +440,10 @@ final class Router
         }
 
         if (str_starts_with($request->path, '/admin/theme-templates/edit/')) {
-            return (new ThemeTemplateController($this->config, $files, $csrf, $audit, $user))->edit(rawurldecode(substr($request->path, 28)));
+            $controller = new ThemeTemplateController($this->config, $files, $csrf, $audit, $user);
+            return $request->method === 'POST'
+                ? $controller->save($request)
+                : $controller->edit(rawurldecode(substr($request->path, 28)));
         }
 
         if ($request->path === '/admin/theme-templates/save') {

@@ -198,8 +198,7 @@ final class AuditController
             return 'Unknown';
         }
 
-        $timestamp = strtotime($value);
-        return $timestamp ? date('M j, Y H:i', $timestamp) : $value;
+        return \Batoi\Press\Core\DateFormat::display($value, $this->config->site(), 'datetime');
     }
 
     private function e(string $value): string

@@ -20,13 +20,7 @@ final class PostRepository
 
     public function findBySlug(string $slug): ?array
     {
-        foreach ($this->all() as $post) {
-            if (($post['slug'] ?? '') === $slug) {
-                return $post;
-            }
-        }
-
-        return null;
+        return ContentLookup::find($this->paths, $this->files, $this->html, 'post', $slug);
     }
 
     public function findByPath(string $path, string $postType = 'blog'): ?array
@@ -53,7 +47,12 @@ final class PostRepository
         return (new ContentTransaction($this->paths, $this->files))->read('post', fn (): array => $this->loadAll());
     }
 
-    private function loadAll(): array
+    public function metadata(): array
+    {
+        return (new ContentTransaction($this->paths, $this->files))->read('post', fn (): array => $this->loadAll(false));
+    }
+
+    private function loadAll(bool $withBody = true): array
     {
         $base = $this->paths->contentPath('posts');
         if (!is_dir($base)) {
@@ -69,7 +68,7 @@ final class PostRepository
             }
 
             $meta = $this->files->readJson($metaFile);
-            $meta['body'] = $this->html->sanitize($this->files->read($bodyFile));
+            if ($withBody) $meta['body'] = $this->html->sanitize($this->files->read($bodyFile));
             $items[] = $meta;
         }
 
@@ -165,7 +164,7 @@ final class PostRepository
             $post = $this->findBySlug($post) ?? ['slug' => Slug::normalize($post)];
         }
         $posts = [];
-        foreach ($this->all() as $candidate) {
+        foreach ($this->metadata() as $candidate) {
             $candidateSlug = (string)($candidate['slug'] ?? '');
             if ($candidateSlug !== '') {
                 $posts[$candidateSlug] = $candidate;
@@ -194,7 +193,7 @@ final class PostRepository
     public function types(): array
     {
         $types = ['blog'];
-        foreach ($this->all() as $post) {
+        foreach ($this->metadata() as $post) {
             $type = (string)($post['post_type'] ?? 'blog');
             if (preg_match('/^[a-z][a-z0-9-]{0,59}$/D', $type)) $types[] = $type;
         }

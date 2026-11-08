@@ -1,0 +1,125 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Press Theme Kit for Batoi UIF",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "kit",
+        "slug",
+        "name",
+        "version",
+        "author",
+        "preset"
+    ],
+    "properties": {
+        "kit": {
+            "const": "1.0.0"
+        },
+        "slug": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+        },
+        "author": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+        },
+        "version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "preset": {
+            "enum": [
+                "corporate",
+                "editorial",
+                "shop"
+            ]
+        },
+        "width": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 90
+        },
+        "tokens": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "body_bg": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                },
+                "header_bg": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                },
+                "footer_bg": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                },
+                "link_hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                },
+                "header_text": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                },
+                "body_text": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                },
+                "primary_button": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                },
+                "secondary_button": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                },
+                "primary_hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                },
+                "secondary_hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                }
+            }
+        },
+        "sections": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "type",
+                    "text"
+                ],
+                "properties": {
+                    "type": {
+                        "enum": [
+                            "heading",
+                            "text",
+                            "button"
+                        ]
+                    },
+                    "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                    },
+                    "url": {
+                        "type": "string",
+                        "pattern": "^/(?!/)[A-Za-z0-9/_-]*$"
+                    }
+                }
+            }
+        }
+    }
+}

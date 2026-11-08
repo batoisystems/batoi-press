@@ -28,6 +28,7 @@ spl_autoload_register(static function (string $class): void {
         'Api' => 'api',
         'Application' => 'application',
         'Content' => 'core/content',
+        'Commerce' => 'application/commerce',
         'Core' => 'core',
         'Mcp' => 'mcp',
         'Security' => 'security',

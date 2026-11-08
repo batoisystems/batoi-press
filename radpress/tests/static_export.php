@@ -36,6 +36,9 @@ try {
     $files = new FileStore();
     $html = new HtmlContent();
     (new PostRepository($paths,$files,$html))->save(['title'=>'News export','slug'=>'news-export','post_type'=>'news','status'=>'published','published_at'=>'2000-01-01T00:00:00+00:00','body'=>'<p>News export</p>'], 'owner');
+    $fontUrl = '/assets/fonts/site/font-' . str_repeat('a', 24) . '.ttf';
+    $fontBytes = pack('Nnnnn', 0x10000, 1, 16, 0, 0) . pack('a4NNN', 'head', 0, 28, 4) . str_repeat("\0", 4);
+    $files->write($paths->contentPath(substr($fontUrl, 1)), $fontBytes);
     $exporter = new StaticExporter(
         $paths,
         new PageRepository($paths, $files, $html),
@@ -49,12 +52,13 @@ try {
             'brand_display' => 'logo',
             'brand_logo' => '/assets/images/site/logo.png',
             'brand_logo_alt' => 'Static Test logo',
+            'local_font' => $fontUrl,
         ]
     );
 
     $status = $exporter->status();
-    assertTrue((int)($status['media_files'] ?? 0) === 9, 'static export status should count typed assets and legacy media files');
-    assertTrue((int)($status['asset_files'] ?? 0) === 6, 'static export status should count recursive typed assets');
+    assertTrue((int)($status['media_files'] ?? 0) === 10, 'static export status should count typed assets and legacy media files');
+    assertTrue((int)($status['asset_files'] ?? 0) === 7, 'static export status should count recursive typed assets');
 
     chmod($root . '/radpress/data/export', 0555);
     chmod($root . '/radpress/data/tmp', 0555);
@@ -105,6 +109,9 @@ try {
         assertTrue($zip->locateName($entry) !== false, "static export ZIP should include {$entry}");
     }
 
+    assertTrue($zip->getFromName(ltrim($fontUrl, '/')) === $fontBytes, 'Static export must retain local font bytes.');
+    assertTrue(str_contains((string)$zip->getFromName('index.html'), 'url(".' . $fontUrl . '")'), 'Root static page must load the local font relative to its export.');
+    assertTrue(str_contains((string)$zip->getFromName('about/team/index.html'), 'url("../..' . $fontUrl . '")'), 'Nested static pages must resolve the font at their own depth.');
     assertTrue((string)$zip->getFromName('media/sample-media.txt') === "sample media\n", 'static export ZIP should include uploaded media file contents');
     assertTrue((string)$zip->getFromName('media/site.css') === "body{color:#111}\n", 'static export ZIP should include uploaded CSS file contents');
     assertTrue((string)$zip->getFromName('media/site.js') === "console.log('asset');\n", 'static export ZIP should include uploaded JS file contents');

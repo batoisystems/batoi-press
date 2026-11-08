@@ -37,6 +37,9 @@ model access belongs to the integrated Batoi AIF feature.
   Choose these explicitly in the Connections custom profile.
 - Requests are rate-limited by source address during failed authentication and
   by token after authentication.
+- Development `theme:read` / `theme:write` scopes require an owner principal.
+  They expose data-only UIF theme drafting, without installation or activation;
+  see the connected-theme contract below. Existing scopes do not imply them.
 - MCP validates any supplied `Origin` against the site's configured origin and
   `security.machine_allowed_origins`.
 - Machine reads and writes are audit-attributed to the token ID and request
@@ -355,7 +358,7 @@ to `POST /api/v2/public-settings/proposals` with `If-Match` and
 status through `/api/v2/settings-proposals/{proposal_id}` or
 `settings_proposal_get`. Proposals never contain the raw site configuration.
 
-Allowed fields are name, tagline, locale, timezone, posts-per-page, appearance
+Allowed fields are name, tagline, locale, timezone, date_format, time_format, posts-per-page, appearance
 mode/toggle, load-more preference, light/dark palette tokens, primary/accent
 colors, a plain font-family name, footer texts/columns, and validated footer
 links. Colors use six-digit hex; booleans and counts are typed and bounded.
@@ -692,3 +695,40 @@ included in its integrity hash. It appends to workflow history only when that
 exact proposal is approved, attributed to the approving administrator. Preparing
 or rejecting a proposal does not append history; replay cannot duplicate it.
 Restoration copies editorial values, not historical notes or actors.
+
+## Connected UIF theme drafts (5.0 development)
+
+These endpoints use the normal bearer authentication, private/no-store responses,
+request quotas and audit attribution. Choose explicit theme scopes in Connections;
+OAuth bindings and installation scope policy must also grant them. Only current
+owner principals receive effective theme scopes. No model API key is stored or
+used by these endpoints.
+
+| JSON API | Scope | MCP equivalent |
+| --- | --- | --- |
+| `GET /api/v2/theme-kit` | `theme:read` | `theme_kit_get` |
+| `POST /api/v2/theme-kit/validate` | `theme:read` | `theme_validate` |
+| `POST /api/v2/theme-drafts` | `theme:read` and `theme:write` | `theme_draft_create` |
+| `GET /api/v2/theme-drafts/{id}` | `theme:read`, originating connection | `theme_draft_get` |
+
+POST bodies contain one `definition` object conforming to the returned kit schema.
+Creation also requires an `Idempotency-Key` header (8–128 letters, digits,
+periods, underscores, colons or hyphens). In MCP pass `definition` and
+`idempotency_key` arguments. Validation returns normalized data and the generated
+source revision; it saves nothing. Definitions are bounded to 64 KiB and reject
+executable fields, remote assets, credentials and unsupported components.
+
+Creation returns HTTP 202 with a private draft ID, expiry, `review_url`,
+`state: pending_review`, `installed: false`, and `active: false` inside the normal
+API success envelope. The owner uses the review URL to inspect the immutable
+JSON and download the exact validated package. If the compiler's generated files
+changed, create a new draft. Upload, preview and activation use the existing
+owner-controlled Themes workflow. There is no machine approve/install/activate
+endpoint. A draft remains pending until expiry/revocation; its status does not
+track later manual installation or activation. Never claim it is live.
+
+Draft IDs are connection-bound. Even another connection for the same owner cannot
+read them. Expired/revoked credentials and role/policy changes are rechecked before
+download. Definitions stay encrypted in release-excluded private storage. See
+[theme development](theme-development.md#connected-theme-drafts-50-development)
+for limits and outstanding named-client/visual-review acceptance.

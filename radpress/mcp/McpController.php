@@ -131,6 +131,19 @@ final class McpController
     private function tools(array $access): array
     {
         $tools = [];
+        if ($this->hasScope($access,'theme:read')) {
+            $empty = ['type'=>'object','properties'=>[],'additionalProperties'=>false];
+            $definition = ['type'=>'object','properties'=>['definition'=>\Batoi\Press\Core\UifThemeKit::schema()],'required'=>['definition'],'additionalProperties'=>false];
+            $tools[] = $this->tool('theme_kit_get','Read the portable data-only UIF Theme Kit schema, starter and workflow. Responsive browser themes, not native app binaries.',$empty,['type'=>'object'],'theme:read');
+            $tools[] = $this->tool('theme_validate','Validate a data-only UIF definition against the current bundled compiler. Does not save, execute input, install or activate.',$definition,['type'=>'object'],'theme:read');
+            $tools[] = $this->tool('theme_draft_get','Read only this connection’s private theme draft. pending_review never means installed or active.',$this->identifierSchema('id'),['type'=>'object'],'theme:read');
+            if ($this->hasScope($access,'theme:write')) {
+                $definition['properties']['idempotency_key'] = ['type'=>'string','minLength'=>8,'maxLength'=>128]; $definition['required'][] = 'idempotency_key';
+                $tool = $this->tool('theme_draft_create','Create an immutable private theme definition for owner review. Return review_url. No executable uploads, installation or activation; never request the owner’s password.',$definition,['type'=>'object'],'theme:write',false,true);
+                if (isset($tool['securitySchemes'])) $tool['securitySchemes'] = [['type'=>'oauth2','scopes'=>['theme:read','theme:write']]];
+                $tools[] = $tool;
+            }
+        }
         if ($this->hasScope($access, 'content:read')) {
             $tools[] = $this->tool('search', 'Search pages and posts by keyword. Returns canonical URLs suitable for citations.', [
                 'type' => 'object',
@@ -219,6 +232,10 @@ final class McpController
         $name = (string)($params['name'] ?? '');
         $arguments = is_array($params['arguments'] ?? null) ? $params['arguments'] : [];
         $value = match ($name) {
+            'theme_kit_get' => $this->withScope($access,'theme:read',fn(): array => \Batoi\Press\Application\ThemeDrafts::kit()),
+            'theme_validate' => $this->withScope($access,'theme:read',fn(): array => (new \Batoi\Press\Application\ThemeDrafts($this->config))->validate($this->requiredObject($arguments,'definition'))),
+            'theme_draft_create' => $this->withScope($access,'theme:write',fn(): array => (new \Batoi\Press\Application\ThemeDrafts($this->config))->create($this->requiredObject($arguments,'definition'),$access,$this->requiredString($arguments,'idempotency_key'))),
+            'theme_draft_get' => $this->withScope($access,'theme:read',fn(): array => (new \Batoi\Press\Application\ThemeDrafts($this->config))->get($this->requiredString($arguments,'id'),$access)),
             'public_settings_get' => $this->withScope($access, 'site:read', fn (): array => (new \Batoi\Press\Content\PublicSettingsRepository($this->config->paths()))->load()),
             'settings_proposal_get' => $this->withScope($access, 'site:read', fn (): array => $this->mutations->menuProposalSummary($this->requiredString($arguments, 'id'), $access, 'site')),
             'public_settings_propose_changes' => $this->withScope($access, 'site:write', fn (): array => $this->mutations->proposePublicSettings($this->requiredObject($arguments, 'changes'), $this->requiredString($arguments, 'expected_revision'), $access, $this->requiredString($arguments, 'idempotency_key'), $this->requestId)),

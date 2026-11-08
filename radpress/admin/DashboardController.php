@@ -28,10 +28,10 @@ final class DashboardController
         $site = $this->config->site();
         $update = $this->config->update();
         $paths = $this->config->paths();
-        $pages = $this->pages->allPublished();
-        $posts = $this->posts->allPublished();
-        $allPages = $this->pages->all();
-        $allPosts = $this->posts->all();
+        $allPages = $this->pages->metadata();
+        $allPosts = $this->posts->metadata();
+        $pages = array_values(array_filter($allPages, [\Batoi\Press\Content\PublicationState::class, 'isPublic']));
+        $posts = array_values(array_filter($allPosts, [\Batoi\Press\Content\PublicationState::class, 'isPublic']));
         if (!\Batoi\Press\Security\AdminAccess::canAccess($this->user, '/admin/pages')) $allPages = $pages;
         $allPosts = \Batoi\Press\Security\AdminAccess::role($this->user) === 'viewer' ? $posts : \Batoi\Press\Security\AdminAccess::filterManageablePosts($this->user, $allPosts);
 
@@ -48,6 +48,12 @@ final class DashboardController
         $body .= AdminLayout::statCard('Posts', (string)count($posts), 'Published posts');
         $body .= AdminLayout::statCard('Version', (string)($update['current_version'] ?? '0.1.0'), (string)($update['channel'] ?? 'stable') . ' channel');
         $body .= '</dl>';
+
+        $reviewPages = array_values(array_filter($allPages, static fn(array $row): bool => ($row['status'] ?? '') === 'in_review'));
+        $reviewPosts = array_values(array_filter($allPosts, static fn(array $row): bool => ($row['status'] ?? '') === 'in_review'));
+        if ($reviewPages !== [] || $reviewPosts !== []) {
+            $body .= AdminLayout::section('Awaiting review', '<div class="bp-dashboard-columns">' . $this->contentPanel('Pages to review', $reviewPages, '/admin/pages/edit/') . $this->contentPanel('Posts to review', $reviewPosts, '/admin/posts/edit/') . '</div>', 'Review current drafts before publishing.');
+        }
 
         $recent = '<div class="bp-dashboard-columns">';
         $recent .= $this->contentPanel('Recent Pages', $allPages, '/admin/pages/edit/');
@@ -68,6 +74,7 @@ final class DashboardController
         $quickActions .= '</div>';
         $body .= AdminLayout::section('Quick Actions', $quickActions, 'Common publishing and operations tasks.');
 
+        $body .= '<details class="bp-admin-section"><summary>Publishing and operations guide</summary>';
         $workflow = '<div class="bp-workflow-grid">';
         $workflow .= $this->workflowStep('1', 'Draft', 'Create pages or posts and keep them in draft until ready.', 'complete');
         $workflow .= $this->workflowStep('2', 'Review', 'Check SEO metadata, navigation placement, and media links.', 'current');
@@ -82,6 +89,7 @@ final class DashboardController
         $guidance .= $this->guidanceCard('Governance', 'Keep users limited to required roles and review audit events for sensitive activity.', 'shield');
         $guidance .= '</div>';
         $body .= AdminLayout::section('Operating Guide', $guidance, 'Recommended admin-console rhythm for publishing and site operations.');
+        $body .= '</details>';
 
         $operations = '<dl class="bp-admin-stats bp-admin-stats-compact">';
         $operations .= AdminLayout::statCard('Cache files', (string)(int)$cache['files'], ((bool)$cache['writable'] ? 'Writable' : 'Not writable'));
@@ -129,8 +137,7 @@ final class DashboardController
 
     private function formatDate(string $value): string
     {
-        $timestamp = $value !== '' ? strtotime($value) : false;
-        return $timestamp ? date('M j, Y', $timestamp) : 'Not saved';
+        return $value !== '' ? \Batoi\Press\Core\DateFormat::display($value, $this->config->site()) : 'Not saved';
     }
 
     private function contentMixChart(array $pages, array $posts): string
@@ -185,7 +192,7 @@ final class DashboardController
 
     private function countStatus(array $items, string $status): int
     {
-        return count(array_filter($items, static fn (array $item): bool => ($item['status'] ?? '') === $status));
+        return count(array_filter($items, static fn (array $item): bool => $status === 'published' ? \Batoi\Press\Content\PublicationState::isPublic($item) : ($item['status'] ?? '') === $status));
     }
 
     private function e(string $value): string

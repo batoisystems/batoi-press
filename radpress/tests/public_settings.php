@@ -21,11 +21,11 @@ try {
     $initial = $repository->load();
     checkSettings(!str_contains(json_encode($initial), 'NEVER_EXPOSE') && !isset($initial['settings']['base_url']), 'read projection never exposes raw configuration');
     checkSettings($initial['capabilities']['appearance_tokens'] && $initial['capabilities']['footer_layout'], 'bundled theme reports implemented appearance surfaces');
-    $changes = ['name' => 'Reviewed site', 'palette_dark' => ['body_bg' => '#abcdef'], 'footer_bottom_columns' => 3, 'footer_icon_links' => 'Docs | https://example.test/docs | ↗', 'timezone' => 'UTC'];
+    $changes = ['name' => 'Reviewed site', 'palette_dark' => ['body_bg' => '#abcdef'], 'footer_bottom_columns' => 3, 'footer_icon_links' => 'Docs | https://example.test/docs | ↗', 'timezone' => 'UTC', 'date_format'=>'j F Y', 'time_format'=>'g:i A'];
     $prepared = $repository->prepareSave($changes, $initial['revision']);
     checkSettings($files->readJson($paths->configPath('site.json')) === $original && !str_contains(json_encode($prepared), 'NEVER_EXPOSE'), 'preparation does not write or place secrets in previews');
     checkSettings($prepared['after']['palette_dark']['body_bg'] === '#ABCDEF' && count($prepared['after']['palette_dark']) === 10, 'partial palette changes merge validated shared tokens');
-    foreach ([['base_url' => 'https://evil.example'], ['operator_secret' => 'x'], ['theme' => 'other'], ['custom_js' => 'alert(1)'], ['font_stylesheet_url' => 'https://example.test/style.css'], ['palette_light' => ['unknown' => '#123456']], ['palette_dark' => ['body_bg' => 'red;display:none']], ['show_theme_toggle' => 'true'], ['footer_top_columns' => 5], ['timezone' => 'Bad/Timezone'], ['font_family' => 'Arial; color:red'], ['footer_icon_links' => 'Bad | https://user:secret@example.test/ | X'], ['name' => []]] as $invalid) {
+    foreach ([['base_url' => 'https://evil.example'], ['operator_secret' => 'x'], ['theme' => 'other'], ['custom_js' => 'alert(1)'], ['font_stylesheet_url' => 'https://example.test/style.css'], ['palette_light' => ['unknown' => '#123456']], ['palette_dark' => ['body_bg' => 'red;display:none']], ['show_theme_toggle' => 'true'], ['footer_top_columns' => 5], ['timezone' => 'Bad/Timezone'], ['font_family' => 'Arial; color:red'], ['footer_icon_links' => 'Bad | https://user:secret@example.test/ | X'], ['date_format'=>''], ['time_format'=>str_repeat('H',81)], ['name' => []]] as $invalid) {
         try { $repository->prepareSave($invalid, $initial['revision']); throw new LogicException('Invalid public settings accepted'); }
         catch (InvalidArgumentException $exception) { checkSettings($exception->getMessage() !== '', 'invalid settings have a clear validation error'); }
     }

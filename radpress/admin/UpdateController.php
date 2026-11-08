@@ -55,7 +55,7 @@ final class UpdateController
         if (!function_exists('sodium_crypto_sign_verify_detached')) {
             $body .= '<p class="bp-error">Signed releases require PHP Sodium in the web server PHP configuration. Enable extension=sodium and restart PHP, or contact your host, before uploading. The optional SHA-256 checksum does not replace signature verification.</p>';
         }
-        $body .= AdminLayout::section('Update workflow', $this->updateWorkflow(), 'Recommended sequence for release maintenance.');
+        $body .= '<div class="bp-update-workflow">' . AdminLayout::section('Update workflow', $this->updateWorkflow(), 'Recommended sequence for release maintenance.') . '</div>';
 
         $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Create backup</h2><p>Create a minimal update backup before staging or applying a package.</p></div></header><form method="post" action="/admin/updates/backup" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Create Backup', 'download') . '</form></section>';
         $body .= '<section class="bp-admin-section"><header><div><h2>Stage package</h2><p>Upload a release ZIP and verify its archive safety before applying it.</p></div></header><form method="post" action="/admin/updates/stage" enctype="multipart/form-data" class="bp-form bp-compact-form">' . $this->csrf->field();
@@ -165,10 +165,17 @@ final class UpdateController
 
         $result = (new UpdateRunner($this->config->paths()))->apply($path);
         $target = (string)($result['version'] ?? $stage);
-        $this->audit->record((string)($this->user['username'] ?? 'admin'), ($result['ok'] ?? false) ? 'update.applied' : 'update.apply_failed', $target, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
+        $this->audit->record((string)($this->user['username'] ?? 'admin'), ($result['ok'] ?? false) ? 'update.applied' : 'update.apply_failed', $target, (string)($_SERVER['REMOTE_ADDR'] ?? ''), ($result['ok'] ?? false) ? 'success' : 'failure', (array)($result['compatibility'] ?? []));
 
         if ($result['ok'] ?? false) {
             $message = 'Update applied. Installed files: ' . (string)($result['installed_files'] ?? 0) . '. Cache files cleared: ' . (string)($result['cache_cleared'] ?? 0) . '. Backup: ' . (string)($result['backup'] ?? '');
+            foreach ((array)($result['compatibility']['themes'] ?? []) as $theme) {
+                $message .= ($theme['mode'] ?? '') === 'in_place'
+                    ? ' Kept customized theme ' . (string)$theme['from'] . ' unchanged.'
+                    : ' Preserved theme ' . (string)$theme['from'] . ' as ' . (string)$theme['to'] . '.';
+            }
+            if (isset($result['compatibility']['base_url'])) $message .= ' Corrected base URL to ' . (string)$result['compatibility']['base_url']['to'] . '.';
+            if ($result['compatibility']['base_url_review'] ?? false) $message .= ' The public base URL could not be confirmed. Review it in Settings.';
             return $this->message('Apply Update', $message);
         }
 
@@ -255,7 +262,7 @@ final class UpdateController
     private function modified(string $path): string
     {
         $time = file_exists($path) ? filemtime($path) : false;
-        return $time ? date('M j, Y H:i', $time) : 'Unknown';
+        return $time ? \Batoi\Press\Core\DateFormat::display('@' . $time, $this->config->site(), 'datetime') : 'Unknown';
     }
 
     private function e(string $value): string

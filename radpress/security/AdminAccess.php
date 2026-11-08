@@ -11,6 +11,11 @@ final class AdminAccess
     {
         $role = self::role($user);
         $path = self::normalizePath($path);
+        if ($path === '/admin/editor-recovery' || str_starts_with($path,'/admin/editor-recovery/')) return in_array($role,['owner','admin','editor','author'],true);
+        if ($path === '/admin/themes/uif-kit') return $role === 'owner';
+        if ($path === '/admin/commerce' || str_starts_with($path, '/admin/commerce/')) return $role === 'owner';
+        if ($path === '/admin/orders' || str_starts_with($path, '/admin/orders/')) return in_array($role, ['owner','admin'], true);
+        if (($user['_commerce_active'] ?? false) && ($path === '/admin/products' || str_starts_with($path, '/admin/products/'))) return in_array($role, ['owner','admin'], true);
         if ($path === '/admin/plugins' || str_starts_with($path, '/admin/plugins/')) return $role === 'owner';
         if ($path === '/admin/security' || str_starts_with($path, '/admin/security/')) {
             return in_array($role, self::ROLES, true);
@@ -35,16 +40,19 @@ final class AdminAccess
                 '/admin/pages/edit/',
                 '/admin/pages/save',
                 '/admin/pages/trash',
+                '/admin/pages/duplicate',
                 '/admin/posts',
                 '/admin/posts/new',
                 '/admin/posts/edit/',
                 '/admin/posts/save',
                 '/admin/posts/trash',
+                '/admin/posts/duplicate',
                 '/admin/products',
                 '/admin/products/new',
                 '/admin/products/edit/',
                 '/admin/products/save',
                 '/admin/media',
+                '/admin/media/picker',
                 '/admin/media/upload',
                 '/admin/media/edit',
                 '/admin/media/update-text',
@@ -67,6 +75,7 @@ final class AdminAccess
                 '/admin/posts/edit/',
                 '/admin/posts/save',
                 '/admin/posts/trash',
+                '/admin/posts/duplicate',
             ]);
         }
 

@@ -320,6 +320,10 @@ final class StaticExporter
             },
             $html
         ) ?? $html;
+        // Generated font CSS is inline; its asset URL must follow each page's depth.
+        $html = preg_replace_callback('#<style data-bp-local-font>.*?</style>#s', static function (array $match) use ($prefix): string {
+            return str_replace('url("/assets/fonts/site/', 'url("' . ($prefix !== '' ? $prefix : './') . 'assets/fonts/site/', $match[0]);
+        }, $html) ?? $html;
         $this->write($workDir . '/' . $target, $html);
     }
 

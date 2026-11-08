@@ -1,5 +1,51 @@
 document.documentElement.classList.add('bp-js');
 
+document.addEventListener('DOMContentLoaded', () => {
+    if (!window.fetch || !window.AbortController) return;
+    document.querySelectorAll('[data-bp-date-formats]').forEach((panel) => {
+        const form = panel.closest('form');
+        const error = panel.querySelector('[data-bp-format-error]');
+        let timer, generation = 0, pending;
+        const update = () => {
+            const current = ++generation;
+            clearTimeout(timer);
+            pending?.abort();
+            timer = setTimeout(async () => {
+                const data = new FormData();
+                for (const name of ['csrf_token', 'timezone', 'date_format', 'time_format', 'date_format_custom', 'time_format_custom']) {
+                    const input = form.querySelector('[name="' + name + '"]:checked') || form.querySelector('[name="' + name + '"]');
+                    if (input) data.set(name, input.value);
+                }
+                pending = new AbortController();
+                try {
+                    const response = await fetch(panel.dataset.previewUrl, {method: 'POST', body: data, credentials: 'same-origin', redirect: 'error', signal: pending.signal});
+                    const result = await response.json();
+                    if (current !== generation) return;
+                    if (!response.ok || !result.ok) throw new Error(result.message || 'Preview unavailable.');
+                    for (const kind of ['date', 'time']) panel.querySelector('[data-bp-format-preview="' + kind + '"]').textContent = result[kind];
+                    panel.querySelectorAll('.bp-format-choice input').forEach((input) => {
+                        const example = result.examples?.[input.name.split('_')[0]]?.[input.value];
+                        if (example !== undefined) input.nextElementSibling.textContent = example;
+                    });
+                    error.hidden = true;
+                } catch (failure) {
+                    if (current !== generation || failure.name === 'AbortError') return;
+                    error.textContent = failure.message || 'Preview unavailable. Save Settings to refresh it.';
+                    error.hidden = false;
+                }
+            }, 250);
+        };
+        panel.addEventListener('input', (event) => {
+            if (event.target.name?.endsWith('_format_custom')) {
+                const kind = event.target.name.split('_')[0];
+                panel.querySelector('[name="' + kind + '_format"][value="custom"]').checked = true;
+            }
+            update();
+        });
+        form.querySelector('[name="timezone"]')?.addEventListener('change', update);
+    });
+});
+
 function setEditorFocusMode(editor, button, active) {
     if (active) {
         const current = document.querySelector('.uif-editor.bp-editor-focus-mode');
@@ -33,6 +79,255 @@ function activeEditorSurface(editor) {
         return source;
     }
     return editor.querySelector('.uif-editor-surface[contenteditable="true"]');
+}
+
+// Read the active UIF surface before taking a form snapshot, including source mode.
+function syncContentEditorFields(form) {
+    form.querySelectorAll('[data-bp-content-editor]').forEach((host) => {
+        const field = host.querySelector('textarea[name]');
+        const editor = host.querySelector('.uif-editor');
+        const surface = editor && activeEditorSurface(editor);
+        if (!field || !surface) return;
+        field.value = surface instanceof HTMLTextAreaElement ? surface.value : surface.innerHTML;
+    });
+}
+
+function enhanceEditorRecovery() {
+    document.querySelectorAll('form[data-bp-recovery]').forEach((form) => {
+        const status = form.querySelector('[data-bp-recovery-status]');
+        const retry = form.querySelector('[data-bp-recovery-retry]');
+        if (!status || !window.crypto?.getRandomValues || !window.fetch) return;
+        const enabled = form.dataset.bpRecoveryEnabled === 'true';
+        const fields = new Set(JSON.parse(form.dataset.bpRecoveryFields));
+        const branch = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+        const snapshot = () => {
+            syncContentEditorFields(form);
+            const data = new FormData(form), values = {};
+            if (form.querySelector('[data-bp-page-blocks]')) {
+                fields.forEach((name) => { if (name.startsWith('block_')) values[name] = []; });
+            }
+            for (const [key, value] of data) {
+                if (typeof value !== 'string') continue;
+                const indexed = key.match(/^([a-z_]+)\[([0-9]*)\]$/);
+                const name = indexed ? indexed[1] : key;
+                if (!fields.has(name)) continue;
+                if (!indexed) values[name] = value;
+                else {
+                    values[name] ??= indexed[2] === '' ? [] : {};
+                    if (indexed[2] === '') values[name].push(value);
+                    else values[name][indexed[2]] = value;
+                }
+            }
+            // Full form changes also include publication and code fields, which are never autosaved.
+            return {fields: values, full: JSON.stringify(Array.from(data, ([key, value]) => [key, typeof value === 'string' ? value : value.name]))};
+        };
+        const first = snapshot();
+        let savedFields = JSON.stringify(first.fields), dirty = form.dataset.bpRecovered === 'true';
+        let revision = '', busy = false, timer, failures = 0, submitting = false, submitPending = false;
+        let finished = Promise.resolve(), settle;
+        const initial = first.full;
+        const schedule = (delay = 1800) => { clearTimeout(timer); timer = setTimeout(save, delay); };
+        const save = async () => {
+            if (busy || submitting || !enabled) return;
+            const current = snapshot(), encoded = JSON.stringify(current.fields);
+            if (encoded === savedFields && !(dirty && revision === '' && form.dataset.bpRecovered === 'true')) return;
+            busy = true;
+            finished = new Promise((resolve) => { settle = resolve; });
+            retry.hidden = true;
+            status.textContent = 'Saving private recovery…';
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 20000);
+            try {
+                const response = await fetch(form.dataset.bpRecoveryUrl, {
+                    method: 'POST', credentials: 'same-origin', redirect: 'error', signal: controller.signal,
+                    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': form.elements.namedItem('csrf_token')?.value || ''},
+                    body: JSON.stringify({type: form.dataset.bpRecovery, identifier: form.dataset.bpRecoveryIdentifier,
+                        branch, base_revision: form.elements.namedItem('expected_revision')?.value || '', recovery_revision: revision, fields: current.fields})
+                });
+                if (!response.headers.get('Content-Type')?.includes('application/json')) throw new Error('Sign-in may have expired. Keep this editor open and copy your text before signing in.');
+                const result = await response.json();
+                if (!response.ok || !result.ok) throw new Error(result.error || 'Recovery is unavailable. Your editor values remain here.');
+                revision = result.recovery.revision;
+                savedFields = encoded;
+                failures = 0;
+                status.textContent = 'Private recovery saved. Use the save action to apply changes.';
+            } catch (error) {
+                failures += 1;
+                status.textContent = error.name === 'AbortError' ? 'Recovery timed out. Your editor values remain here.' : error.message;
+                retry.hidden = false;
+            } finally {
+                clearTimeout(timeout);
+                busy = false;
+                settle();
+                if (!submitting && JSON.stringify(snapshot().fields) !== savedFields && failures < 4) schedule(Math.min(30000, 2000 * (2 ** failures)));
+            }
+        };
+        const changed = () => {
+            const current = snapshot();
+            dirty = current.full !== initial || form.dataset.bpRecovered === 'true';
+            if (JSON.stringify(current.fields) !== savedFields) {
+                status.textContent = enabled ? 'Unsaved changes. Private recovery pending…' : 'Unsaved changes. Private recovery needs host encryption support.';
+                schedule();
+            } else if (dirty) status.textContent = 'Unsaved changes. Use the save action to apply changes.';
+        };
+        form.addEventListener('input', changed);
+        form.addEventListener('change', changed);
+        form.addEventListener('bp:content-change', changed);
+        // Adding/removing/reordering blocks can change hidden fields without an input event.
+        const blocks = form.querySelector('[data-bp-page-blocks]');
+        if (blocks) new MutationObserver(changed).observe(blocks, {childList: true, subtree: true});
+        retry.addEventListener('click', () => { failures = 0; save(); });
+        form.addEventListener('submit', async (event) => {
+            if (submitting) return;
+            syncContentEditorFields(form);
+            if (!enabled) { submitting = true; return; }
+            event.preventDefault();
+            if (submitPending) return;
+            submitPending = true;
+            clearTimeout(timer);
+            // Preserve the latest form before a validation/conflict response replaces the editor.
+            await finished;
+            await save();
+            clearTimeout(timer);
+            submitting = true;
+            form.requestSubmit(event.submitter instanceof HTMLElement ? event.submitter : undefined);
+        });
+        window.addEventListener('beforeunload', (event) => {
+            if (!submitting && (dirty || snapshot().full !== initial)) { event.preventDefault(); event.returnValue = ''; }
+        });
+        if (!enabled) status.textContent = 'Private recovery needs host encryption support. Use the save action to retain changes.';
+        else if (dirty) schedule();
+    });
+}
+
+function openEditorMedia(host, link, event) {
+    if (!window.HTMLDialogElement || !window.fetch) return;
+    event.preventDefault();
+    const editor = host.querySelector('.uif-editor');
+    const surface = editor ? activeEditorSurface(editor) : host.querySelector('textarea[name]');
+    if (!surface) return;
+    const cursor = surface instanceof HTMLTextAreaElement ? [surface.selectionStart, surface.selectionEnd] : null;
+    const selection = window.getSelection();
+    const range = !cursor && selection?.rangeCount && surface.contains(selection.getRangeAt(0).commonAncestorContainer) ? selection.getRangeAt(0).cloneRange() : null;
+    const returnFocus = event.currentTarget;
+    const dialog = document.createElement('dialog');
+    dialog.className = 'bp-media-picker';
+    dialog.setAttribute('aria-label', 'Insert an image');
+    // This fixed markup contains no library metadata or user-provided HTML.
+    dialog.innerHTML = '<header><h2>Insert an image</h2><button type="button" class="bp-button bp-button-secondary" data-picker-close>Cancel</button></header>' +
+        '<form class="bp-filter-form" data-picker-search><label>Search images<input type="search" name="q" maxlength="160"></label><button class="bp-button bp-button-secondary">Search</button></form>' +
+        '<p role="status" aria-live="polite" data-picker-status></p><div class="bp-media-picker-grid" data-picker-items></div>' +
+        '<nav aria-label="Image results"><button type="button" class="bp-button bp-button-secondary" data-picker-prev>Previous</button><span data-picker-page></span><button type="button" class="bp-button bp-button-secondary" data-picker-next>Next</button></nav>' +
+        '<form class="bp-form bp-compact-form" data-picker-insert hidden><strong data-picker-selected></strong><label>Alt text<input name="alt" maxlength="1000"><span class="bp-field-help">Describe the image’s purpose in this content.</span></label>' +
+        '<label class="bp-check-option"><input type="checkbox" name="decorative">Decorative image (empty alt text)</label><label>Caption<textarea name="caption" rows="2" maxlength="2000"></textarea></label><button class="bp-button">Insert image</button></form>' +
+        '<details><summary>Upload images</summary><form class="bp-form bp-compact-form" data-picker-upload><label>Image files<input type="file" name="media[]" accept="image/jpeg,image/png,image/webp,image/avif,image/gif" multiple required></label><label class="bp-check-option"><input type="checkbox" name="generate_variants" value="1" checked>Generate responsive copies when supported</label><span class="bp-field-help" data-picker-limit></span><button class="bp-button bp-button-secondary">Upload images</button></form></details>';
+    document.body.append(dialog);
+    const status = dialog.querySelector('[data-picker-status]');
+    const items = dialog.querySelector('[data-picker-items]');
+    const search = dialog.querySelector('[data-picker-search]');
+    const insert = dialog.querySelector('[data-picker-insert]');
+    const upload = dialog.querySelector('[data-picker-upload]');
+    let page = 1, pages = 1, chosen, generation = 0, closed = false, inserted = false, pending;
+    const readJson = async (response) => {
+        if (!response.headers.get('Content-Type')?.includes('application/json')) throw new Error('Sign-in may have expired. Keep your editor open and sign in again.');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'The image library is unavailable.');
+        return data;
+    };
+    const load = async (requested = 1) => {
+        const current = ++generation;
+        pending?.abort(); const controller = new AbortController(); pending = controller;
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        status.textContent = 'Loading images…';
+        try {
+            const url = new URL(link.dataset.bpPickerUrl, location.href);
+            url.searchParams.set('q', search.elements.q.value); url.searchParams.set('page', String(requested));
+            const data = await readJson(await fetch(url, {credentials: 'same-origin', redirect: 'error', signal: controller.signal}));
+            if (closed || current !== generation) return;
+            page = data.page; pages = data.pages; chosen = null; insert.hidden = true; items.replaceChildren();
+            for (const item of data.items) {
+                const url = new URL(item.url, location.href);
+                if (url.origin !== location.origin || !['https:', 'http:'].includes(url.protocol)) continue;
+                const button = document.createElement('button'); button.type = 'button'; button.className = 'bp-media-picker-item';
+                button.setAttribute('aria-pressed', 'false');
+                const image = document.createElement('img'); image.src = url.href; image.alt = ''; image.loading = 'lazy'; image.decoding = 'async';
+                const name = document.createElement('span'); name.textContent = item.name;
+                const dimensions = document.createElement('small'); dimensions.textContent = item.width + ' × ' + item.height;
+                button.append(image, name, dimensions);
+                button.addEventListener('click', async () => {
+                    chosen = {...item, url: url.pathname};
+                    items.querySelectorAll('button').forEach((row) => row.setAttribute('aria-pressed', String(row === button)));
+                    insert.hidden = false;
+                    insert.querySelector('[data-picker-selected]').textContent = item.name;
+                    insert.elements.alt.value = item.metadata.alt; insert.elements.alt.disabled = false;
+                    insert.elements.decorative.checked = false; insert.elements.caption.value = item.metadata.caption;
+                    insert.elements.alt.focus();
+                    // Strong byte/variant inspection is limited to the selected image, not the collection.
+                    try {
+                        const detail = new URL(link.dataset.bpPickerUrl, location.href); detail.searchParams.set('id', item.id);
+                        const data = await readJson(await fetch(detail, {credentials: 'same-origin', redirect: 'error'}));
+                        if (!closed && chosen?.id === item.id) chosen.srcset = data.items[0]?.srcset || '';
+                    } catch (_) { /* The original remains usable when optional responsive copies are unavailable. */ }
+                });
+                items.append(button);
+            }
+            dialog.querySelector('[data-picker-page]').textContent = 'Page ' + page + ' of ' + pages;
+            dialog.querySelector('[data-picker-prev]').disabled = page <= 1;
+            dialog.querySelector('[data-picker-next]').disabled = page >= pages;
+            dialog.querySelector('[data-picker-limit]').textContent = 'Up to 20 files; ' + Math.floor(data.max_upload_bytes / 1048576) + ' MB each. Host upload rules also apply.';
+            status.textContent = items.childElementCount ? 'Choose an image, then review its alt text and caption.' : 'No matching images. Upload an image or change the search.';
+        } catch (error) { if (!closed && current === generation) status.textContent = error.name === 'AbortError' ? 'Image search timed out. Try again.' : error.message; }
+        finally { clearTimeout(timeout); }
+    };
+    search.addEventListener('submit', (event) => { event.preventDefault(); load(); });
+    dialog.querySelector('[data-picker-prev]').addEventListener('click', () => load(page - 1));
+    dialog.querySelector('[data-picker-next]').addEventListener('click', () => load(page + 1));
+    dialog.querySelector('[data-picker-close]').addEventListener('click', () => dialog.close());
+    dialog.addEventListener('close', () => { closed = true; pending?.abort(); dialog.remove(); (inserted ? surface : returnFocus)?.focus({preventScroll: true}); });
+    insert.elements.decorative.addEventListener('change', () => { insert.elements.alt.disabled = insert.elements.decorative.checked; });
+    insert.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!chosen) return;
+        const decorative = insert.elements.decorative.checked, alt = insert.elements.alt.value.trim();
+        if (!decorative && !alt) { status.textContent = 'Add alt text or mark this image decorative.'; insert.elements.alt.focus(); return; }
+        const image = document.createElement('img'); image.src = chosen.url; image.alt = decorative ? '' : alt;
+        image.width = chosen.width; image.height = chosen.height; image.loading = 'lazy'; image.decoding = 'async';
+        if (chosen.srcset && chosen.srcset.split(', ').every((entry) => {
+            const parts = entry.match(/^(\S+) ([0-9]+)w$/);
+            return parts && new URL(parts[1], location.href).origin === location.origin;
+        })) { image.srcset = chosen.srcset; image.sizes = '100vw'; }
+        let node = image;
+        const caption = insert.elements.caption.value.trim();
+        if (caption) { node = document.createElement('figure'); const text = document.createElement('figcaption'); text.textContent = caption; node.append(image, text); }
+        if (cursor) surface.setRangeText(node.outerHTML, cursor[0], cursor[1], 'end');
+        else if (range && surface.contains(range.commonAncestorContainer)) { range.deleteContents(); range.insertNode(node); range.setStartAfter(node); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); }
+        else surface.append(node);
+        surface.dispatchEvent(new Event('input', {bubbles: true}));
+        syncContentEditorFields(host.closest('form') || host);
+        host.dispatchEvent(new Event('bp:content-change', {bubbles: true}));
+        inserted = true; dialog.close();
+    });
+    upload.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!upload.reportValidity()) return;
+        const files = upload.elements.namedItem('media[]').files;
+        if (files.length > 20) { status.textContent = 'Choose at most 20 files.'; return; }
+        const data = new FormData(upload);
+        data.set('csrf_token', host.closest('form')?.elements.namedItem('csrf_token')?.value || '');
+        const button = upload.querySelector('button'); button.disabled = true; status.textContent = 'Uploading images…';
+        try {
+            await readJson(await fetch(link.dataset.bpUploadUrl, {method: 'POST', body: data, credentials: 'same-origin', redirect: 'error', headers: {'Accept': 'application/json'}}));
+            if (!closed) { upload.reset(); search.reset(); await load(); }
+        } catch (error) { if (!closed) status.textContent = error.message; }
+        finally { button.disabled = false; }
+    });
+    dialog.showModal(); load();
+}
+
+function enhanceEditorMedia() {
+    document.querySelectorAll('[data-bp-editor-media]').forEach((link) => {
+        link.addEventListener('click', (event) => openEditorMedia(link.closest('[data-bp-content-editor]'), link, event));
+    });
 }
 
 function insertEditorSnippet(host, kind) {
@@ -346,6 +641,7 @@ function enhanceContentEditors() {
         const mediaLabel = document.createElement('span');
         mediaLabel.textContent = 'Media';
         mediaAction.append(mediaLabel);
+        mediaAction.addEventListener('click', (event) => openEditorMedia(host, mediaSource, event));
 
         const focusButton = document.createElement('button');
         focusButton.type = 'button';
@@ -772,6 +1068,8 @@ document.addEventListener('DOMContentLoaded', () => {
     enhanceMenuBuilder();
     enhanceContentEditors();
     window.requestAnimationFrame(enhanceContentEditors);
+    enhanceEditorRecovery();
+    enhanceEditorMedia();
     enhanceAifPanels();
     enhancePublicCodeBlocks();
     loadMathJaxWhenNeeded();

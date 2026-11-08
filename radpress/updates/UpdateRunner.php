@@ -67,18 +67,18 @@ final class UpdateRunner
         return ['ok' => true, 'stage_dir' => $stageDir, 'manifest' => $package['manifest']];
     }
 
-    public function apply(string $stageDir): array
+    public function apply(string $stageDir, ?array $server = null): array
     {
         $directory = $this->paths->dataPath('tmp');
         if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) return ['ok'=>false, 'error'=>'Unable to prepare update storage.'];
         $lock = fopen($directory . '/update-apply.lock', 'c+');
         if ($lock === false) return ['ok'=>false, 'error'=>'Unable to lock update storage.'];
         if (!flock($lock, LOCK_EX | LOCK_NB)) { fclose($lock); return ['ok'=>false, 'error'=>'Another update is already running. Please try again later.']; }
-        try { return $this->applyLocked($stageDir); }
+        try { return $this->applyLocked($stageDir, $server ?? $_SERVER); }
         finally { flock($lock, LOCK_UN); fclose($lock); }
     }
 
-    private function applyLocked(string $stageDir): array
+    private function applyLocked(string $stageDir, array $server): array
     {
         if (!is_dir($stageDir)) {
             return ['ok' => false, 'error' => 'The selected staged package is no longer available. Stage the package again.'];
@@ -102,6 +102,12 @@ final class UpdateRunner
             return ['ok' => false, 'error' => 'Release manifest does not list files to install.'];
         }
 
+        foreach ([$this->paths->configPath('site.json'), $this->paths->dataPath('updates/installed-release.json')] as $path) {
+            if (is_link($path) || is_link(dirname($path))) return ['ok'=>false, 'error'=>'Linked upgrade configuration is not supported.'];
+        }
+        $compatibility = new UpgradeCompatibility($this->paths);
+        try { $compatibility->preflight($manifest); }
+        catch (\Throwable $error) { return ['ok'=>false, 'error'=>$error->getMessage()]; }
         $backup = (new BackupManager($this->paths))->create();
         if (!($backup['ok'] ?? false)) {
             return ['ok' => false, 'error' => 'Unable to create pre-update backup: ' . (string)($backup['error'] ?? 'backup failed')];
@@ -112,66 +118,71 @@ final class UpdateRunner
 
         $installed = 0;
         $installedTargets = [];
+        $createdDirectories = [];
         $preservedTargets = [];
-        foreach ($files as $file) {
-            if (!is_array($file)) {
-                return $this->failAndRollback('Release manifest contains an invalid file entry.', (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
+        try {
+            $migrations = $compatibility->migrate($manifest, $server, $installedTargets, $createdDirectories);
+            foreach ($files as $file) {
+                if (!is_array($file)) {
+                    throw new \RuntimeException('Release manifest contains an invalid file entry.');
+                }
+
+                $sourceRelative = (string)($file['source'] ?? $file['path'] ?? '');
+                $targetRelative = (string)($file['target'] ?? $file['path'] ?? '');
+                $checksum = (string)($file['sha256'] ?? '');
+                $source = $this->joinRelative($packageRoot, $sourceRelative);
+                $target = $this->joinRelative($this->paths->root(), $targetRelative);
+
+                if ($source === null || $target === null || !$this->isAllowedTarget($targetRelative)) {
+                    throw new \RuntimeException('Release manifest contains an unsafe or unsupported file path: ' . $sourceRelative . ' → ' . $targetRelative . '. Use a compatible official package; do not disable path checks.');
+                }
+
+                if (!is_file($source)) {
+                    throw new \RuntimeException('Staged file is missing: ' . $sourceRelative);
+                }
+
+                if ($checksum !== '' && hash_file('sha256', $source) !== strtolower($checksum)) {
+                    throw new \RuntimeException('Checksum failed for staged file: ' . $sourceRelative);
+                }
+
+                $keepTheme = false;
+                foreach ($migrations['preserved_prefixes'] as $prefix) if (str_starts_with(str_replace('\\', '/', $targetRelative), $prefix)) $keepTheme = true;
+                if ($keepTheme || ($this->preserveExistingTarget($targetRelative) && is_file($target))) {
+                    $preservedTargets[trim($targetRelative, '/')] = true;
+                    continue;
+                }
+
+                $targetDir = dirname($target);
+                if (!is_dir($targetDir)) {
+                    mkdir($targetDir, 0775, true);
+                }
+
+                $installedTargets[$target] = is_file($target);
+                if (!copy($source, $target)) {
+                    throw new \RuntimeException('Unable to install file: ' . $targetRelative);
+                }
+
+                $installed++;
+                if (str_ends_with($target, '.php') && function_exists('opcache_invalidate')) {
+                    opcache_invalidate($target, true);
+                }
             }
 
-            $sourceRelative = (string)($file['source'] ?? $file['path'] ?? '');
-            $targetRelative = (string)($file['target'] ?? $file['path'] ?? '');
-            $checksum = (string)($file['sha256'] ?? '');
-            $source = $this->joinRelative($packageRoot, $sourceRelative);
-            $target = $this->joinRelative($this->paths->root(), $targetRelative);
-
-            if ($source === null || $target === null || !$this->isAllowedTarget($targetRelative)) {
-                return $this->failAndRollback('Release manifest contains an unsafe or unsupported file path: ' . $sourceRelative . ' → ' . $targetRelative . '. Use a compatible official package; do not disable path checks.', (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
+            $cacheCleared = (new Cache($this->paths))->clear();
+            $healthManifest = $manifest;
+            $healthManifest['files'] = array_values(array_filter((array)($manifest['files'] ?? []), static function (mixed $file) use ($preservedTargets): bool {
+                if (!is_array($file)) return true;
+                $target = trim((string)($file['target'] ?? $file['path'] ?? ''), '/');
+                return !isset($preservedTargets[$target]);
+            }));
+            $health = (new UpdateHealthCheck($this->paths))->run($healthManifest);
+            if (!($health['ok'] ?? false)) {
+                throw new \RuntimeException('Post-update health check failed: ' . implode('; ', $health['errors'] ?? []));
             }
-
-            if (!is_file($source)) {
-                return $this->failAndRollback('Staged file is missing: ' . $sourceRelative, (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
-            }
-
-            if ($checksum !== '' && hash_file('sha256', $source) !== strtolower($checksum)) {
-                return $this->failAndRollback('Checksum failed for staged file: ' . $sourceRelative, (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
-            }
-
-            if ($this->preserveExistingTarget($targetRelative) && is_file($target)) {
-                $preservedTargets[trim($targetRelative, '/')] = true;
-                continue;
-            }
-
-            $targetDir = dirname($target);
-            if (!is_dir($targetDir)) {
-                mkdir($targetDir, 0775, true);
-            }
-
-            $installedTargets[$target] = is_file($target);
-            if (!copy($source, $target)) {
-                return $this->failAndRollback('Unable to install file: ' . $targetRelative, (string)($backup['path'] ?? ''), $maintenance, $installedTargets);
-            }
-
-            $installed++;
-            if (str_ends_with($target, '.php') && function_exists('opcache_invalidate')) {
-                opcache_invalidate($target, true);
-            }
-        }
-
-        $cacheCleared = (new Cache($this->paths))->clear();
-        $healthManifest = $manifest;
-        $healthManifest['files'] = array_values(array_filter((array)($manifest['files'] ?? []), static function (mixed $file) use ($preservedTargets): bool {
-            if (!is_array($file)) return true;
-            $target = trim((string)($file['target'] ?? $file['path'] ?? ''), '/');
-            return !isset($preservedTargets[$target]);
-        }));
-        $health = (new UpdateHealthCheck($this->paths))->run($healthManifest);
-        if (!($health['ok'] ?? false)) {
-            return $this->failAndRollback(
-                'Post-update health check failed: ' . implode('; ', $health['errors'] ?? []),
-                (string)($backup['path'] ?? ''),
-                $maintenance,
-                $installedTargets
-            );
+            $compatibility->recordInstalledRelease($manifest, $installedTargets, $createdDirectories);
+            unset($migrations['preserved_prefixes']);
+        } catch (\Throwable $error) {
+            return $this->failAndRollback($error->getMessage(), (string)($backup['path'] ?? ''), $maintenance, $installedTargets, $createdDirectories);
         }
 
         $maintenance->disable();
@@ -183,6 +194,7 @@ final class UpdateRunner
             'health_check' => $health,
             'backup' => $backup['path'] ?? null,
             'version' => (string)($manifest['version'] ?? ''),
+            'compatibility' => $migrations,
         ];
     }
 
@@ -351,13 +363,16 @@ final class UpdateRunner
         return $normalizedPath !== $normalizedRoot && str_starts_with($normalizedPath, $normalizedRoot . '/');
     }
 
-    private function failAndRollback(string $error, string $backupPath, MaintenanceMode $maintenance, array $installedTargets = []): array
+    private function failAndRollback(string $error, string $backupPath, MaintenanceMode $maintenance, array $installedTargets = [], array $createdDirectories = []): array
     {
         $rollback = $backupPath !== '' ? (new RollbackManager($this->paths))->restore($backupPath) : ['ok' => false, 'error' => 'No backup was available.'];
         foreach ($installedTargets as $target => $existedBefore) {
             if ($existedBefore === false && is_file($target)) {
                 unlink($target);
             }
+        }
+        foreach (array_reverse($createdDirectories) as $directory) {
+            if (is_dir($directory) && !is_link($directory) && (scandir($directory) ?: []) === ['.', '..']) rmdir($directory);
         }
         (new Cache($this->paths))->clear();
         $maintenance->disable();

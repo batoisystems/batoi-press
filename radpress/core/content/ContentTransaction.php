@@ -52,6 +52,14 @@ final class ContentTransaction
             if (isset($prepared['hierarchy_revision']) && $prepared['hierarchy_revision'] !== $this->hierarchyFingerprint($type)) {
                 throw new RuntimeException('Content hierarchy changed between preparation and storage. Review the affected routes again.');
             }
+            if ($type === 'product' && ($meta['sku'] ?? '') !== '') {
+                foreach (glob($base . '/*/meta.json') ?: [] as $path) {
+                    $candidate = basename(dirname($path));
+                    if ($candidate === $source) continue;
+                    $other = $this->files->readJson($this->safePath($base, $candidate . '/meta.json'));
+                    if (strcasecmp((string)($other['sku'] ?? ''), (string)$meta['sku']) === 0) throw new RuntimeException('A product with this SKU already exists.');
+                }
+            }
             $entries = [];
             foreach (['meta.json' => $this->encode($meta), 'body.html' => (string)$prepared['body']] as $name => $after) {
                 $beforePath = $this->safePath($base, $source . '/' . $name);
@@ -209,12 +217,17 @@ final class ContentTransaction
         if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0700, true) && !is_dir(dirname($path))) throw new RuntimeException('Unable to create content storage lock.');
         $lock = fopen($path, 'c+');
         if ($lock === false || !flock($lock, LOCK_EX)) throw new RuntimeException('Unable to lock content storage.');
-        try { return $callback(); } finally { flock($lock, LOCK_UN); fclose($lock); }
+        try {
+            if ($type === 'product' && is_file($this->paths->dataPath('commerce/journal.json'))) {
+                (new \Batoi\Press\Commerce\CommerceJournal($this->paths, $this->files))->locked(static fn(): array => []);
+            }
+            return $callback();
+        } finally { flock($lock, LOCK_UN); fclose($lock); }
     }
 
     private function base(string $type): string
     {
-        if (!in_array($type, ['page', 'post'], true)) throw new RuntimeException('Unsupported transaction content type.');
+        if (!in_array($type, ['page', 'post', 'product'], true)) throw new RuntimeException('Unsupported transaction content type.');
         return $this->paths->contentPath($type . 's');
     }
 

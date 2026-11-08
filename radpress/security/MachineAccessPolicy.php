@@ -54,7 +54,8 @@ final class MachineAccessPolicy
 
         // Authors require per-record ownership enforcement before machine access can be enabled.
         $allowed = match (AdminAccess::role($user)) {
-            'owner', 'admin' => AccessTokenRepository::SCOPES,
+            'owner' => AccessTokenRepository::SCOPES,
+            'admin' => array_values(array_diff(AccessTokenRepository::SCOPES,['theme:read','theme:write'])),
             'editor' => ['site:read', 'content:read', 'content:write', 'content:publish', 'media:read', 'media:write'],
             default => [],
         };

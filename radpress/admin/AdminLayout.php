@@ -10,6 +10,15 @@ final class AdminLayout
 {
     private static ?Csrf $csrf = null;
     private static array $user = [];
+    private static array $site = [];
+    private static bool $commerce = false;
+
+    public static function setCommerce(bool $enabled): void { self::$commerce = $enabled; }
+
+    public static function setSite(array $site): void
+    {
+        self::$site = $site;
+    }
 
     public static function setCsrf(Csrf $csrf): void
     {
@@ -130,7 +139,7 @@ final class AdminLayout
 
     private static function navGroups(): array
     {
-        return [
+        $groups = [
             'Overview' => [
                 ['label' => 'Dashboard', 'href' => '/admin', 'icon' => 'dashboard'],
             ],
@@ -146,6 +155,7 @@ final class AdminLayout
             ],
             'Site' => [
                 ['label' => 'Settings', 'href' => '/admin/settings', 'icon' => 'settings'],
+                ['label' => 'Commerce', 'href' => '/admin/commerce', 'icon' => 'database'],
                 ['label' => 'Themes', 'href' => '/admin/themes', 'icon' => 'code'],
                 ['label' => 'Plugins', 'href' => '/admin/plugins', 'icon' => 'code'],
                 ['label' => 'Static Export', 'href' => '/admin/export-static', 'icon' => 'download'],
@@ -163,6 +173,8 @@ final class AdminLayout
                 ['label' => 'Batoi AIF', 'href' => '/admin/aif', 'icon' => 'spark'],
             ],
         ];
+        if (self::$commerce) array_splice($groups['Publish'], 4, 0, [['label'=>'Orders','href'=>'/admin/orders','icon'=>'file']]);
+        return $groups;
     }
 
     private static function isActive(string $href): bool
@@ -208,17 +220,7 @@ final class AdminLayout
 
     private static function siteName(): string
     {
-        $path = dirname(__DIR__) . '/config/site.json';
-        if (is_file($path)) {
-            $site = json_decode((string)file_get_contents($path), true);
-            if (is_array($site)) {
-                $name = trim((string)($site['name'] ?? ''));
-                if ($name !== '') {
-                    return $name;
-                }
-            }
-        }
-        return 'Batoi Press';
+        return trim((string)(self::$site['name'] ?? '')) ?: 'Batoi Press';
     }
 
     private static function initials(string $label): string

@@ -236,11 +236,11 @@ final class MenuController
 
     private function itemLibrary(): string
     {
-        $html = '<div class="bp-menu-library"><button type="button" data-bp-add-menu-library data-label="Home" data-url="/" data-type="page"><strong>Home</strong><small>/</small></button><button type="button" data-bp-add-menu-library data-label="Blog" data-url="/blog" data-type="archive"><strong>Blog</strong><small>/blog</small></button>';
+        $html = '<div class="bp-menu-library"><button type="button" data-bp-add-menu-library data-label="Home" data-url="/" data-type="page"><strong>Home</strong><small>/</small>' . AdminLayout::icon('plus') . '</button><button type="button" data-bp-add-menu-library data-label="Blog" data-url="/blog" data-type="archive"><strong>Blog</strong><small>/blog</small>' . AdminLayout::icon('plus') . '</button>';
         foreach ($this->pages()->allPublished() as $page) {
             $label = (string)($page['title'] ?? $page['slug'] ?? 'Page');
             $url = $this->pages()->publicPath($page);
-            $html .= '<button type="button" data-bp-add-menu-library data-label="' . $this->e($label) . '" data-url="' . $this->e($url) . '" data-type="page"><strong>' . $this->e($label) . '</strong><small>' . $this->e($url) . '</small></button>';
+            $html .= '<button type="button" data-bp-add-menu-library data-label="' . $this->e($label) . '" data-url="' . $this->e($url) . '" data-type="page"><strong>' . $this->e($label) . '</strong><small>' . $this->e($url) . '</small>' . AdminLayout::icon('plus') . '</button>';
         }
         return $html . '</div>';
     }

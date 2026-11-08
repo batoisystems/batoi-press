@@ -23,8 +23,13 @@ final class RollbackManager
             return ['ok' => false, 'error' => 'Unable to open backup ZIP.'];
         }
 
+        // Runtime rollback must not rewind inventory after a real order/payment.
+        $preserveProducts = is_file($this->paths->dataPath('commerce/state.json')) || (glob($this->paths->dataPath('commerce/orders/ord_*.json')) ?: []) !== [];
+        $productPrefix = ltrim(substr($this->paths->contentPath('products'), strlen($this->paths->root())), '/') . '/';
+
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $name = (string)$zip->getNameIndex($i);
+            if ($preserveProducts && str_starts_with($name, $productPrefix)) continue;
             if ($name === 'backup-manifest.json' || str_contains($name, '..') || str_starts_with($name, '/')) {
                 continue;
             }
@@ -43,6 +48,6 @@ final class RollbackManager
         }
         $zip->close();
 
-        return ['ok' => true, 'path' => $backupZip];
+        return ['ok' => true, 'path' => $backupZip, 'preserved_commerce_products' => $preserveProducts];
     }
 }

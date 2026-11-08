@@ -21,6 +21,8 @@ final class AccessTokenRepository
         'media:read',
         'media:write',
         'audit:read',
+        'theme:read',
+        'theme:write',
     ];
 
     private const TOKEN_PATTERN = '/^bp2_([a-f0-9]{24})_([A-Za-z0-9_-]{43})$/D';

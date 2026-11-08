@@ -117,6 +117,11 @@ try {
             assertTemplate(($savedResponse->headers()['Location'] ?? '') === '/testsite/public_html/admin/theme-templates/edit/demo/' . $key, 'editor redirects should retain the installation subdirectory');
             assertTemplate(file_get_contents($target) === $source, 'encoded source should round-trip without UTF-8 loss');
             assertTemplate(count(glob($root . '/radpress/data/versions/theme/demo/' . $key . '/*') ?: []) === 1, 'saving should snapshot the original custom template');
+            $sameUrl = '/admin/theme-templates/edit/demo/' . $key;
+            $editor = $controller->edit('demo/' . $key)->content();
+            assertTemplate(str_contains($editor, 'action="/testsite/public_html' . $sameUrl . '"'), 'Save posts to the working editor URL with installation prefix.');
+            $sameUrlSave = $controller->save(new \Batoi\Press\Core\Request('POST', $sameUrl, [], $input, ['HTTP_X_PRESS_EDITOR'=>'1']));
+            assertTemplate($sameUrlSave->status() === 200 && (json_decode($sameUrlSave->content(), true)['ok'] ?? false) && file_get_contents($target) === $source, 'Same-URL enhanced save preserves exact source and confirms success.');
             $input['source_encoded'] = 'invalid!base64';
             assertTemplate($controller->save(new \Batoi\Press\Core\Request('POST', '/admin/theme-templates/save', [], $input, []))->status() === 400, 'invalid encoded source should be rejected');
             $input['csrf_token'] = 'invalid-token';

@@ -66,7 +66,7 @@ final class PageController
         foreach ($filteredPages as $page) {
             $slug = (string)($page['slug'] ?? '');
             $title = (string)($page['title'] ?? 'Untitled');
-            $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>' . (!empty($page['parent_slug']) ? 'Child page' : 'Page') . '</small></td><td>' . $this->statusBadge((string)($page['status'] ?? 'draft')) . '</td><td><code>' . $this->e($this->pageUrl($page)) . '</code></td><td>' . $this->formatDate((string)($page['updated_at'] ?? '')) . '</td><td><div class="bp-table-actions"><a href="' . $this->e($this->pageUrl($page)) . '">View</a><a href="/admin/pages/edit/' . rawurlencode($slug) . '">Edit</a><a href="/admin/pages/new?parent=' . rawurlencode($slug) . '">Add child</a>' . $this->trashAction($page) . '</div></td></tr>';
+            $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>' . (!empty($page['parent_slug']) ? 'Child page' : 'Page') . '</small></td><td>' . $this->statusBadge((string)($page['status'] ?? 'draft')) . '</td><td><code>' . $this->e($this->pageUrl($page)) . '</code></td><td>' . $this->formatDate((string)($page['updated_at'] ?? '')) . '</td><td><div class="bp-table-actions">' . AdminLayout::buttonLink('View', $this->pageUrl($page), 'site') . AdminLayout::buttonLink('Edit', '/admin/pages/edit/' . rawurlencode($slug), 'edit') . AdminLayout::buttonLink('Add child', '/admin/pages/new?parent=' . rawurlencode($slug), 'plus') . $this->duplicateAction($page) . $this->trashAction($page) . '</div></td></tr>';
         }
         $body .= '</tbody></table></div>';
         return Response::html($this->layout('Pages', $body));
@@ -75,8 +75,10 @@ final class PageController
     public function edit(?string $slug = null): Response
     {
         $page = $slug ? $this->pages->findBySlug($slug) : null;
+        if ($slug !== null && $page === null) return Response::html($this->layout('Pages','<p>Page not found.</p>'),404);
         if (($page['status'] ?? '') === 'trashed') return Response::html($this->layout('Trash', '<p>Restore this page as a draft before editing.</p>' . $this->trashAction($page)));
-        return Response::html($this->layout($slug ? 'Edit Page' : 'Create Page', $this->form($page)));
+        try { return Response::html($this->layout($slug ? 'Edit Page' : 'Create Page', $this->form($page))); }
+        catch (\Batoi\Press\Application\ContentMutationException $error) { return Response::html($this->layout('Recovery unavailable','<p class="bp-error">' . $this->e($error->getMessage()) . '</p>' . AdminLayout::buttonLink('Review recovery','/admin/editor-recovery/list?' . http_build_query(['type'=>'page','identifier'=>$slug ?? '','format'=>'html']),'edit',true)),$error->httpStatus()); }
     }
 
     private function trashAction(array $record): string
@@ -84,7 +86,28 @@ final class PageController
         $restore = ($record['status'] ?? '') === 'trashed';
         return '<form method="post" action="/admin/pages/trash" class="bp-inline-form">' . $this->csrf->field()
             . '<input type="hidden" name="slug" value="' . $this->e((string)$record['slug']) . '"><input type="hidden" name="expected_revision" value="' . $this->e(ContentRevision::for($record)) . '">'
-            . '<input type="hidden" name="decision" value="' . ($restore ? 'restore' : 'trash') . '"><button type="submit" title="' . ($restore ? 'Restore privately as a draft' : 'Remove from the website; content stays recoverable in Trash') . '">' . ($restore ? 'Restore draft' : 'Move to Trash') . '</button></form>';
+            . '<input type="hidden" name="decision" value="' . ($restore ? 'restore' : 'trash') . '"><button type="submit" class="bp-button bp-button-secondary" title="' . ($restore ? 'Restore privately as a draft' : 'Remove from the website; content stays recoverable in Trash') . '">' . AdminLayout::icon($restore ? 'refresh' : 'delete') . '<span>' . ($restore ? 'Restore draft' : 'Move to Trash') . '</span></button></form>';
+    }
+
+    private function duplicateAction(array $record): string
+    {
+        if (($record['status'] ?? '') === 'trashed') return '';
+        return '<form method="post" action="/admin/pages/duplicate" class="bp-inline-form">' . $this->csrf->field()
+            . '<input type="hidden" name="slug" value="' . $this->e((string)$record['slug']) . '"><input type="hidden" name="expected_revision" value="' . $this->e(ContentRevision::for($record)) . '">'
+            . AdminLayout::submitButton('Duplicate', 'copy', 'class="bp-button"') . '</form>';
+    }
+
+    public function duplicate(Request $request): Response
+    {
+        if ($request->method !== 'POST') return Response::html('<p>POST required.</p>', 405)->withHeader('Allow', 'POST');
+        if (!$this->csrf->validate($request->input('csrf_token'))) return Response::html($this->layout('Pages', '<p class="bp-error">Security token expired.</p>'), 400);
+        try {
+            $copy = (new ContentMutationService($this->config, $this->pages, $this->posts, $this->audit, new IdempotencyStore($this->config->paths())))->duplicateFromAdmin('page', $request->input('slug'), $request->input('expected_revision'), $this->user);
+        } catch (RuntimeException $error) {
+            $status = $error instanceof \Batoi\Press\Application\ContentMutationException ? $error->httpStatus() : 409;
+            return Response::html($this->layout('Pages', '<p class="bp-error">' . $this->e($error->getMessage()) . '</p>'), $status);
+        }
+        return Response::redirect('/admin/pages/edit/' . rawurlencode((string)$copy['slug']));
     }
 
     public function trash(Request $request): Response
@@ -151,7 +174,8 @@ final class PageController
                 'admin_' . bin2hex(random_bytes(8))
             );
         } catch (RuntimeException $exception) {
-            return Response::html($this->layout('Pages', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>' . AdminLayout::buttonLink('Back to pages', '/admin/pages', 'back', true) . '</p>'), 409);
+            $recovery = '/admin/editor-recovery/list?' . http_build_query(['type'=>'page','identifier'=>$originalSlug,'format'=>'html']);
+            return Response::html($this->layout('Pages', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>The editor may have preserved a private recovery copy. Review it before re-entering content.</p><p>' . AdminLayout::buttonLink('Review recovery copies',$recovery,'edit',true) . AdminLayout::buttonLink('Back to pages', '/admin/pages', 'back', true) . '</p>'), 409);
         }
         if (!empty($sanitizerWarnings)) return Response::html($this->layout('Page saved', '<p role="status">Page saved. ' . $this->e(implode(' ', $sanitizerWarnings)) . ' Use Media performance settings for hero preloading.</p>' . AdminLayout::buttonLink('Back to pages', '/admin/pages', 'back', true)));
         return Response::redirect('/admin/pages');
@@ -160,6 +184,12 @@ final class PageController
     private function form(?array $page): string
     {
         $isEdit = $page !== null;
+        $source = $page;
+        $originalSlug = (string)($source['slug'] ?? '');
+        $baseRevision = $source === null ? '' : ContentRevision::for($source);
+        $recovered = is_string($_GET['recovery'] ?? null) && $_GET['recovery'] !== '';
+        $recovery = $recovered ? (new \Batoi\Press\Application\EditorRecovery($this->config,$this->user))->forEditor('page',$originalSlug,$_GET['recovery']) : null;
+        if ($recovery !== null) $page = \Batoi\Press\Application\EditorRecovery::values($source,$recovery,'page');
         $slug = (string)($page['slug'] ?? '');
         $requestedParent = Slug::normalize((string)($page['parent_slug'] ?? $_GET['parent'] ?? ''));
         if ($requestedParent !== '' && $this->pages->findBySlug($requestedParent) === null) {
@@ -167,7 +197,7 @@ final class PageController
         }
         $actions = AdminLayout::buttonLink('Back to pages', '/admin/pages', 'back', true);
         if ($isEdit) {
-            $actions = AdminLayout::buttonLink('View page', $this->pageUrl($page), 'site', true) . AdminLayout::buttonLink('Add child page', '/admin/pages/new?parent=' . rawurlencode($slug), 'plus', true) . $actions;
+            $actions = AdminLayout::buttonLink('View page', $this->pageUrl($source), 'site', true) . AdminLayout::buttonLink('Add child page', '/admin/pages/new?parent=' . rawurlencode($originalSlug), 'plus', true) . $actions;
         }
 
         $body = AdminLayout::pageHeader(
@@ -175,15 +205,23 @@ final class PageController
             'Manage page content, publication state, and search metadata in one workflow.',
             $actions
         );
-        $body .= '<form method="post" action="/admin/pages/save" class="bp-form bp-admin-editor" novalidate>';
+        $body .= '<form method="post" action="/admin/pages/save" class="bp-form bp-admin-editor" novalidate' . ContentEditor::recoveryAttributes('page',$originalSlug,$recovered) . '>';
+        $body .= ContentEditor::recoveryControls('page',$originalSlug,$recovered);
         $body .= $this->csrf->field();
-        $body .= '<input type="hidden" name="original_slug" value="' . $this->e($slug) . '">';
-        $body .= '<input type="hidden" name="expected_revision" value="' . $this->e($page === null ? '' : ContentRevision::for($page)) . '">';
+        $body .= '<input type="hidden" name="original_slug" value="' . $this->e($originalSlug) . '">';
+        $body .= '<input type="hidden" name="expected_revision" value="' . $this->e($baseRevision) . '">';
 
         $bodyValue = (string)($page['body'] ?? '');
         $htmlContent = new HtmlContent();
         $textSegments = $isEdit ? $htmlContent->editableTextSegments($bodyValue) : [];
         $requestedEditor = strtolower(trim((string)($_GET['editor'] ?? '')));
+        if ($recovery !== null && ($recovery['body_edit_mode'] ?? '') !== 'text_only') $requestedEditor = 'html';
+        if (($recovery['body_edit_mode'] ?? '') === 'text_only') {
+            $requestedEditor = 'text';
+            $textSegments = $htmlContent->editableTextSegments((string)($source['body'] ?? ''));
+            foreach ($textSegments as &$segment) if (array_key_exists($segment['id'],$recovery['body_text'] ?? [])) $segment['value'] = $recovery['body_text'][$segment['id']];
+            unset($segment);
+        }
         $storedBlocks = $page['blocks'] ?? [];
         $supportsProtectedEditing = !is_array($storedBlocks) || $storedBlocks === [] || (count($storedBlocks) === 1 && ($storedBlocks[0]['type'] ?? '') === 'html');
         $textOnly = $isEdit
@@ -192,7 +230,7 @@ final class PageController
             && ($requestedEditor === 'text' || ($requestedEditor === '' && $htmlContent->hasComplexStructure($bodyValue)));
         $sourceOnly = $requestedEditor === 'html';
         $editor = $textOnly
-            ? ContentEditor::renderTextOnly($bodyValue, $textSegments, 'bp-page-body')
+            ? ContentEditor::renderTextOnly((string)($source['body'] ?? $bodyValue), $textSegments, 'bp-page-body')
             : $this->blocksEditor($page, $bodyValue, $sourceOnly);
         $modeSwitch = $isEdit && $supportsProtectedEditing && $textSegments !== [] ? $this->editorModeSwitch($slug, $textOnly) : '';
         $pageAssets = '<details class="bp-field-wide bp-editor-advanced"><summary>Page CSS and JavaScript</summary><div class="bp-form-grid">'
@@ -216,7 +254,7 @@ final class PageController
         $seo .= '</details>';
 
         $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible page content.') . '</div><aside class="bp-editor-side">' . AifEditorPanel::render($this->config, 'page') . $this->editorPanel('Publishing', $publishing, 'Control draft or live availability.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->pageChecklist(), 'Review before publishing or changing a live page.') . '</aside>';
-        $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/pages', 'back', true) . AdminLayout::submitButton('Save Page', 'save') . '</div></form>';
+        $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/pages', 'back', true) . AdminLayout::submitButton($source !== null && \Batoi\Press\Content\PublicationState::isPublic($source) ? 'Save and publish changes' : 'Save Page', 'save') . '</div></form>';
         return $body;
     }
 
@@ -453,8 +491,7 @@ final class PageController
             return '<span class="bp-muted">Not saved</span>';
         }
 
-        $timestamp = strtotime($value);
-        return $timestamp ? $this->e(date('M j, Y H:i', $timestamp)) : $this->e($value);
+        return $this->e(\Batoi\Press\Core\DateFormat::display($value, $this->config->site(), 'datetime'));
     }
 
     private function pageUrl(array $page): string

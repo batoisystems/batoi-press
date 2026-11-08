@@ -132,3 +132,32 @@ Plugin packages require owner approval, verified signatures/inventories and expl
 Custom forms apply server validation, CSRF/nonces, quotas, escaping and configured CAPTCHA. Encrypted queued delivery is at least once with bounded leases/retries; receivers must deduplicate delivery IDs. Queued jobs and retained redacted submissions now commit in the same atomic JSON mutation; retry identities bind the original payload. Queue-capacity/fingerprint failure fixtures preserve existing storage. Actual low-disk/interrupted-process host behavior and direct private-path HTTP exposure remain release checks.
 
 `composer audit --locked --format=json --no-interaction` reported no known advisories and no abandoned packages on 2026-10-04. The current lock file contains `firebase/php-jwt` 7.1.0 under BSD-3-Clause. This is a point-in-time advisory check, not a guarantee that dependencies have no vulnerabilities. Optional JWT code is loaded only when used.
+
+## 5.0 development boundaries — 2026-11-08
+
+Commerce starts disabled. Owner setup uses CSRF, revision checks, password/MFA
+reauthentication and account throttling. Orders and financial product changes
+require owner/admin access once commerce is enabled or has been used. Existing
+machine credentials gain no commerce or theme-generation authority.
+
+Stripe callbacks verify raw-body signatures and timestamps, then retrieve the
+merchant session before applying order/installation/amount/currency/mode-bound
+transitions. Browser return URLs cannot mark payments successful. Customer data
+and payment credentials use the host secret store; logs contain order/request
+references. Host-key creation is serialized to prevent concurrent first writes
+from producing incompatible encryption keys.
+
+Stock, orders and outbox effects use a shared recoverable journal. Late payments
+without available stock require merchant resolution. Runtime rollback preserves
+product state after commerce has been used. Core update backups are not complete
+commerce backups; see the [operator boundary](commerce.md#recovery-and-operations).
+
+The owner UIF theme kit accepts bounded, validated design data. Executable source
+comes from bundled templates and passes the existing compatibility inspector.
+Generated themes still require ordinary inactive installation, preview and human
+activation. No unrestricted AI file-write/execute/approve tools were added.
+
+The current locked Composer audit on 2026-11-08 returned no known advisories or
+abandoned packages. Commerce fault/concurrency, theme-generation and plugin-tool
+fixtures pass locally. Fresh comprehensive source/vendor review, actual hosting
+and Stripe acceptance, and complete accessibility checks remain release gates.

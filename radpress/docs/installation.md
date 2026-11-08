@@ -52,6 +52,42 @@ radpress/data/tmp/
 radpress/data/versions/
 ```
 
+## Local Fonts
+
+In **Settings → Appearance**, upload a WOFF2, WOFF, TTF or OTF font (up to 5 MB,
+subject to your server upload limit), then save Settings. One regular face is
+active at a time; the browser synthesizes bold and italic. Use a font licensed
+for web use. Font collections, SVG fonts and executable uploads are not accepted.
+No font-conversion library or additional PHP extension is required.
+
+The uploaded face takes precedence over the configured font family and external
+font stylesheet on the public site. The bundled theme uses it automatically;
+custom themes must honor the site font-family setting. Fonts use same-origin
+asset delivery and `font-display: swap`. Admin-console typography is unchanged.
+
+Replacing a font retains the previous file. **Stop using the local font** restores
+the configured fallback settings and also retains the file in Media. Font files
+live under `radpress/content/assets/fonts/site/`, are preserved with site content,
+and are included in static exports with page-relative URLs. Runtime upload checks
+validate container signatures, lengths and table bounds; full font decoding is
+performed by the browser.
+
+## Date and Time Display
+
+In **Settings → Localization**, choose the site timezone, Date Format and Time
+Format. Presets include day/month/year and ISO-style dates, and 12- or 24-hour
+times. Select **Custom** for PHP date-format characters; previews update as you
+type and use the selected timezone. Save Settings to apply the preferences.
+Formats are limited to 80 bytes; literal letters require backslash escaping.
+Month and weekday names remain English; no optional internationalization library
+is required. Existing sites keep `M j, Y` and `H:i` until changed.
+
+The bundled theme and human-facing admin timestamps use these preferences.
+Custom themes using `bp_date()` also inherit them; `bp_time()` formats a time.
+Both helpers return plain text that templates must escape for HTML. Stored dates,
+scheduling inputs, feeds, API values and exported machine timestamps retain their
+original formats.
+
 ## Release Package Notes
 
 A release ZIP should contain the runtime files needed for FTP upload:

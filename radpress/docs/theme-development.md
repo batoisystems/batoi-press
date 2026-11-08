@@ -305,3 +305,75 @@ existing themes do not need a migration or new manifest capability.
 These remain trusted PHP source files with the same privileges as existing theme
 layouts. They separate presentation from repository logic; they are not a PHP
 sandbox. Do not insert credentials, delivery calls or content mutations into them.
+
+## Portable UIF theme generation
+
+The development **Press Theme Kit for Batoi UIF 1.0.0** provides a file workflow
+for Claude, Gemini, ChatGPT or any tool that can return JSON. It does not require
+a model account inside Press, a particular connector or a Batoi cloud account.
+
+1. As the owner, open **Themes → Create UIF theme**. Download the starter and
+   schema, also available in [examples](examples/uif-theme-starter.json) and
+   [schemas](schemas/uif-theme.schema.json).
+2. Give them to your assistant with this request:
+
+   > Return only valid Press UIF Theme Kit 1.0.0 JSON for my site. Choose a new
+   > slug, name, author and version. Use the corporate, editorial or shop preset,
+   > documented six-digit color tokens and a 60–90rem width. Introduction sections
+   > support heading, text and local-link buttons. Preserve the schema. Include no
+   > credentials, PHP, JavaScript, arbitrary CSS, remote assets or extra fields.
+
+3. Paste the result into the owner form. Press validates bounded data, generates
+   templates/assets from its bundled implementation and runs the ordinary ZIP
+   compatibility inspector before download.
+4. Upload the ZIP through the existing Themes workflow. It installs inactive.
+   Preview every layout, phone/tablet/desktop widths, long titles, empty states,
+   navigation, contrast and keyboard behavior before activating it.
+
+The compiler accepts approved data only; it does not execute assistant-supplied
+source. All executable templates and UIF scripts come from bundled Press code.
+Introduction sections appear after a Landing page's normal content and retain
+its main heading. Contact pages use regular content and governed Forms blocks or
+links rather than embedding remote CAPTCHA code. Existing page/post/product
+content, menus, branding, responsive layouts and theme asset handling remain
+owned by their normal Press services.
+
+Generated ZIPs carry deterministic file ordering/timestamps and provenance hashes.
+Presets and token validation do not establish WCAG conformance. Native generated
+themes still go through the existing trusted-theme review; inspection is not a
+malware certification. Stage files remain private under `data/tmp/theme-kit/` and
+are excluded from releases.
+
+`php radpress/tests/uif_theme_kit.php` checks all three presets, reproducible
+packages, ordinary compatibility inspection, PHP syntax and hostile/unsupported
+inputs. It does not prove actual model generation in a named client.
+
+### Connected theme drafts (5.0 development)
+
+An owner can explicitly grant **theme:read** and **theme:write** in a Connections
+custom profile. Existing content/site scopes grant no theme authority. Theme
+scopes require a current owner principal and do not permit executable source
+uploads, installation or activation.
+
+Compatible clients use `theme_kit_get`, `theme_validate`, `theme_draft_create`
+and `theme_draft_get`. Creation requires a unique idempotency key. A retry with
+the same key and definition returns the same draft; changes require a new key.
+Return the resulting `review_url` to the owner. Never ask the assistant to obtain
+the owner's password or approve on the owner's behalf.
+
+The owner reviews an immutable JSON definition and downloads its validated ZIP.
+Downloads bind to the reviewed definition and generated-file revision; a source
+change requires a fresh draft. The ordinary inactive upload, layout/device
+preview and activation workflow follows. Drafts are encrypted under private
+`data/integrations/theme-drafts/`, bound to the installation and connection, and
+expire within 24 hours or at the connection's expiry. Revocation blocks download.
+Draft history is bounded at 1,000 records / approximately 64 MiB and is retained
+for operator archival. Draft status never means installed or active; manual
+installation/activation is not reported back as an applied machine proposal.
+
+See the [machine interface contract](machine-interfaces.md#connected-uif-theme-drafts-50-development)
+for JSON endpoints. `php radpress/tests/theme_drafts.php` exercises both transports,
+scope/connection isolation, retries, owner review, revocation and source conflicts.
+Visual diffs/restoration, a single reviewed activation proposal, and actual
+Claude/Gemini/ChatGPT acceptance remain planned. Responsive browser layouts are
+supported; this kit does not build native mobile/desktop application binaries.

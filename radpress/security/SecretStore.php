@@ -68,28 +68,32 @@ final class SecretStore
         }
 
         $path = $this->paths->dataPath('security/master.key');
-        if (is_file($path)) {
-            $decoded = base64_decode(trim((string)file_get_contents($path)), true);
-            if (is_string($decoded) && strlen($decoded) === 32) {
-                return $decoded;
-            }
-            throw new RuntimeException('The local secret-encryption key is invalid.');
-        }
         $directory = dirname($path);
-        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
-            throw new RuntimeException('Unable to create private secret storage.');
-        }
-        $key = random_bytes(32);
-        $temporary = $path . '.tmp-' . bin2hex(random_bytes(5));
-        if (file_put_contents($temporary, base64_encode($key) . PHP_EOL, LOCK_EX) === false) {
-            throw new RuntimeException('Unable to write local secret-encryption key.');
-        }
-        @chmod($temporary, 0600);
-        if (!rename($temporary, $path)) {
-            @unlink($temporary);
-            throw new RuntimeException('Unable to publish local secret-encryption key.');
-        }
-        @chmod($path, 0600);
-        return $key;
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) throw new RuntimeException('Unable to create private secret storage.');
+        if (is_link($directory) || is_link($path) || is_link($path . '.lock')) throw new RuntimeException('Linked secret storage is unsupported.');
+        $lock = fopen($path . '.lock', 'c+');
+        if ($lock === false || !flock($lock, LOCK_EX)) throw new RuntimeException('Unable to lock secret storage.');
+        @chmod($path . '.lock', 0600);
+        try {
+            if (is_file($path)) {
+                $decoded = base64_decode(trim((string)file_get_contents($path)), true);
+                if (is_string($decoded) && strlen($decoded) === 32) {
+                    return $decoded;
+                }
+                throw new RuntimeException('The local secret-encryption key is invalid.');
+            }
+            $key = random_bytes(32);
+            $temporary = $path . '.tmp-' . bin2hex(random_bytes(5));
+            if (file_put_contents($temporary, base64_encode($key) . PHP_EOL, LOCK_EX) === false) {
+                throw new RuntimeException('Unable to write local secret-encryption key.');
+            }
+            @chmod($temporary, 0600);
+            if (!rename($temporary, $path)) {
+                @unlink($temporary);
+                throw new RuntimeException('Unable to publish local secret-encryption key.');
+            }
+            @chmod($path, 0600);
+            return $key;
+        } finally { flock($lock, LOCK_UN); fclose($lock); }
     }
 }

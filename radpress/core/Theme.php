@@ -21,13 +21,20 @@ final class Theme
             $status = 404;
         }
 
+        $localFont = (new LocalFontManager($this->paths))->css($this->site, (bool)($options['localized_assets'] ?? true));
         $site = $this->site;
+        if ($localFont !== '') {
+            $site['font_family'] = LocalFontManager::FAMILY;
+            $site['font_stylesheet_url'] = '';
+        }
         extract($data, EXTR_SKIP);
         $theme = $manager->context($slug);
         if (array_filter($theme['errors'] ?? [], static fn(string $error): bool => preg_match('/^(?:PHP requires|PRESS requires|.*theme (?:contract|compatibility|token|color|partial)|Theme colors)/i',$error) === 1)) return Response::html('The active theme requires compatibility review. Use Themes to select a compatible theme.',503);
         foreach ($theme['tokens'] ?? [] as $mode => $palette) $site['palette_' . $mode] = array_replace($palette, (array)($site['palette_' . $mode] ?? []));
         $branding = (new BrandAssetManager($this->paths))->branding($site);
         $localizedAssets = (bool)($options['localized_assets'] ?? true);
+        $previousDates = $GLOBALS['bp_date_settings'] ?? null;
+        $GLOBALS['bp_date_settings'] = $site;
         $previousResolver = $GLOBALS['bp_theme_asset_resolver'] ?? null;
         $GLOBALS['bp_theme_asset_resolver'] = static fn(string $path): string => $manager->assetUrl($slug, $path, $localizedAssets);
 
@@ -45,6 +52,8 @@ final class Theme
             require $baseFile;
             $html = (string)ob_get_clean();
         } finally {
+            if ($previousDates === null) unset($GLOBALS['bp_date_settings']);
+            else $GLOBALS['bp_date_settings'] = $previousDates;
             if ($previousResolver === null) {
                 unset($GLOBALS['bp_theme_asset_resolver']);
             } else {
@@ -56,6 +65,7 @@ final class Theme
         $themeBody = $manager->tags($slug, 'body', $localizedAssets);
         $libraries = new AssetLibraryManager($this->paths);
         $head = $themeHead . $libraries->tags('head', $localizedAssets);
+        if ($localFont !== '') $head .= '<style data-bp-local-font>' . $localFont . '</style>';
         $body = $themeBody . $libraries->tags('body', $localizedAssets);
         $integrationsPath = $this->paths->configPath('integrations.json');
         $integrations = is_file($integrationsPath) ? (new FileStore())->readJson($integrationsPath) : [];

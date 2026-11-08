@@ -83,3 +83,55 @@ preload or lazy-load images. These controls are available through the page admin
 form; the machine-editable field allowlist is unchanged. Derivative manifests
 use `data/cache/media-variants-*.json`, separate from source content, and reference
 original checksums and public derivative files.
+
+## Private editor recovery (5.0 development)
+
+Page and post editors preserve content, structured blocks and metadata in an
+encrypted server-side copy after a short pause in typing. The status line
+distinguishes pending recovery, a saved private copy and a failed request.
+**Private recovery never changes the website.** Saving an already public item
+uses the explicit **Save and publish changes** action.
+
+Each editing tab has its own copy. Use **Review recovery copies** to compare
+the current source with a copy, then **Open recovery in editor** when the
+original revision still matches. Opening fills the form; it does not save it.
+If another editor saved meanwhile, both versions remain available for manual
+comparison and merging. Source HTML is escaped in comparison views, including
+untrusted embeds and scripts. Protected-layout recovery preserves the original
+structure and safely reapplies indexed text, including intentionally blank text.
+
+Recovery includes title, proposed slug, body/blocks, taxonomy, image and search
+metadata. Publication dates/status, reviewer notes and page CSS/JavaScript still
+require the normal save action. A browser leave warning covers unsaved form
+changes; normal submission attempts to preserve the latest content first.
+Without JavaScript or host encryption, use the normal save action. When the
+network or sign-in fails, keep the editor open and copy your text before reloading.
+
+Copies belong to the original account and require its current editing permission.
+They remain private across logout and are not placed in browser storage. Storage
+under `data/editor-recovery/` is excluded from releases. Limits are 100 copies /
+16 MiB per account and 2,000 copies / 128 MiB per installation. Owners should
+back up the encryption key with private data and archive old copies when needed;
+this version does not silently prune them or provide a discard/retention console.
+
+## Insert images from the editor (5.0 development)
+
+1. Place the cursor in the rich or HTML source editor and choose **Insert from
+   Media** (or the toolbar's **Media** action).
+2. Search existing raster images or expand **Upload images**. Uploads reuse the
+   normal Media permission, signature/type checks and host size limits. Optional
+   responsive copies are generated only when the host encoder/memory permits.
+3. Choose an image and review its content-specific alt text and caption. Supply
+   alt text for meaningful images, or explicitly mark a purely decorative image.
+4. Insert. The editor restores the cursor/focus and inserts escaped text,
+   dimensions and a local media URL. Public rendering adds available verified
+   responsive copies; page media settings govern lazy loading. Save and
+   preview the content normally. Library metadata and older embeds are unchanged.
+
+The modal supports keyboard navigation, Escape/cancel and focus return. It uses
+paginated, bounded image results and inspects derivative checksums only for the
+selected image. SVG and files without valid raster signatures are excluded.
+Authors without Media access retain their existing permissions; an editor or
+administrator manages images. Without JavaScript, the Media page still provides
+URLs and HTML snippets for source editing. Complete screen-reader and browser
+acceptance remains part of the 5.0 release gate.

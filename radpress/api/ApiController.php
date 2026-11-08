@@ -83,6 +83,8 @@ final class ApiController
                     'activity' => '/api/v2/activity',
                     'widgets' => '/api/v2/widgets',
                     'public_settings' => '/api/v2/public-settings',
+                    'theme_kit' => '/api/v2/theme-kit',
+                    'theme_drafts' => '/api/v2/theme-drafts',
                     'mcp' => '/mcp',
                 ],
             ], $requestId);
@@ -90,6 +92,8 @@ final class ApiController
         if ($request->path === '/api/v2/site') {
             return $this->success($this->reads->site(), $requestId, true);
         }
+        if ($request->path === '/api/v2/theme-kit') return $this->success(\Batoi\Press\Application\ThemeDrafts::kit(),$requestId);
+        if (preg_match('#^/api/v2/theme-drafts/(theme_[a-f0-9]{32})$#D',$request->path,$match)) return $this->success((new \Batoi\Press\Application\ThemeDrafts($this->config))->get($match[1],$access),$requestId);
         if ($request->path === '/api/v2/widgets') return $this->success((new \Batoi\Press\Content\WidgetRepository($this->config->paths()))->load(), $requestId, true);
         if (preg_match('#^/api/v2/media-proposals/(proposal_[a-f0-9]{32})$#D', $request->path, $match)) return $this->success($this->mutations->menuProposalSummary($match[1], $access, 'media'), $requestId);
         if ($request->path === '/api/v2/public-settings') return $this->success((new \Batoi\Press\Content\PublicSettingsRepository($this->config->paths()))->load(), $requestId, true);
@@ -153,6 +157,11 @@ final class ApiController
             return $this->error('invalid_json', 'Request body must be a JSON object.', 400, $requestId);
         }
         $actor = 'token:' . (string)($access['id'] ?? 'unknown');
+        if ($request->method === 'POST' && in_array($request->path,['/api/v2/theme-kit/validate','/api/v2/theme-drafts'],true)) {
+            if (array_diff(array_keys($input),['definition']) || !is_array($input['definition'] ?? null) || array_is_list($input['definition'])) throw new ContentMutationException('Provide one definition object.','validation_failed',422);
+            $drafts = new \Batoi\Press\Application\ThemeDrafts($this->config);
+            return $request->path === '/api/v2/theme-kit/validate' ? $this->success($drafts->validate($input['definition']),$requestId) : $this->success($drafts->create($input['definition'],$access,$request->header('Idempotency-Key')),$requestId,false,202);
+        }
         if ($request->method === 'POST' && $request->path === '/api/v2/media/uploads') return $this->success($this->mutations->proposeMediaUpload($input, $access, $request->header('Idempotency-Key'), $requestId), $requestId, false, 202);
         if ($request->method === 'POST' && preg_match('#^/api/v2/media/(asset_[a-f0-9]{24})/proposals$#D', $request->path, $match)) return $this->success($this->mutations->proposeMediaMetadata($match[1], $input, $request->header('If-Match'), $access, $request->header('Idempotency-Key'), $requestId), $requestId, false, 202);
         if ($request->method === 'POST' && $request->path === '/api/v2/public-settings/proposals') {
@@ -227,6 +236,9 @@ final class ApiController
 
     private function requiredScope(Request $request): ?string
     {
+        if ($request->path === '/api/v2/theme-kit/validate') return $request->method === 'POST' ? 'theme:read' : null;
+        if ($request->path === '/api/v2/theme-drafts') return $request->method === 'POST' ? 'theme:write' : null;
+        if ($request->path === '/api/v2/theme-kit' || preg_match('#^/api/v2/theme-drafts/theme_[a-f0-9]{32}$#D',$request->path)) return $request->method === 'GET' ? 'theme:read' : null;
         if ($request->path === '/api/v2/media/uploads' || preg_match('#^/api/v2/media/asset_[a-f0-9]{24}/proposals$#D', $request->path)) return $request->method === 'POST' ? 'media:write' : null;
         if ($request->path === '/api/v2/media' || str_starts_with($request->path, '/api/v2/media/') || str_starts_with($request->path, '/api/v2/media-proposals/')) return $request->method === 'GET' ? 'media:read' : null;
         if ($request->path === '/api/v2/public-settings/proposals') return $request->method === 'POST' ? 'site:write' : null;

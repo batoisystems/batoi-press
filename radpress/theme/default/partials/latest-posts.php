@@ -19,7 +19,7 @@ if (empty($latestPosts) || !is_array($latestPosts)) {
                 <?php endif; ?>
                 <p class="bp-meta"><?php echo bp_esc(bp_date((string)($item['published_at'] ?? ''))); ?></p>
                 <h2><a href="<?php echo bp_attr($postUrl); ?>"><?php echo bp_esc((string)($item['title'] ?? 'Untitled')); ?></a></h2>
-                <?php if (!empty($item['seo_description'])): ?><p><?php echo bp_esc((string)$item['seo_description']); ?></p><?php endif; ?>
+                <?php if (!empty($item['subtitle'])): ?><p><?php echo bp_esc((string)$item['subtitle']); ?></p><?php endif; ?>
                 <a class="bp-text-link" href="<?php echo bp_attr($postUrl); ?>">Read article <span aria-hidden="true">&rarr;</span></a>
             </article>
         <?php endforeach; ?>

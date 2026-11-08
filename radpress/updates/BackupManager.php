@@ -18,10 +18,10 @@ final class BackupManager
             return ['ok' => false, 'error' => 'ZipArchive is not available.'];
         }
 
-        $stamp = date('Ymd-His');
+        $stamp = date('Ymd-His') . '-' . bin2hex(random_bytes(3));
         $zipPath = $this->paths->dataPath('backups/batoi-press-backup-' . $stamp . '.zip');
         $zip = new ZipArchive();
-        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::EXCL) !== true) {
             return ['ok' => false, 'error' => 'Unable to create backup ZIP.'];
         }
 
@@ -69,6 +69,7 @@ final class BackupManager
             $this->paths->root() . '/radpress/composer.lock',
             $this->paths->root() . '/README.md',
             $this->paths->root() . '/LICENSE',
+            $this->paths->dataPath('updates/installed-release.json'),
         ];
     }
 

@@ -66,7 +66,7 @@ final class PostController
             $slug = (string)($post['slug'] ?? '');
             $title = (string)($post['title'] ?? 'Untitled');
             $publishedAt = (string)($post['publish_at'] ?? $post['published_at'] ?? $post['updated_at'] ?? '');
-            $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>' . (!empty($post['parent_slug']) ? 'Child post' : 'Post') . '</small></td><td>' . $this->statusBadge((string)($post['status'] ?? 'draft')) . '</td><td>' . $this->e((string)($post['category'] ?? 'General')) . '</td><td>' . $this->formatDate($publishedAt) . '</td><td><code>' . $this->e($this->posts->publicPath($post)) . '</code></td><td><div class="bp-table-actions"><a href="' . $this->e($this->posts->publicPath($post)) . '">View</a><a href="/admin/posts/edit/' . rawurlencode($slug) . '">Edit</a><a href="/admin/posts/new?parent=' . rawurlencode($slug) . '">Add child</a>' . $this->trashAction($post) . '</div></td></tr>';
+            $body .= '<tr><td><strong>' . $this->e($title) . '</strong><small>' . (!empty($post['parent_slug']) ? 'Child post' : 'Post') . '</small></td><td>' . $this->statusBadge((string)($post['status'] ?? 'draft')) . '</td><td>' . $this->e((string)($post['category'] ?? 'General')) . '</td><td>' . $this->formatDate($publishedAt) . '</td><td><code>' . $this->e($this->posts->publicPath($post)) . '</code></td><td><div class="bp-table-actions">' . AdminLayout::buttonLink('View', $this->posts->publicPath($post), 'site') . AdminLayout::buttonLink('Edit', '/admin/posts/edit/' . rawurlencode($slug), 'edit') . AdminLayout::buttonLink('Add child', '/admin/posts/new?parent=' . rawurlencode($slug), 'plus') . $this->duplicateAction($post) . $this->trashAction($post) . '</div></td></tr>';
         }
         $body .= '</tbody></table></div>';
         return Response::html($this->layout('Posts', $body));
@@ -75,11 +75,13 @@ final class PostController
     public function edit(?string $slug = null): Response
     {
         $post = $slug ? $this->posts->findBySlug($slug) : null;
+        if ($slug !== null && $post === null) return Response::html($this->layout('Posts','<p>Post not found.</p>'),404);
         if ($post !== null && !AdminAccess::canManagePost($this->user, $post)) {
             return $this->forbiddenPost((string)($post['slug'] ?? $slug));
         }
         if (($post['status'] ?? '') === 'trashed') return Response::html($this->layout('Trash', '<p>Restore this post as a draft before editing.</p>' . $this->trashAction($post)));
-        return Response::html($this->layout($slug ? 'Edit Post' : 'Create Post', $this->form($post)));
+        try { return Response::html($this->layout($slug ? 'Edit Post' : 'Create Post', $this->form($post))); }
+        catch (\Batoi\Press\Application\ContentMutationException $error) { return Response::html($this->layout('Recovery unavailable','<p class="bp-error">' . $this->e($error->getMessage()) . '</p>' . AdminLayout::buttonLink('Review recovery','/admin/editor-recovery/list?' . http_build_query(['type'=>'post','identifier'=>$slug ?? '','format'=>'html']),'edit',true)),$error->httpStatus()); }
     }
 
     private function trashAction(array $record): string
@@ -87,7 +89,28 @@ final class PostController
         $restore = ($record['status'] ?? '') === 'trashed';
         return '<form method="post" action="/admin/posts/trash" class="bp-inline-form">' . $this->csrf->field()
             . '<input type="hidden" name="slug" value="' . $this->e((string)$record['slug']) . '"><input type="hidden" name="expected_revision" value="' . $this->e(ContentRevision::for($record)) . '">'
-            . '<input type="hidden" name="decision" value="' . ($restore ? 'restore' : 'trash') . '"><button type="submit" title="' . ($restore ? 'Restore privately as a draft' : 'Remove from the website; content stays recoverable in Trash') . '">' . ($restore ? 'Restore draft' : 'Move to Trash') . '</button></form>';
+            . '<input type="hidden" name="decision" value="' . ($restore ? 'restore' : 'trash') . '"><button type="submit" class="bp-button bp-button-secondary" title="' . ($restore ? 'Restore privately as a draft' : 'Remove from the website; content stays recoverable in Trash') . '">' . AdminLayout::icon($restore ? 'refresh' : 'delete') . '<span>' . ($restore ? 'Restore draft' : 'Move to Trash') . '</span></button></form>';
+    }
+
+    private function duplicateAction(array $record): string
+    {
+        if (($record['status'] ?? '') === 'trashed') return '';
+        return '<form method="post" action="/admin/posts/duplicate" class="bp-inline-form">' . $this->csrf->field()
+            . '<input type="hidden" name="slug" value="' . $this->e((string)$record['slug']) . '"><input type="hidden" name="expected_revision" value="' . $this->e(ContentRevision::for($record)) . '">'
+            . AdminLayout::submitButton('Duplicate', 'copy', 'class="bp-button"') . '</form>';
+    }
+
+    public function duplicate(Request $request): Response
+    {
+        if ($request->method !== 'POST') return Response::html('<p>POST required.</p>', 405)->withHeader('Allow', 'POST');
+        if (!$this->csrf->validate($request->input('csrf_token'))) return Response::html($this->layout('Posts', '<p class="bp-error">Security token expired.</p>'), 400);
+        try {
+            $copy = (new ContentMutationService($this->config, $this->pages, $this->posts, $this->audit, new IdempotencyStore($this->config->paths())))->duplicateFromAdmin('post', $request->input('slug'), $request->input('expected_revision'), $this->user);
+        } catch (RuntimeException $error) {
+            $status = $error instanceof \Batoi\Press\Application\ContentMutationException ? $error->httpStatus() : 409;
+            return Response::html($this->layout('Posts', '<p class="bp-error">' . $this->e($error->getMessage()) . '</p>'), $status);
+        }
+        return Response::redirect('/admin/posts/edit/' . rawurlencode((string)$copy['slug']));
     }
 
     public function trash(Request $request): Response
@@ -128,7 +151,8 @@ final class PostController
                 'admin_' . bin2hex(random_bytes(8))
             );
         } catch (RuntimeException $exception) {
-            return Response::html($this->layout('Posts', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>' . AdminLayout::buttonLink('Back to posts', '/admin/posts', 'back', true) . '</p>'), 409);
+            $recovery = '/admin/editor-recovery/list?' . http_build_query(['type'=>'post','identifier'=>$originalSlug,'format'=>'html']);
+            return Response::html($this->layout('Posts', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>The editor may have preserved a private recovery copy. Review it before re-entering content.</p><p>' . AdminLayout::buttonLink('Review recovery copies',$recovery,'edit',true) . AdminLayout::buttonLink('Back to posts', '/admin/posts', 'back', true) . '</p>'), 409);
         }
         return Response::redirect('/admin/posts');
     }
@@ -136,6 +160,11 @@ final class PostController
     private function form(?array $post): string
     {
         $isEdit = $post !== null;
+        $source = $post;
+        $originalSlug = (string)($source['slug'] ?? '');
+        $baseRevision = $source === null ? '' : ContentRevision::for($source);
+        $recovered = is_string($_GET['recovery'] ?? null) && $_GET['recovery'] !== '';
+        if ($recovered) $post = \Batoi\Press\Application\EditorRecovery::values($source,(new \Batoi\Press\Application\EditorRecovery($this->config,$this->user))->forEditor('post',$originalSlug,$_GET['recovery']),'post');
         $slug = (string)($post['slug'] ?? '');
         $requestedParent = Slug::normalize((string)($post['parent_slug'] ?? $_GET['parent'] ?? ''));
         $postType = (string)($post['post_type'] ?? $this->posts->findBySlug($requestedParent)['post_type'] ?? 'blog');
@@ -144,7 +173,7 @@ final class PostController
         }
         $actions = AdminLayout::buttonLink('Back to posts', '/admin/posts', 'back', true);
         if ($isEdit) {
-            $actions = AdminLayout::buttonLink('View post', $this->posts->publicPath($post), 'site', true) . AdminLayout::buttonLink('Add child post', '/admin/posts/new?parent=' . rawurlencode($slug), 'plus', true) . $actions;
+            $actions = AdminLayout::buttonLink('View post', $this->posts->publicPath($source), 'site', true) . AdminLayout::buttonLink('Add child post', '/admin/posts/new?parent=' . rawurlencode($originalSlug), 'plus', true) . $actions;
         }
 
         $body = AdminLayout::pageHeader(
@@ -152,10 +181,11 @@ final class PostController
             'Manage article content, taxonomy, publication state, and search metadata.',
             $actions
         );
-        $body .= '<form method="post" action="/admin/posts/save" class="bp-form bp-admin-editor" novalidate>';
+        $body .= '<form method="post" action="/admin/posts/save" class="bp-form bp-admin-editor" novalidate' . ContentEditor::recoveryAttributes('post',$originalSlug,$recovered) . '>';
+        $body .= ContentEditor::recoveryControls('post',$originalSlug,$recovered);
         $body .= $this->csrf->field();
-        $body .= '<input type="hidden" name="original_slug" value="' . $this->e($slug) . '">';
-        $body .= '<input type="hidden" name="expected_revision" value="' . $this->e($post === null ? '' : ContentRevision::for($post)) . '">';
+        $body .= '<input type="hidden" name="original_slug" value="' . $this->e($originalSlug) . '">';
+        $body .= '<input type="hidden" name="expected_revision" value="' . $this->e($baseRevision) . '">';
 
         $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($post['title'] ?? ''), true, 'data-bp-slug-source') . $this->input('Slug', 'slug', $slug, true, 'data-bp-slug-target') . '<label class="bp-field-wide">Subtitle <textarea name="subtitle" rows="3" maxlength="300">' . $this->e((string)($post['subtitle'] ?? '')) . '</textarea><span class="bp-field-help">Optional short description shown below the article title.</span></label>' . $this->bodyEditor((string)($post['body'] ?? ''), 'Use clean HTML for formatted article content. Scripts, unsafe URLs, events, and inline styles are sanitized before saving.') . '</div>';
         $publishing = $this->select((string)($post['status'] ?? 'draft')) . $this->publishDateInput((string)($post['publish_at'] ?? $post['published_at'] ?? '')) . $this->dateTimeInput('Unpublish date', 'unpublish_at', (string)($post['unpublish_at'] ?? ''), 'Optional automatic public visibility cutoff.') . $this->input('Reviewer', 'reviewer', (string)($post['reviewer'] ?? ''), false) . '<label>Workflow note <textarea name="workflow_note" rows="3" maxlength="500"></textarea><span class="bp-field-help">Saved to workflow history; never displayed publicly.</span></label>' . $this->parentSelect($requestedParent, $slug) . $this->categoryInput((string)($post['category'] ?? 'General')) . $this->layoutSelect((string)($post['layout'] ?? 'full')) . $this->input('Tags', 'tags', implode(', ', (array)($post['tags'] ?? [])), false) . '<p class="bp-field-help">Separate tags with commas.</p>' . $this->workflowHistory($post) . $this->metaList($post);
@@ -169,7 +199,7 @@ final class PostController
 
         $typeField = '<label>Post type / URL prefix <input name="post_type" value="' . $this->e($postType) . '" pattern="[a-z][a-z0-9-]{0,59}" maxlength="60" required><span class="bp-field-help">For example blog, news, or activities. Changing this changes the public URL; categories remain independent.</span></label>';
         $body .= '<div class="bp-editor-main">' . $this->editorPanel('Content', $content, 'Write the visible article content.') . '</div><aside class="bp-editor-side">' . AifEditorPanel::render($this->config, 'post') . $this->editorPanel('Publishing', $typeField . $publishing, 'Set status, category, layout, and tags.') . $this->editorPanel('Featured image', $media, 'Choose the primary image used by public post views.') . $this->editorPanel('SEO', $seo, 'Optional metadata for discovery.') . $this->editorPanel('Pre-publish checklist', $this->postChecklist(), 'Review before publishing or changing a live post.') . '</aside>';
-        $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/posts', 'back', true) . AdminLayout::submitButton('Save Post', 'save') . '</div></form>';
+        $body .= '<div class="bp-form-actions">' . AdminLayout::buttonLink('Cancel', '/admin/posts', 'back', true) . AdminLayout::submitButton($source !== null && \Batoi\Press\Content\PublicationState::isPublic($source) ? 'Save and publish changes' : 'Save Post', 'save') . '</div></form>';
         return $body;
     }
 
@@ -339,8 +369,7 @@ final class PostController
             return '<span class="bp-muted">Not published</span>';
         }
 
-        $timestamp = strtotime($value);
-        return $timestamp ? $this->e(date('M j, Y H:i', $timestamp)) : $this->e($value);
+        return $this->e(\Batoi\Press\Core\DateFormat::display($value, $this->config->site(), 'datetime'));
     }
 
     private function editorPanel(string $title, string $body, string $description): string

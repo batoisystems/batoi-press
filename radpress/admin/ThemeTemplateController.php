@@ -74,6 +74,7 @@ final class ThemeTemplateController
 
         $active = $this->activeTheme();
         $actions = AdminLayout::buttonLink('Edit active theme', '/admin/theme-templates', 'code', true) . AdminLayout::buttonLink('View site', '/', 'site', true);
+        if (($this->user['role'] ?? '') === 'owner') $actions = AdminLayout::buttonLink('Create UIF theme', '/admin/themes/uif-kit', 'plus') . $actions;
         $body = AdminLayout::pageHeader('Themes', 'Manage installed themes, inspect uploaded packages, and activate only reviewed Press themes.', $actions);
         $body .= AdminLayout::section('Theme operations', $this->themeOperations(), 'Every upload is inspected without executing its source. Compatible themes install inactive; other packages receive a conversion report.');
 
@@ -92,7 +93,7 @@ final class ThemeTemplateController
             $cards .= '<div class="bp-uif-toolbar">';
             $cards .= AdminLayout::buttonLink('Edit', '/admin/theme-templates?theme=' . rawurlencode($slug), 'code', true);
             $cards .= AdminLayout::buttonLink('Preview', '/admin/themes/preview/' . rawurlencode($slug) . '?layout=home', 'site', true);
-            $cards .= '<form method="post" action="/admin/themes/duplicate" class="bp-inline-form">' . $this->csrf->field() . '<input type="hidden" name="theme" value="' . $this->e($slug) . '"><input type="text" name="name" aria-label="Duplicated theme name" placeholder="Copy name" required>' . AdminLayout::submitButton('Duplicate', 'copy') . '</form>';
+            $cards .= '<form method="post" action="/admin/themes/duplicate" class="bp-inline-form bp-theme-copy-form">' . $this->csrf->field() . '<input type="hidden" name="theme" value="' . $this->e($slug) . '"><input type="text" name="name" aria-label="Duplicated theme name" placeholder="Copy name" required>' . AdminLayout::submitButton('Duplicate', 'copy') . '</form>';
             if (!$isActive && (bool)$theme['valid']) {
                 $cards .= '<form method="post" action="/admin/themes/activate" class="bp-inline-form">' . $this->csrf->field() . '<input type="hidden" name="theme" value="' . $this->e($slug) . '">' . AdminLayout::submitButton('Activate', 'check') . '</form>';
             }
@@ -345,7 +346,7 @@ final class ThemeTemplateController
             AdminLayout::buttonLink('Back to templates', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . AdminLayout::buttonLink('View site', '/', 'site', true)
         );
         $body .= '<p role="status" data-bp-save-status>' . $this->e($message) . '</p>';
-        $body .= '<form method="post" action="/admin/theme-templates/save" class="bp-form bp-admin-editor bp-template-editor" autocomplete="off" data-bp-code-submit>';
+        $body .= '<form method="post" action="/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key) . '" class="bp-form bp-admin-editor bp-template-editor" autocomplete="off" data-bp-code-submit>';
         $body .= '<p class="bp-field-help">Changes are applied only after Save Template succeeds. If hosting returns 404, download your source and ask the host to inspect the request and redirect chain; do not disable site security.</p>';
         $body .= $this->csrf->field();
         $body .= '<input type="hidden" name="theme" value="' . $this->e($theme) . '">';
@@ -792,6 +793,10 @@ final class ThemeTemplateController
         $body .= '<div class="' . ($classification === 'unsafe' ? 'bp-error' : 'bp-notice') . '" role="' . ($classification === 'unsafe' ? 'alert' : 'status') . '">'
             . '<strong>' . $this->e(ucfirst($classification)) . '</strong> · Detected source: ' . $this->e(ucwords($sourceType))
             . '<br>' . $this->e((string)($report['recommendation'] ?? 'Review the compatibility findings.')) . '</div>';
+
+        if ($classification === 'convertible' && ($report['source_type'] ?? '') === 'static_html') {
+            $body .= '<p class="bp-notice">This ZIP is a website template, not an installable Batoi Press theme. Keep the original ZIP and convert it with Batoi Platform Build, then upload the reviewed Press package containing <code>theme.json</code> and the required PHP layouts. Renaming the ZIP or retrying the same upload cannot supply those files.</p>';
+        }
 
         $summary = '<dl class="bp-meta-list bp-theme-compatibility-summary">'
             . '<div><dt>Package</dt><dd>' . $this->e((string)($report['original_name'] ?? 'theme.zip')) . '</dd></div>'

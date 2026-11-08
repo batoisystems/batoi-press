@@ -20,13 +20,7 @@ final class PageRepository
 
     public function findBySlug(string $slug): ?array
     {
-        foreach ($this->all() as $page) {
-            if (($page['slug'] ?? '') === $slug) {
-                return $page;
-            }
-        }
-
-        return null;
+        return ContentLookup::find($this->paths, $this->files, $this->html, 'page', $slug);
     }
 
     public function findByPath(string $path): ?array
@@ -60,6 +54,11 @@ final class PageRepository
     public function all(): array
     {
         return (new ContentTransaction($this->paths, $this->files))->read('page', fn (): array => $this->loadFrom($this->paths->contentPath('pages')));
+    }
+
+    public function metadata(): array
+    {
+        return (new ContentTransaction($this->paths, $this->files))->read('page', fn (): array => $this->loadFrom($this->paths->contentPath('pages'), false));
     }
 
     public function save(array $input, string $actor): array
@@ -202,7 +201,7 @@ final class PageRepository
         }
 
         $pages = [];
-        foreach ($this->all() as $candidate) {
+        foreach ($this->metadata() as $candidate) {
             $candidateSlug = (string)($candidate['slug'] ?? '');
             if ($candidateSlug !== '') {
                 $pages[$candidateSlug] = $candidate;
@@ -252,7 +251,7 @@ final class PageRepository
         return $dir;
     }
 
-    private function loadFrom(string $base): array
+    private function loadFrom(string $base, bool $withBody = true): array
     {
         if (!is_dir($base)) {
             return [];
@@ -267,7 +266,7 @@ final class PageRepository
             }
 
             $meta = $this->files->readJson($metaFile);
-            $meta['body'] = $this->html->sanitize($this->files->read($bodyFile));
+            if ($withBody) $meta['body'] = $this->html->sanitize($this->files->read($bodyFile));
             $items[] = $meta;
         }
 

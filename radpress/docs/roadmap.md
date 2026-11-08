@@ -1,5 +1,21 @@
 # Roadmap
 
+## 5.0 development
+
+Implementation has started with transactional products, exact money values,
+optional [Stripe Checkout commerce](commerce.md), a
+[portable UIF theme kit](theme-development.md#portable-uif-theme-generation),
+[plugin developer tooling](plugins.md#developer-starter-workflow), direct content
+lookup and admin workflow improvements. The [documentation index](README.md)
+provides the current entry points.
+
+The wider 5.0 plan remains in progress. Editor recovery/media integration,
+durable extension events, connected AI theme proposals, complete security and
+accessibility acceptance, measured load/hosting coverage and final release work
+remain open. Local regression results do not certify a real Stripe merchant
+integration or a finished major release. The phases below retain the original
+roadmap history.
+
 ## Phase 1
 
 Foundation runtime, public rendering, JSON config, HTML content loading, default theme, and status surfaces.

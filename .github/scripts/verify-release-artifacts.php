@@ -38,6 +38,11 @@ foreach (requiredEntries() as $entry) {
     }
 }
 
+if (preg_match('/^5\./', $version)) {
+    require_once __DIR__ . '/package-size.php';
+    if (!pressPackageMetrics($zipPath)['pass']) fail('Release exceeds the 1.5 MiB ZIP / 6 MiB extracted budget.');
+}
+
 $packageManifestJson = readZipEntry($zipPath, 'release.json');
 $packageManifest = json_decode($packageManifestJson, true);
 if (!is_array($packageManifest)) {
@@ -287,6 +292,8 @@ function excludedPrefixes(): array
         'radpress/data/locks/',
         'radpress/data/integrations/',
         'radpress/data/forms/',
+        'radpress/data/commerce/',
+        'radpress/data/editor-recovery/',
         'radpress/data/plugins/',
         'radpress/data/tmp/',
         'radpress/data/versions/',

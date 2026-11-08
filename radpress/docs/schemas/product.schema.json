@@ -1,0 +1,81 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Batoi Press product",
+    "type": "object",
+    "required": [
+        "schema",
+        "id",
+        "slug",
+        "title",
+        "price_minor",
+        "price",
+        "currency",
+        "currency_exponent",
+        "inventory",
+        "status"
+    ],
+    "properties": {
+        "schema": {
+            "const": 2
+        },
+        "id": {
+            "type": "string",
+            "pattern": "^prd_[a-f0-9]{12}$"
+        },
+        "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,240}$"
+        },
+        "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+        },
+        "price_minor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 999999999999
+        },
+        "price": {
+            "type": "string"
+        },
+        "currency": {
+            "enum": [
+                "AED",
+                "AUD",
+                "BHD",
+                "CAD",
+                "CHF",
+                "EUR",
+                "GBP",
+                "HKD",
+                "INR",
+                "JPY",
+                "KRW",
+                "KWD",
+                "NZD",
+                "OMR",
+                "SGD",
+                "USD"
+            ]
+        },
+        "currency_exponent": {
+            "enum": [
+                0,
+                2,
+                3
+            ]
+        },
+        "inventory": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 999999999
+        },
+        "status": {
+            "enum": [
+                "draft",
+                "published"
+            ]
+        }
+    }
+}

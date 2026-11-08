@@ -1,0 +1,31 @@
+{
+    "kit": "1.0.0",
+    "slug": "consultancy",
+    "name": "Consultancy",
+    "version": "1.0.0",
+    "author": "Your Studio",
+    "preset": "corporate",
+    "width": 76,
+    "tokens": {
+        "body_bg": "#FFFFFF",
+        "body_text": "#111827",
+        "header_bg": "#FFFFFF",
+        "header_text": "#111827",
+        "primary_button": "#0E68B0"
+    },
+    "sections": [
+        {
+            "type": "heading",
+            "text": "Practical expertise for your next step"
+        },
+        {
+            "type": "text",
+            "text": "Describe your services and the people you help."
+        },
+        {
+            "type": "button",
+            "text": "Contact us",
+            "url": "/contact"
+        }
+    ]
+}
