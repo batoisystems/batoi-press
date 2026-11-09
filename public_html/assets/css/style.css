@@ -2097,9 +2097,9 @@ p {
     box-shadow: 0 2px 5px rgba(16, 24, 40, 0.08);
     gap: 3px;
     padding: 6px 8px;
-    position: sticky;
-    top: 64px;
-    z-index: 9;
+    /* Keep the toolbar in its own row above the editor body. */
+    position: relative;
+    z-index: 1;
 }
 
 .bp-admin-editor .uif-editor-button {
@@ -2457,12 +2457,6 @@ p {
     overflow: hidden;
     position: fixed;
     z-index: 1200;
-}
-
-.bp-admin-editor .uif-editor.bp-editor-focus-mode .uif-editor-toolbar {
-    position: relative;
-    top: 0;
-    z-index: 1;
 }
 
 .bp-admin-editor .uif-editor.bp-editor-focus-mode .uif-editor-body {
@@ -3311,10 +3305,6 @@ code {
 
     .bp-form-grid {
         grid-template-columns: 1fr;
-    }
-
-    .bp-admin-editor .uif-editor-toolbar {
-        top: 0;
     }
 
     .bp-editor-assistance {

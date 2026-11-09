@@ -10,11 +10,11 @@
 | Theme creator or AI user | [UIF theme workflow](theme-development.md#portable-uif-theme-generation) | [Starter JSON](examples/uif-theme-starter.json), [schema](schemas/uif-theme.schema.json), Admin → Themes → Create UIF theme |
 | Plugin developer | [Plugin SDK](plugins.md#developer-starter-workflow) | [Developer tool](examples/plugin-tool.php), [schema](schemas/plugin.schema.json), package trust and recovery |
 | Integrator | [API and MCP](machine-interfaces.md) | [UIF/AIF](uif-aif.md), [security](security.md) |
-| Operator | [Installation](installation.md) | [Update recovery](update-recovery.md), [security](security.md), [releases](releases/v4.0.1.md) |
+| Operator | [Installation](installation.md) | [Update recovery](update-recovery.md), [security](security.md), [releases](releases/v4.0.2.md) |
 
 ## Versions and evidence
 
-The current release is **4.0.1**. Commerce, editor recovery, the UIF theme kit and
+The current release is **4.0.2**. Commerce, editor recovery, the UIF theme kit and
 plugin developer tooling are included as previews of the ongoing 5.0 work;
 they are not a completed 5.0 release. See [4.0.1 notes](releases/v4.0.1.md). Individual guides identify current
 limits and required external acceptance. [Roadmap](roadmap.md) retains product

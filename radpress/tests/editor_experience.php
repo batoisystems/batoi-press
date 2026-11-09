@@ -96,7 +96,6 @@ try {
     assertEditor(str_contains($app, "event.key !== 'Escape'"), 'Escape should close focus mode');
     assertEditor(str_contains($app, '[data-bp-reorder-list]') && str_contains($app, '[data-bp-move]'), 'admin JavaScript should support saved menu and widget ordering');
     assertEditor(str_contains($app, '[data-bp-page-blocks]') && str_contains($app, '[data-bp-add-block]'), 'admin JavaScript should add and manage sortable page content blocks');
-    assertEditor(str_contains($css, 'position: sticky'), 'admin styles should support a sticky editor toolbar');
     assertEditor(str_contains($css, '.bp-editor-focus-open'), 'admin styles should lock background scrolling in focus mode');
     assertEditor(str_contains($css, '.bp-editor-assistance'), 'admin styles should present image guidance consistently');
     assertEditor(str_contains($css, '.bp-text-only-editor'), 'admin styles should support protected-layout text editing');
