@@ -153,12 +153,26 @@ owner explicitly activates the theme. Press does not retain or install rejected
 source archives. A convertible report includes the exact source SHA-256 for a
 governed Platform conversion record.
 
-Batoi Platform conversion must treat CMS themes as presentation sources only,
-generate a Batoi UIF-based Press theme, run security/accessibility/rendering
-quality gates, and return signed output. Press must verify that signed contract
-before a future direct handoff can install the result. Until that Platform API
-and signing contract exists, upload the original archive and copy the safe
-compatibility report into Platform Build manually.
+### Convert an Exchange template
+
+1. Keep the original ZIP. In Press, copy **Compatibility report JSON** from the
+   inspection screen and save it as `compatibility-report.json`.
+2. In Batoi Build, select a **Batoi Press App** and open **Press Theme Converter**.
+   Under **Start Conversion**, supply the exact original ZIP and the saved JSON.
+3. Run inspection and conversion. Review the generated layouts, accessibility
+   and rendering checks, and any discarded behavior. An authorized reviewer
+   approves the exact result and signs it through the App’s configured signer.
+4. Download the ZIP and detached signature envelope. Verify the envelope and ZIP
+   digest against the trusted Build signing key separately. **Inspect and Upload**
+   in Press checks native theme structure and does not verify that envelope.
+5. Upload the verified native ZIP in **Admin → Themes → Inspect and Upload**.
+   Preview the inactive theme before activating it.
+
+If the App lacks conversion or signing access, port the template locally on a
+test installation. Duplicate the bundled default theme, retain its `theme.json`
+and required layout files, and adapt its markup and local assets. Reuse Press’s
+layout data and asset helpers. Review any template scripts before including them.
+Package the resulting theme and use the same inactive upload and preview flow.
 
 ## Header and Footer Ownership
 

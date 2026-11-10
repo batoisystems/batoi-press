@@ -795,7 +795,7 @@ final class ThemeTemplateController
             . '<br>' . $this->e((string)($report['recommendation'] ?? 'Review the compatibility findings.')) . '</div>';
 
         if ($classification === 'convertible' && ($report['source_type'] ?? '') === 'static_html') {
-            $body .= '<p class="bp-notice">This ZIP is a website template, not an installable Batoi Press theme. Keep the original ZIP and convert it with Batoi Platform Build, then upload the reviewed Press package containing <code>theme.json</code> and the required PHP layouts. Renaming the ZIP or retrying the same upload cannot supply those files.</p>';
+            $body .= '<p class="bp-notice">Press identified this ZIP as a static website template. Keep the original ZIP for conversion. An installable Press theme requires <code>theme.json</code> and the native PHP layouts listed below.</p>';
         }
 
         $summary = '<dl class="bp-meta-list bp-theme-compatibility-summary">'
@@ -817,10 +817,13 @@ final class ThemeTemplateController
         $body .= AdminLayout::section('Compatibility checks', $checks, 'A structural pass is not an activation decision; preview and review remain mandatory.');
 
         if ($classification === 'convertible') {
-            $handoff = '<p>Use Batoi Platform Build Theme Studio to convert this presentation source into a Batoi UIF-based Press theme. Upload the original archive there and preserve the SHA-256 shown above.</p>'
-                . '<ul class="bp-check-list"><li>Conversion must not execute supplied code.</li><li>Platform quality gates and signed output are required.</li><li>Import the result as an inactive theme and review every preview before activation.</li></ul>'
+            $handoff = '<ol><li>In Batoi Build, select a <strong>Batoi Press App</strong> and open <strong>Press Theme Converter</strong>.</li>'
+                . '<li>Under <strong>Start Conversion</strong>, upload the original ZIP. Save the JSON below as <code>compatibility-report.json</code> and upload it in the matching field. Build checks the ZIP against the report’s SHA-256.</li>'
+                . '<li>Run inspection and conversion, review the quality checks, and have an authorized reviewer approve and sign the result. Download the generated ZIP and its detached signature envelope.</li>'
+                . '<li>Have the installation owner verify the envelope and package digest against the trusted Build signing key before uploading the generated ZIP in <strong>Themes → Inspect and Upload</strong>. Preview the inactive theme before activation.</li></ol>'
+                . '<p>This upload form inspects the native ZIP structure. Signature-envelope verification takes place separately. If Build conversion or signing is unavailable, a theme developer can port the presentation into a copy of the bundled default theme and review it on a test installation.</p>'
                 . '<p><a class="bp-button" href="https://www.batoi.com/platform/build" target="_blank" rel="noopener noreferrer">Open Batoi Platform Build</a></p>';
-            $body .= AdminLayout::section('Governed conversion', $handoff, 'Press will support direct authenticated handoff after the Platform conversion API and signing contract are available.');
+            $body .= AdminLayout::section('Convert the original ZIP', $handoff, 'The conversion starts in your selected Build App. Keep the exact source ZIP and its compatibility report.');
         }
 
         $safeReport = $report;
