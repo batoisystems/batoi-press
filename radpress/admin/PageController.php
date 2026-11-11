@@ -205,6 +205,7 @@ final class PageController
             'Manage page content, publication state, and search metadata in one workflow.',
             $actions
         );
+        if ($source !== null) $body .= SocialPublishingController::editor($this->config, $this->csrf, $this->user, 'page', $source, $this->pageUrl($source));
         $body .= '<form method="post" action="/admin/pages/save" class="bp-form bp-admin-editor" novalidate' . ContentEditor::recoveryAttributes('page',$originalSlug,$recovered) . '>';
         $body .= ContentEditor::recoveryControls('page',$originalSlug,$recovered);
         $body .= $this->csrf->field();

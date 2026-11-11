@@ -181,6 +181,7 @@ final class PostController
             'Manage article content, taxonomy, publication state, and search metadata.',
             $actions
         );
+        if ($source !== null) $body .= SocialPublishingController::editor($this->config, $this->csrf, $this->user, 'post', $source, $this->posts->publicPath($source));
         $body .= '<form method="post" action="/admin/posts/save" class="bp-form bp-admin-editor" novalidate' . ContentEditor::recoveryAttributes('post',$originalSlug,$recovered) . '>';
         $body .= ContentEditor::recoveryControls('post',$originalSlug,$recovered);
         $body .= $this->csrf->field();

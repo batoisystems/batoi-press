@@ -166,6 +166,7 @@ final class AdminLayout
                 ['label' => 'Security', 'href' => '/admin/security', 'icon' => 'shield'],
                 ['label' => 'Users', 'href' => '/admin/users', 'icon' => 'users'],
                 ['label' => 'Connections', 'href' => '/admin/connections', 'icon' => 'link'],
+                ['label' => 'Social Publishing', 'href' => '/admin/social-publishing', 'icon' => 'link'],
                 ['label' => 'Updates', 'href' => '/admin/updates', 'icon' => 'refresh'],
                 ['label' => 'Audit Log', 'href' => '/admin/audit', 'icon' => 'shield'],
             ],

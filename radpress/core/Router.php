@@ -232,6 +232,10 @@ final class Router
 
         if (str_starts_with($request->path,'/admin/editor-recovery/')) return (new \Batoi\Press\Admin\EditorRecoveryController($this->config,$csrf,$audit,$user))->handle($request);
 
+        if (in_array($request->path, ['/admin/social-publishing', '/admin/social-publishing/publish'], true)) {
+            return (new \Batoi\Press\Admin\SocialPublishingController($this->config, $this->pages, $this->posts, $csrf, $audit, $user))->handle($request, $_FILES);
+        }
+
         if ($request->path === '/admin/plugins') return (new \Batoi\Press\Admin\PluginController($this->config, $csrf, $audit, $user))->handle($request);
         if ($request->path === '/admin/forms') return (new \Batoi\Press\Admin\FormController($this->config, $csrf, $audit, $user))->handle($request);
         if (preg_match('#^/admin/extensions/([a-z][a-z0-9-]{0,63})/(index|[a-z][a-z0-9-]{0,63})$#D', $request->path, $extension)) {

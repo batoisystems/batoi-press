@@ -11,6 +11,8 @@ final class AdminAccess
     {
         $role = self::role($user);
         $path = self::normalizePath($path);
+        if ($path === '/admin/social-publishing') return $role === 'owner';
+        if ($path === '/admin/social-publishing/publish') return in_array($role, ['owner', 'admin'], true);
         if ($path === '/admin/editor-recovery' || str_starts_with($path,'/admin/editor-recovery/')) return in_array($role,['owner','admin','editor','author'],true);
         if ($path === '/admin/themes/uif-kit') return $role === 'owner';
         if ($path === '/admin/commerce' || str_starts_with($path, '/admin/commerce/')) return $role === 'owner';

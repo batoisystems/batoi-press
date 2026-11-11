@@ -3064,6 +3064,7 @@ p {
 .bp-table-actions { align-items: center; gap: .4rem; }
 .bp-table-actions .bp-inline-form { margin: 0; }
 .bp-table-actions .bp-button { min-height: 32px; padding: .35rem .55rem; white-space: nowrap; width: auto; }
+.bp-social-actions .bp-button { white-space: normal; overflow-wrap: anywhere; }
 .bp-inline-form button.bp-button-secondary {
     background: var(--bp-panel);
     border: 1px solid var(--bp-line);
