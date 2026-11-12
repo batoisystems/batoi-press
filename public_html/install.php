@@ -5,6 +5,7 @@ require dirname(__DIR__) . '/radpress/autoload.php';
 require dirname(__DIR__) . '/radpress/helpers/url.php';
 
 use Batoi\Press\Security\Password;
+use Batoi\Press\Update\DeploymentPermissions;
 
 $root = dirname(__DIR__);
 $configDir = $root . '/radpress/config';
@@ -22,12 +23,22 @@ function bp_install_layout(string $title, string $body): void
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . bp_install_esc($title) . ' | Batoi Press</title><link rel="stylesheet" href="' . bp_install_esc(bp_url('/assets/uif/uif.css')) . '"><link rel="stylesheet" href="' . bp_install_esc(bp_url('/assets/css/style.css')) . '"><script src="' . bp_install_esc(bp_url('/assets/uif/uif.iife.js')) . '" defer></script><script src="' . bp_install_esc(bp_url('/assets/uif/uif.js')) . '" defer></script></head><body class="bp-install-body"><main class="bp-installer-shell">' . $body . '</main></body></html>';
 }
 
-function bp_install_write_json(string $path, array $data): void
+function bp_install_write(string $path, array|string $data): void
 {
-    (new \Batoi\Press\Core\FileStore())->writeJson($path, $data);
+    $previousMask = umask(umask() | 0022);
+    try {
+        $store = new \Batoi\Press\Core\FileStore();
+        if (is_array($data)) {
+            $store->writeJson($path, $data);
+        } else {
+            $store->write($path, $data);
+        }
+    } finally {
+        umask($previousMask);
+    }
 }
 
-function bp_install_ensure_dirs(string $root): void
+function bp_install_ensure_dirs(string $root): bool
 {
     foreach ([
         'radpress/content/media',
@@ -41,10 +52,10 @@ function bp_install_ensure_dirs(string $root): void
         'public_html/assets/site',
     ] as $dir) {
         $path = $root . '/' . $dir;
-        if (!is_dir($path)) {
-            mkdir($path, 0775, true);
-        }
+        if (!is_dir($path) && !mkdir($path, 0755, true) && !is_dir($path)) return false;
+        if ($dir !== 'public_html/assets/site' && !is_writable($path)) return false;
     }
+    return true;
 }
 
 function bp_install_has_owner(string $configDir): bool
@@ -97,6 +108,15 @@ foreach ($checks as $label => $ok) {
     }
 }
 
+if (DIRECTORY_SEPARATOR === '/') {
+    foreach (['index.php', 'admin.php', 'install.php'] as $script) {
+        $mode = @fileperms(__DIR__ . '/' . $script);
+        if ($mode === false || ($mode & 0022) !== 0) {
+            $errors[] = 'Set public_html/' . $script . ' to mode 0644 and check its hosting account ownership.';
+        }
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $errors === []) {
     if (!$setupCsrf->validate(is_string($_POST['csrf_token'] ?? null) ? $_POST['csrf_token'] : '')) $errors[] = 'Security token expired. Reload setup before submitting.';
     $siteName = trim((string)($_POST['site_name'] ?? ''));
@@ -122,15 +142,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $errors === []) {
     }
 
     if ($errors === []) {
-        $setupLock = fopen($configDir . '/setup.lock', 'c+');
+        DeploymentPermissions::repairLegacy($root);
+        $previousMask = umask(0077);
+        try {
+            $setupLock = fopen($configDir . '/setup.lock', 'c+');
+        } finally {
+            umask($previousMask);
+        }
         if ($setupLock === false || !flock($setupLock, LOCK_EX) || is_file($lock) || bp_install_has_owner($configDir)) {
             http_response_code(409);
             bp_install_layout('Setup unavailable', '<h1>Setup unavailable</h1><p>Another setup request completed or account storage is unavailable. Reload before continuing.</p>');
             exit;
         }
-        bp_install_ensure_dirs($root);
+        if (!bp_install_ensure_dirs($root)) {
+            http_response_code(503);
+            bp_install_layout('Setup storage unavailable', '<h1>Setup storage unavailable</h1><p>Check that the PHP account can write to the Batoi Press runtime directories, then reload setup.</p>');
+            exit;
+        }
 
-        bp_install_write_json($configDir . '/site.json', [
+        bp_install_write($configDir . '/site.json', [
             'name' => $siteName,
             'tagline' => 'A secure flat-file CMS and publishing engine aligned with Batoi RAD.',
             'base_url' => rtrim($baseUrl, '/'),
@@ -141,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $errors === []) {
             'timezone' => date_default_timezone_get() ?: 'UTC',
         ]);
 
-        bp_install_write_json($configDir . '/users.json', [
+        bp_install_write($configDir . '/users.json', [
             'users' => [[
                 'username' => $username,
                 'email' => $email,
@@ -156,9 +186,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $errors === []) {
         $security = is_array($security) ? $security : [];
         $security['security_key'] = bin2hex(random_bytes(32));
         $security['installer_lock'] = 'radpress/config/installed.lock';
-        bp_install_write_json($securityFile, $security);
+        bp_install_write($securityFile, $security);
 
-        (new \Batoi\Press\Core\FileStore())->write($lock, 'installed ' . date(DATE_ATOM) . "\n");
+        bp_install_write($lock, 'installed ' . date(DATE_ATOM) . "\n");
         flock($setupLock, LOCK_UN);
         fclose($setupLock);
 

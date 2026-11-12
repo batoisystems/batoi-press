@@ -31,14 +31,19 @@ final class UpdateRunner
         }
 
         $stageDir = $this->paths->dataPath('tmp/update-stage-' . date('Ymd-His') . '-' . bin2hex(random_bytes(3)));
-        if (!is_dir($stageDir)) {
-            mkdir($stageDir, 0775, true);
+        if (!mkdir($stageDir, 0700, true)) {
+            return ['ok'=>false, 'error'=>'Unable to create update staging storage.'];
         }
 
         $zip = new ZipArchive();
         if ($zip->open($packagePath) !== true) return ['ok'=>false, 'error'=>'Unable to open update archive.'];
-        if (!$zip->extractTo($stageDir)) { $zip->close(); return ['ok'=>false, 'error'=>'Unable to extract update archive.']; }
-        $zip->close();
+        $previousMask = umask(0077);
+        try {
+            if (!$zip->extractTo($stageDir)) return ['ok'=>false, 'error'=>'Unable to extract update archive.'];
+        } finally {
+            umask($previousMask);
+            $zip->close();
+        }
 
         $package = $this->findPackage($stageDir);
         if ($package === null) {
@@ -71,11 +76,19 @@ final class UpdateRunner
     {
         $directory = $this->paths->dataPath('tmp');
         if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) return ['ok'=>false, 'error'=>'Unable to prepare update storage.'];
-        $lock = fopen($directory . '/update-apply.lock', 'c+');
-        if ($lock === false) return ['ok'=>false, 'error'=>'Unable to lock update storage.'];
-        if (!flock($lock, LOCK_EX | LOCK_NB)) { fclose($lock); return ['ok'=>false, 'error'=>'Another update is already running. Please try again later.']; }
-        try { return $this->applyLocked($stageDir, $server ?? $_SERVER); }
-        finally { flock($lock, LOCK_UN); fclose($lock); }
+        $previousMask = umask(umask() | 0022);
+        try {
+            $lock = fopen($directory . '/update-apply.lock', 'c+');
+            if ($lock === false) return ['ok'=>false, 'error'=>'Unable to lock update storage.'];
+            try {
+                if (!flock($lock, LOCK_EX | LOCK_NB)) return ['ok'=>false, 'error'=>'Another update is already running. Please try again later.'];
+                return $this->applyLocked($stageDir, $server ?? $_SERVER);
+            } finally {
+                fclose($lock);
+            }
+        } finally {
+            umask($previousMask);
+        }
     }
 
     private function applyLocked(string $stageDir, array $server): array
@@ -106,7 +119,10 @@ final class UpdateRunner
             if (is_link($path) || is_link(dirname($path))) return ['ok'=>false, 'error'=>'Linked upgrade configuration is not supported.'];
         }
         $compatibility = new UpgradeCompatibility($this->paths);
-        try { $compatibility->preflight($manifest); }
+        try {
+            $compatibility->preflight($manifest);
+            DeploymentPermissions::repairLegacy($this->paths->root());
+        }
         catch (\Throwable $error) { return ['ok'=>false, 'error'=>$error->getMessage()]; }
         $backup = (new BackupManager($this->paths))->create();
         if (!($backup['ok'] ?? false)) {
@@ -154,10 +170,13 @@ final class UpdateRunner
 
                 $targetDir = dirname($target);
                 if (!is_dir($targetDir)) {
-                    mkdir($targetDir, 0775, true);
+                    if (!mkdir($targetDir, 0755, true) && !is_dir($targetDir)) {
+                        throw new \RuntimeException('Unable to create deployment directory: ' . $targetRelative);
+                    }
                 }
 
                 $installedTargets[$target] = is_file($target);
+                $this->secureExistingTarget($target, str_replace('\\', '/', $targetRelative));
                 if (!copy($source, $target)) {
                     throw new \RuntimeException('Unable to install file: ' . $targetRelative);
                 }
@@ -313,6 +332,21 @@ final class UpdateRunner
     {
         if (str_starts_with(trim(str_replace('\\', '/', $relative), '/'), 'radpress/app/')) return true;
         return in_array(trim(str_replace('\\', '/', $relative), '/'), ['radpress/config/aif.json', 'radpress/config/paths.json', 'public_html/.htaccess'], true);
+    }
+
+    private function secureExistingTarget(string $target, string $relative): void
+    {
+        if (DIRECTORY_SEPARATOR !== '/' || !is_file($target) || is_link($target)
+            || !$this->isInside($target, $this->paths->root())) return;
+        $stat = lstat($target);
+        if ($stat === false || $stat['nlink'] !== 1) return;
+
+        $publicPhp = str_starts_with($relative, 'public_html/') && str_ends_with(strtolower($relative), '.php');
+        $mode = $stat['mode'] & 07777;
+        $safeMode = $publicPhp && $mode === 0777 ? 0644 : $mode & ~($publicPhp ? 0022 : 0002);
+        if ($safeMode !== $mode && !chmod($target, $safeMode)) {
+            throw new \RuntimeException('Unable to set safe deployment permissions: ' . $relative);
+        }
     }
 
     private function allowedTargetPrefixes(): array

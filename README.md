@@ -5,7 +5,7 @@ Batoi Press is a secure flat-file CMS and publishing engine aligned with Batoi R
 ## Features In This Build
 
 - Development toward **5.0** now includes default-off Stripe Checkout commerce, transactional product pricing/stock, a portable UIF theme generator and plugin developer tooling. Start with the [documentation index](radpress/docs/README.md). These changes remain in development and have not been published as a 5.0 release.
-- Current release: **4.0.4**. See the [release notes](radpress/docs/releases/v4.0.4.md) for Social Publishing and upgrade guidance.
+- Current release: **4.0.5**. See the [release notes](radpress/docs/releases/v4.0.5.md) for installation and update permission fixes.
 - Recoverable page/post Trash, OG/Twitter metadata, UIF footer icons and reliable progressive blog loading.
 - Configurable `public_html` web root.
 - RAD-aligned engine under `radpress/`.
@@ -55,7 +55,9 @@ Open `/install.php` in a browser and create the owner account.
 
 ## Directory Permissions
 
-The web server needs write access to:
+Use mode `0644` for files and `0755` for directories on cPanel and other hosts
+where PHP runs as the hosting account. Verify these modes after FTP upload or
+ZIP extraction. The PHP account needs write access to:
 
 ```text
 radpress/config/
@@ -63,7 +65,9 @@ radpress/content/
 radpress/data/
 ```
 
-Theme files under `radpress/theme/` must be readable.
+Theme files under `radpress/theme/` must be readable. Theme editing also
+requires write access there. See the [installation guide](radpress/docs/installation.md)
+for shared PHP accounts, automatic updates, and permission recovery.
 
 ## Directory Model
 

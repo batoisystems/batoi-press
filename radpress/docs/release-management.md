@@ -29,6 +29,9 @@ the result. The private temporary source tree is retained for inspection. The
 lower-level builder remains available for controlled fixtures, not as a release
 from a populated installation.
 
+The release builder sets Unix ZIP modes explicitly to `0644` for files and
+`0755` for directories. Artifact verification checks both modes before publication.
+
 The GitHub release workflow now verifies existing offline-signed artifacts for
 the exact selected tag; it never creates an unsigned replacement index. Candidate
 releases use `candidate.json`. It intentionally **does not deploy the website**.

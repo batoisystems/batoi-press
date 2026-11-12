@@ -8,6 +8,7 @@ use Batoi\Press\Update\ReleaseSignature;
 require dirname(__DIR__) . '/autoload.php';
 
 $root = sys_get_temp_dir() . '/batoi-press-update-test-' . bin2hex(random_bytes(4));
+$previousMask = umask(0022);
 
 try {
     createFixture($root);
@@ -15,6 +16,20 @@ try {
     $runner = new UpdateRunner($paths);
 
     file_put_contents($paths->dataPath('cache/page.html'), 'cached');
+    mkdir($paths->contentPath('legacy'), 0755);
+    chmod($paths->contentPath('legacy'), 0777);
+    file_put_contents($paths->contentPath('legacy/page.html'), 'existing content');
+    chmod($paths->contentPath('legacy/page.html'), 0777);
+    chmod($paths->dataPath('sessions'), 0775);
+    chmod($paths->configPath('update.json'), 0600);
+    chmod($paths->publicPath('index.php'), 0777);
+    chmod($paths->publicPath('admin.php'), 0664);
+    chmod($paths->publicPath(), 0777);
+    $linkedFile = $root . '/linked-file.txt';
+    file_put_contents($linkedFile, 'linked content');
+    chmod($linkedFile, 0777);
+    assertTrue(link($linkedFile, $paths->dataPath('tmp/hard-link')), 'create hard-link fixture');
+    assertTrue(symlink($linkedFile, $paths->dataPath('tmp/symbolic-link')), 'create symlink fixture');
 
     file_put_contents($root . '/public_html/.htaccess', '# site-specific rewrite and compression');
     mkdir($root . '/radpress/app/plugins/site-addon', 0700, true);
@@ -22,21 +37,45 @@ try {
     $package = createPackage($root, 'success', [
         'public_html/.htaccess' => '# packaged defaults',
         'README.md' => 'updated readme',
+        'public_html/index.php' => '<?php echo "updated site";',
+        'public_html/admin.php' => '<?php echo "updated admin";',
+        'public_html/assets/new/style.css' => 'body {}',
         'radpress/app/plugins/site-addon/entry.php' => '<?php // packaged replacement',
         'radpress/config/aif.json' => '{"enabled":false}',
         'radpress/config/paths.json' => '{"public_root":"changed"}',
     ], [
         ['path' => 'README.md', 'sha256' => hash('sha256', 'updated readme')],
+        ['path' => 'public_html/index.php'],
+        ['path' => 'public_html/admin.php'],
+        ['path' => 'public_html/assets/new/style.css'],
         ['path' => 'radpress/app/plugins/site-addon/entry.php', 'sha256' => hash('sha256', '<?php // packaged replacement')],
         ['path' => 'public_html/.htaccess', 'sha256' => hash('sha256', '# packaged defaults')],
         ['path' => 'radpress/config/aif.json', 'sha256' => hash('sha256', '{"enabled":false}')],
         ['path' => 'radpress/config/paths.json', 'sha256' => hash('sha256', '{"public_root":"changed"}')],
     ]);
 
+    umask(0000);
     $stage = $runner->stage($package);
     assertTrue($stage['ok'] ?? false, 'successful package should stage');
+    assertMode(0700, $stage['stage_dir']);
+    assertMode(0600, $stage['stage_dir'] . '/public_html/index.php');
+    assertTrue(umask() === 0000, 'staging must restore the process umask');
     $applied = $runner->apply((string)$stage['stage_dir']);
-    assertTrue($applied['ok'] ?? false, 'successful package should apply');
+    assertTrue($applied['ok'] ?? false, 'successful package should apply: ' . ($applied['error'] ?? ''));
+    assertTrue(umask() === 0000, 'applying must restore the process umask');
+    umask(0022);
+    assertMode(0755, $paths->publicPath());
+    assertMode(0644, $paths->publicPath('index.php'));
+    assertMode(0644, $paths->publicPath('admin.php'));
+    assertMode(0755, $paths->publicPath('assets/new'));
+    assertMode(0644, $paths->publicPath('assets/new/style.css'));
+    assertMode(0755, $paths->contentPath('legacy'));
+    assertMode(0644, $paths->contentPath('legacy/page.html'));
+    assertSame('existing content', file_get_contents($paths->contentPath('legacy/page.html')), 'permission repair must preserve content');
+    assertMode(0775, $paths->dataPath('sessions'));
+    assertMode(0777, $linkedFile);
+    assertTrue(is_link($paths->dataPath('tmp/symbolic-link')), 'permission repair must skip symlinks');
+    assertTrue(file_put_contents($paths->contentPath('legacy/page.html'), 'existing content') !== false, 'repaired storage must stay writable');
     assertSame('updated readme', file_get_contents($root . '/README.md'), 'README should be updated');
     assertSame('<?php // site-specific plugin', file_get_contents($root . '/radpress/app/plugins/site-addon/entry.php'), 'Installed site plugin must survive a core upgrade');
     assertSame('# site-specific rewrite and compression', file_get_contents($root . '/public_html/.htaccess'), 'hosting customizations survive upgrade');
@@ -142,6 +181,7 @@ try {
     assertTrue(!($failed['ok'] ?? false), 'health failure should fail apply');
     assertTrue($failed['rolled_back'] ?? false, 'health failure should trigger rollback');
     assertSame($validUpdate, file_get_contents($paths->configPath('update.json')), 'rollback should restore update config');
+    assertMode(0600, $paths->configPath('update.json'));
     assertTrue(!is_file($paths->dataPath('maintenance.json')), 'maintenance mode should be disabled after rollback');
 
     $missingStage = $runner->apply($paths->dataPath('tmp/update-stage-20990101-000000'));
@@ -157,7 +197,14 @@ try {
 
     echo "Update runner checks passed\n";
 } finally {
+    umask($previousMask);
     removeTree($root);
+}
+
+function assertMode(int $expected, string $path): void
+{
+    clearstatcache(true, $path);
+    assertTrue((fileperms($path) & 0777) === $expected, sprintf('%s must have mode %04o', $path, $expected));
 }
 
 function fixturePaths(string $root): Paths

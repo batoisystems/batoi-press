@@ -28,6 +28,11 @@ if ($zip->open($zipPath) !== true) {
 $entries = [];
 for ($index = 0; $index < $zip->numFiles; $index++) {
     $name = (string)$zip->getNameIndex($index);
+    $expectedMode = str_ends_with($name, '/') ? 0040755 : 0100644;
+    if (!$zip->getExternalAttributesIndex($index, $system, $attributes)
+        || $system !== ZipArchive::OPSYS_UNIX || ($attributes >> 16) !== $expectedMode) {
+        fail("Release package has unexpected permissions: {$name}");
+    }
     $entries[$name] = true;
 }
 $zip->close();
@@ -271,6 +276,7 @@ function isExcludedEntry(string $entry): bool
     }
 
     foreach (excludedPrefixes() as $prefix) {
+        if ($entry === $prefix) return false;
         if ($entry === rtrim($prefix, '/') || str_starts_with($entry, $prefix)) {
             return !in_array(basename($entry), ['.gitkeep', '.htaccess'], true);
         }

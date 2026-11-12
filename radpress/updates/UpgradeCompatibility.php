@@ -162,7 +162,7 @@ final class UpgradeCompatibility
 
     private function copyTheme(string $source, string $target, array &$targets, array &$directories): void
     {
-        $this->createDirectory($target, $directories, fileperms($source) & 0777);
+        $this->createDirectory($target, $directories, fileperms($source) & 0755);
         foreach (new \DirectoryIterator($source) as $entry) {
             if ($entry->isDot()) continue;
             if ($entry->isLink()) throw new RuntimeException('Linked theme entries cannot be preserved automatically.');
@@ -170,7 +170,7 @@ final class UpgradeCompatibility
             if ($entry->isDir()) $this->copyTheme($entry->getPathname(), $destination, $targets, $directories);
             else {
                 $targets[$destination] = false;
-                if (!copy($entry->getPathname(), $destination) || !chmod($destination, $entry->getPerms() & 0777) || hash_file('sha256', $destination) !== hash_file('sha256', $entry->getPathname())) throw new RuntimeException('Unable to preserve installed theme files.');
+                if (!copy($entry->getPathname(), $destination) || !chmod($destination, $entry->getPerms() & 0755) || hash_file('sha256', $destination) !== hash_file('sha256', $entry->getPathname())) throw new RuntimeException('Unable to preserve installed theme files.');
             }
         }
     }

@@ -29,8 +29,15 @@ final class UpdateHealthCheck
             }
         }
 
+        $writable = [
+            'config' => $this->paths->configPath(),
+            'content' => $this->paths->contentPath(),
+            'data' => $this->paths->dataPath(),
+        ];
         foreach ($this->requiredWritableDirs() as $dir) {
-            $path = $this->paths->root() . '/' . $dir;
+            $writable['data/' . $dir] = $this->paths->dataPath($dir);
+        }
+        foreach ($writable as $dir => $path) {
             if (!is_dir($path) || !is_writable($path)) {
                 $errors[] = 'Directory is not writable: ' . $dir;
             }
@@ -73,9 +80,8 @@ final class UpdateHealthCheck
         };
         foreach (['Config' => $this->paths->configPath(), 'Content' => $this->paths->contentPath(), 'Data' => $this->paths->dataPath()] as $name => $path) $add($name . ' writable', is_dir($path) && is_writable($path), 'Blocking', 'Ask the host to correct write permissions.');
         foreach ($this->requiredWritableDirs() as $dir) {
-            $relative = substr($dir, strlen('radpress/data/'));
-            $path = $this->paths->dataPath($relative);
-            $add('Runtime ' . $relative . ' writable', is_dir($path) && is_writable($path), 'Blocks related operations', 'Create the runtime directory and grant web PHP write access.');
+            $path = $this->paths->dataPath($dir);
+            $add('Runtime ' . $dir . ' writable', is_dir($path) && is_writable($path), 'Blocks related operations', 'Create the runtime directory and grant web PHP write access.');
         }
         foreach (['imagewebp' => 'WebP derivatives', 'imageavif' => 'AVIF derivatives'] as $function => $name) $add($name, function_exists($function), 'Optional', 'Install GD with this encoder; originals remain usable.');
         return $rows;
@@ -103,10 +109,10 @@ final class UpdateHealthCheck
     private function requiredWritableDirs(): array
     {
         return [
-            'radpress/data/cache',
-            'radpress/data/log',
-            'radpress/data/sessions',
-            'radpress/data/tmp',
+            'cache',
+            'log',
+            'sessions',
+            'tmp',
         ];
     }
 }

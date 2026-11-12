@@ -14,6 +14,32 @@ radpress/
 
 Use `public_html/` as the web root on cPanel hosts.
 
+## File Permissions
+
+The release ZIP declares mode `0644` for files and `0755` for directories.
+When uploading by FTP or extracting on the server, verify ownership and modes
+before opening the installer. On cPanel with suPHP, PHP runs as the hosting
+account. PHP entry points such as `index.php`, `admin.php`, and `install.php`
+can return HTTP 500 when group or world writable. Correct these modes through
+the hosting file manager or terminal if the installer cannot load.
+
+The PHP account needs write access to config, content, and data, including
+their runtime subdirectories. Theme editing needs write access to the theme
+store. In-app updates also require PHP to write the managed release files and
+create files in their directories. On hosts with a separate PHP account, grant
+that account access through ownership, a dedicated group, or an ACL. Use
+`0775` and `0664` only where a trusted group needs write access and the PHP
+handler permits it. Keep web PHP entry points free of group and world write
+permissions. Use host-side deployment when PHP has read-only access to code.
+
+The installer and in-app updater repair legacy `0777` entries under the
+standard `radpress/` tree that PHP can chmod. The updater also uses
+restrictive staging permissions.
+Symlinks, hard-linked files, and deliberate group-writable runtime modes are
+excluded from that repair. Check ownership and access for linked storage and
+custom paths through the host. Sites upgrading from an older updater with an
+HTTP 500 permission error need the hosting-side correction first.
+
 ## Installer
 
 The installer entrypoint is:
