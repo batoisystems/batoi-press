@@ -588,27 +588,37 @@ final class Router
         }
 
         if ($request->path === '/admin/updates') {
-            return (new UpdateController($this->config, $csrf, $audit, $user))->index();
+            return (new UpdateController($this->config, $csrf, $audit, $user, $session))->index();
         }
 
         if ($request->path === '/admin/updates/check' && $request->method === 'POST') {
-            return (new UpdateController($this->config, $csrf, $audit, $user))->check($request->input('csrf_token'));
+            return (new UpdateController($this->config, $csrf, $audit, $user, $session))->check($request->input('csrf_token'));
         }
 
         if ($request->path === '/admin/updates/backup' && $request->method === 'POST') {
-            return (new UpdateController($this->config, $csrf, $audit, $user))->backup($request->input('csrf_token'));
+            return (new UpdateController($this->config, $csrf, $audit, $user, $session))->backup($request->input('csrf_token'));
         }
 
         if ($request->path === '/admin/updates/stage' && $request->method === 'POST') {
-            return (new UpdateController($this->config, $csrf, $audit, $user))->stage($request->input('csrf_token'), $_FILES, $request->input('sha256'));
+            return (new UpdateController($this->config, $csrf, $audit, $user, $session))->stage(
+                $request->input('csrf_token'),
+                $_FILES,
+                $request->input('sha256'),
+                (int)$request->header('Content-Length')
+            );
         }
 
         if ($request->path === '/admin/updates/apply' && $request->method === 'POST') {
-            return (new UpdateController($this->config, $csrf, $audit, $user))->apply($request->input('csrf_token'), $request->input('stage'));
+            return (new UpdateController($this->config, $csrf, $audit, $user, $session))->apply($request->input('csrf_token'), $request->input('stage'));
+        }
+
+        if ($request->path === '/admin/updates/apply' && in_array($request->method, ['GET', 'HEAD'], true)) {
+            // Older installers can leave the browser on the apply URL after replacing the runtime.
+            return Response::redirect('/admin/updates');
         }
 
         if ($request->path === '/admin/updates/rollback' && $request->method === 'POST') {
-            return (new UpdateController($this->config, $csrf, $audit, $user))->rollback($request->input('csrf_token'), $request->input('backup'));
+            return (new UpdateController($this->config, $csrf, $audit, $user, $session))->rollback($request->input('csrf_token'), $request->input('backup'));
         }
 
         return $this->notFound();

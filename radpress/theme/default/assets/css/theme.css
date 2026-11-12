@@ -12,6 +12,7 @@
     --bt-radius: 3px;
     --bt-shadow: 0 3px 12px rgba(17, 24, 39, 0.08);
     --bt-container: 1180px;
+    --bt-gutter: 24px;
     --bt-font-family: "proxima-nova", sans-serif;
 }
 
@@ -33,7 +34,7 @@ body.bp-theme-versatile { background: var(--bt-white); color: var(--bt-text); fo
 .bp-skip-link:focus { top: 12px; }
 
 .bp-theme-versatile .bp-header { background: rgba(255,255,255,.96); border-color: var(--bt-line); backdrop-filter: blur(14px); }
-.bp-theme-versatile .bp-nav { max-width: var(--bt-container); min-height: 72px; padding: 12px 24px; position: relative; }
+.bp-theme-versatile .bp-nav { max-width: var(--bt-container); min-height: 72px; padding: 12px var(--bt-gutter); position: relative; }
 .bp-theme-versatile .bp-brand { color: var(--bt-ink); font-size: 1.1rem; font-weight: 600; }
 .bp-theme-versatile .bp-brand-logo { height: 46px; max-width: min(260px, 42vw); }
 .bp-brand-logo-dark { display: none; }
@@ -83,6 +84,8 @@ body.bp-theme-versatile { background: var(--bt-white); color: var(--bt-text); fo
 .bp-template-landing .bp-main, .bp-template-shop .bp-main, .bp-template-product .bp-main { max-width: none; padding-left: 0; padding-right: 0; padding-top: 0; }
 .bp-page, .bp-listing-page { margin: 0 auto; max-width: var(--bt-container); }
 .bp-template-landing .bp-page, .bp-template-shop .bp-page, .bp-template-product .bp-page { max-width: none; }
+.bp-theme-versatile.bp-template-landing .bp-main { min-width: 0; padding-inline: 0; }
+.bp-theme-versatile .bp-page-landing { min-width: 0; width: 100%; }
 .bp-theme-versatile .bp-article { border: 0; box-shadow: none; margin: 0 auto; max-width: 820px; padding: 0; }
 .bp-prose { font-size: 1.05rem; line-height: 1.75; }
 .bp-prose h1 { font-size: 2.65rem; margin-bottom: 24px; }
@@ -112,6 +115,9 @@ body.bp-theme-versatile { background: var(--bt-white); color: var(--bt-text); fo
 
 .bp-section { padding: 76px 24px; }
 .bp-section-inner { margin: 0 auto; max-width: var(--bt-container); }
+.bp-page-landing .bp-hero, .bp-template-landing .bp-latest-posts { padding-inline: var(--bt-gutter); }
+.bp-page-landing .bp-section { padding-inline: var(--bt-gutter); }
+.bp-page-landing .bp-section-inner { max-width: calc(var(--bt-container) - 2 * var(--bt-gutter)); }
 .bp-section-alt { background: var(--bt-soft); }
 .bp-section-header { margin-bottom: 34px; max-width: 700px; }
 .bp-section-header h2 { font-size: 2.45rem; margin-bottom: 12px; }
@@ -266,7 +272,8 @@ body.bp-theme-versatile { background: var(--bt-white); color: var(--bt-text); fo
 }
 
 @media (max-width: 760px) {
-    .bp-theme-versatile .bp-nav { column-gap: 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; min-height: 64px; padding: 9px 18px; row-gap: 0; }
+    .bp-theme-versatile { --bt-gutter: 18px; }
+    .bp-theme-versatile .bp-nav { column-gap: 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; min-height: 64px; padding: 9px var(--bt-gutter); row-gap: 0; }
     .bp-theme-versatile .bp-brand { min-width: 0; }
     .bp-theme-versatile .bp-brand-logo { height: 38px; max-width: min(240px, 58vw); }
     .bp-nav-toggle { display: inline-flex; justify-self: end; }
@@ -355,6 +362,22 @@ body.bp-theme-versatile { --bp-panel:var(--bt-white); --bp-muted:var(--bt-muted)
 
 .bp-theme-versatile { overflow-wrap: break-word; }
 .bp-theme-versatile .bp-prose { max-width: 75ch; }
+/* HTML blocks use a reading measure by default. Landing sections carry their own grid. */
+.bp-page-landing > .bp-content-block {
+    margin-inline: auto;
+    max-width: calc(var(--bt-container) - 2 * var(--bt-gutter));
+    width: calc(100% - 2 * var(--bt-gutter));
+}
+.bp-page-landing > .bp-content-block.bp-prose { max-width: 75ch; }
+.bp-page-landing > .bp-content-block:has(> :is(.bp-hero, .bp-section)) {
+    max-width: none;
+    width: 100%;
+}
+.bp-page-landing > .bp-content-block + .bp-content-block { margin-block-start: clamp(2rem, 5vw, 4rem); }
+.bp-page-landing .bp-prose :is(.bp-section-header h2, .bp-feature h3) { margin-top: 0; }
+.bp-page-landing .bp-button:not(.bp-button-secondary) { color: #fff; }
+.bp-page-landing .bp-post-card h3 a { color: var(--bp-link-hover, var(--bt-blue)); }
+.bp-template-landing .bp-scroll-top { padding: 0; width: 44px; }
 .bp-theme-versatile .bp-contact-form, .bp-theme-versatile .bp-custom-form { max-width: 720px; margin: 1.5rem 0; }
 .bp-custom-form { display: grid; gap: 1rem; }
 .bp-custom-form label { display: grid; gap: .35rem; }

@@ -113,13 +113,13 @@ try {
             $files->write($target, '/* original fixture */');
             $input = ['csrf_token'=>$csrf->token(), 'theme'=>'demo', 'template'=>$key, 'source_encoded'=>base64_encode($source)];
             $savedResponse = $controller->save(new \Batoi\Press\Core\Request('POST', '/admin/theme-templates/save', [], $input, []));
-            assertTemplate($savedResponse->status() === 302, 'custom theme encoded save should succeed: ' . $key);
+            assertTemplate($savedResponse->status() === 303, 'custom theme encoded save should succeed and redirect as GET: ' . $key);
             assertTemplate(($savedResponse->headers()['Location'] ?? '') === '/testsite/public_html/admin/theme-templates/edit/demo/' . $key, 'editor redirects should retain the installation subdirectory');
             assertTemplate(file_get_contents($target) === $source, 'encoded source should round-trip without UTF-8 loss');
             assertTemplate(count(glob($root . '/radpress/data/versions/theme/demo/' . $key . '/*') ?: []) === 1, 'saving should snapshot the original custom template');
             $sameUrl = '/admin/theme-templates/edit/demo/' . $key;
             $editor = $controller->edit('demo/' . $key)->content();
-            assertTemplate(str_contains($editor, 'action="/testsite/public_html' . $sameUrl . '"'), 'Save posts to the working editor URL with installation prefix.');
+            assertTemplate(str_contains($editor, 'method="post" action="/testsite/public_html/admin.php?route=%2Fadmin%2Ftheme-templates%2Fsave"'), 'Save posts through the real admin entry point with installation prefix.');
             $sameUrlSave = $controller->save(new \Batoi\Press\Core\Request('POST', $sameUrl, [], $input, ['HTTP_X_PRESS_EDITOR'=>'1']));
             assertTemplate($sameUrlSave->status() === 200 && (json_decode($sameUrlSave->content(), true)['ok'] ?? false) && file_get_contents($target) === $source, 'Same-URL enhanced save preserves exact source and confirms success.');
             $input['source_encoded'] = 'invalid!base64';
@@ -138,7 +138,7 @@ try {
             unset($input['source_encoded']);
             $input['source'] = "  " . $source . "\n\n";
             $normal = $controller->save(new \Batoi\Press\Core\Request('POST', '/admin/theme-templates/save', [], $input, []));
-            assertTemplate($normal->status() === 302 && file_get_contents($target) === $input['source'], 'native form without JavaScript preserves exact source');
+            assertTemplate($normal->status() === 303 && file_get_contents($target) === $input['source'], 'native form without JavaScript preserves exact source');
             $input['csrf_token'] = 'expired';
             $input['source'] = 'RECOVERABLE </textarea><script>privateTemplate()</script>';
             $failed = $controller->save(new \Batoi\Press\Core\Request('POST', '/admin/theme-templates/save', [], $input, []));

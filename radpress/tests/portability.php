@@ -27,7 +27,8 @@ try {
     $files = new \Batoi\Press\Core\FileStore();
     $files->writeJson($root . '/radpress/config/paths.json', ['config'=>'radpress/config','content'=>'radpress/content','data'=>'radpress/data','theme'=>'radpress/theme','public_root'=>'public_html']);
     $config = \Batoi\Press\Core\Config::load($root);
-    $csrf = new \Batoi\Press\Security\Csrf(new \Batoi\Press\Security\Session('press_portability_test',$config->paths()->dataPath('sessions')));
+    $session = new \Batoi\Press\Security\Session('press_portability_test',$config->paths()->dataPath('sessions'));
+    $csrf = new \Batoi\Press\Security\Csrf($session);
     $settings = new \Batoi\Press\Admin\SettingsController($config,$files,$csrf,new \Batoi\Press\Core\AuditLog($config->paths(),$files),['username'=>'owner','role'=>'owner']);
     $input = ['csrf_token'=>$csrf->token(),'name'=>'Test','timezone'=>'UTC','mail_provider'=>'mailgun','mailgun_domain'=>'example.com','mailgun_api_key'=>'fake-mail-key','recaptcha_site_key'=>'fake-site-key','recaptcha_secret_key'=>'fake-secret-key','show_theme_toggle'=>'1','posts_load_more'=>'1','palette_dark_body_bg'=>'#123456','footer_top_columns'=>'3'];
     $input['expected_revision'] = \Batoi\Press\Application\ContentRevision::for($config->site());
@@ -50,7 +51,7 @@ try {
     if ($disabledIntegrations['google_maps_embed'] !== false || $disabledIntegrations['recaptcha_custom_theme'] !== false) throw new RuntimeException('Unchecked declarations must be disabled.');
     if ($store->decrypt($reloaded->integrations()['mailgun_api_key']) !== 'fake-mail-key' || $store->decrypt($reloaded->integrations()['recaptcha_secret_key']) !== 'fake-secret-key') throw new RuntimeException('Settings did not persist encrypted keys.');
     if (!$reloaded->site()['show_theme_toggle'] || !$reloaded->site()['posts_load_more'] || $reloaded->site()['palette_dark']['body_bg'] !== '#123456' || $reloaded->site()['footer_top_columns'] !== 3) throw new RuntimeException('Appearance settings did not persist.');
-    $updates = new \Batoi\Press\Admin\UpdateController($config, $csrf, new \Batoi\Press\Core\AuditLog($config->paths(), $files), ['username'=>'owner','role'=>'owner']);
+    $updates = new \Batoi\Press\Admin\UpdateController($config, $csrf, new \Batoi\Press\Core\AuditLog($config->paths(), $files), ['username'=>'owner','role'=>'owner'], $session);
     $olderHtml = $updates->index(['ok'=>true, 'latest_version'=>'2.1.1', 'update_available'=>false, 'manifest_behind'=>true])->content();
     if (!str_contains($olderHtml, 'stable manifest is older') || str_contains($olderHtml, 'matches the stable manifest')) throw new RuntimeException('An older manifest must not be presented as an up-to-date installation.');
     $equalHtml = $updates->index(['ok'=>true, 'latest_version'=>'2.3.0', 'update_available'=>false, 'manifest_behind'=>false])->content();

@@ -224,9 +224,12 @@ For Batoi Press admin pages:
 
 ## Template save recovery and diagnostics
 
-The editor posts to `/admin/theme-templates/save`. JavaScript sends the existing
-UTF-8/base64 form transport and asks for a JSON acknowledgement. Native form POST
-also works and preserves source whitespace. Both paths retain owner/admin access,
+The editor submits to the existing `admin.php` entry point with the template
+save route, using the installation’s path prefix. This avoids the rewrite that
+serves pretty URLs. Existing save and editor POST routes remain available.
+JavaScript sends UTF-8/base64 source and asks for a JSON acknowledgement. A
+native form POST preserves source whitespace and redirects to the editor with
+HTTP 303 after a successful save. Both paths retain owner/admin access,
 CSRF validation, source validation, the 2 MiB limit, and pre-save snapshots.
 Failed validation returns the submitted source escaped in an editable form;
 JavaScript transport failures leave the original editor open. **Download source**
@@ -241,13 +244,9 @@ cookies, credentials, or CSRF tokens. Requests blocked before PHP cannot receive
 an application reference. Download the source before refreshing or signing in
 again after session expiry.
 
-The EHS report of Chrome POST followed by audited GET and HTTP 404 remains
-unreproduced. Local native/JavaScript saves, failed validation and recovery pass;
-that does not establish the production cause. Collect the exact timestamp,
-status, sanitized redirect chain and reference (if present), then correlate web
-server, proxy and hosting-filter logs. Do not export request bodies/cookies/tokens
-in a HAR or disable hosting security. No GET save route or routing workaround is
-introduced.
+If the direct POST still fails on a host, collect the exact timestamp, status,
+sanitized redirect chain, and request reference (if present), then correlate
+web server, proxy, and hosting-filter logs. A GET never writes a template.
 
 ## Page media performance
 

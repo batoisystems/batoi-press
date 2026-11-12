@@ -17,6 +17,19 @@ Recoverable transport exceptions return setup guidance without disclosing raw
 exception details. A web-server/worker crash still requires hosting logs; an
 application-level error handler cannot recover a terminated PHP process.
 
+If an older installer reports only “Upload failed,” check the web PHP settings
+for that installation. Enable `file_uploads`, set `upload_max_filesize` at
+least as large as the release ZIP, and leave room above that in
+`post_max_size` for multipart form overhead. PHP also needs a writable
+upload temporary directory. These limits can differ from command-line PHP.
+The Updates screen reports the web PHP limits and explains rejected uploads.
+An upload blocked by the web server before reaching PHP requires a hosting
+configuration change. Retry with the official signed ZIP after fixing the limit.
+
+After a successful apply, the browser returns to the Updates screen and shows
+the result once. A GET to a bookmarked apply URL returns to Updates without
+applying a package.
+
 ## Update workflow and historical implementation notes
 
 Repository releases must increment `radpress/config/update.json` before package build and manifest publication. See `radpress/docs/release-management.md` for the version policy, release checklist, and stable `1.0.0` readiness checklist.

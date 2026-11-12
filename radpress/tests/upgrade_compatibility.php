@@ -203,9 +203,13 @@ try {
     $originalServer = $_SERVER;
     try {
         $_SERVER = array_replace($_SERVER,['DOCUMENT_ROOT'=>$paths->publicPath(),'SCRIPT_FILENAME'=>$paths->publicPath('admin.php'),'SCRIPT_NAME'=>'/admin.php','REQUEST_URI'=>'/admin/updates/apply','HTTP_HOST'=>'press.example.test']);
-        $response = (new Batoi\Press\Admin\UpdateController($config,$csrf,$audit,['username'=>'owner','role'=>'owner']))->apply($csrf->token(),basename($stage['stage_dir']));
+        $response = (new Batoi\Press\Admin\UpdateController($config,$csrf,$audit,['username'=>'owner','role'=>'owner'],$session))->apply($csrf->token(),basename($stage['stage_dir']));
     } finally { $_SERVER = $originalServer; }
-    upgradeCheck($response->status()===200 && str_contains($response->content(),'Preserved theme default as default-preserved.') && str_contains($response->content(),'Corrected base URL to https://press.example.test.'),'Browser update result must explain automatic preservation and URL repair.');
+    upgradeCheck($response->status()===303 && ($response->headers()['Location']??'')==='/admin/updates','Successful apply must redirect to the Updates page as a GET.');
+    $updates = new Batoi\Press\Admin\UpdateController(Batoi\Press\Core\Config::load($root),$csrf,$audit,['username'=>'owner','role'=>'owner'],$session);
+    $content = $updates->index()->content();
+    upgradeCheck(str_contains($content,'Update applied.') && str_contains($content,'Preserved theme default as default-preserved.') && str_contains($content,'Corrected base URL to https://press.example.test.'),'Updates page must explain successful apply, automatic preservation and URL repair.');
+    upgradeCheck(!str_contains($updates->index()->content(),'Update applied.'),'Refreshing Updates must not repeat the apply notice.');
     $event = $audit->entries(1)[0];
     upgradeCheck($event['action']==='update.applied' && $event['details']['themes'][0]['to']==='default-preserved' && $event['details']['base_url']['to']==='https://press.example.test','Update audit must retain migration results.');
 

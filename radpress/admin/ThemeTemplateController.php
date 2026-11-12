@@ -346,8 +346,9 @@ final class ThemeTemplateController
             AdminLayout::buttonLink('Back to templates', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . AdminLayout::buttonLink('View site', '/', 'site', true)
         );
         $body .= '<p role="status" data-bp-save-status>' . $this->e($message) . '</p>';
-        $body .= '<form method="post" action="/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key) . '" class="bp-form bp-admin-editor bp-template-editor" autocomplete="off" data-bp-code-submit>';
-        $body .= '<p class="bp-field-help">Changes are applied only after Save Template succeeds. If hosting returns 404, download your source and ask the host to inspect the request and redirect chain; do not disable site security.</p>';
+        // Submit to a real entry point so pretty URL rewrites cannot turn a save into a GET.
+        $body .= '<form method="post" action="/admin.php?route=%2Fadmin%2Ftheme-templates%2Fsave" class="bp-form bp-admin-editor bp-template-editor" autocomplete="off" data-bp-code-submit>';
+        $body .= '<p class="bp-field-help">Changes are applied only after Save Template succeeds. Use Download source to keep a copy of your edits if the server cannot confirm the save.</p>';
         $body .= $this->csrf->field();
         $body .= '<input type="hidden" name="theme" value="' . $this->e($theme) . '">';
         $body .= '<input type="hidden" name="template" value="' . $this->e($key) . '">';
@@ -367,7 +368,7 @@ final class ThemeTemplateController
             $response = $request->header('X-Press-Editor') === '1'
                 ? Response::json(['ok' => false, 'message' => $message, 'request_id' => $request->requestId], 405)
                 : Response::html($this->layout('Template save not submitted', '<p class="bp-error">' . $this->e($message) . '</p><p>Reference: ' . $this->e($request->requestId) . '</p>' . AdminLayout::buttonLink('Back to templates', '/admin/theme-templates', 'back', true)), 405);
-            return $response->withHeader('Allow', 'POST')->withHeader('X-Request-ID', $request->requestId)->withHeader('Cache-Control', 'private, no-store');
+            return $this->finishSaveResponse($request, $response->withHeader('Allow', 'POST'));
         }
         $id = $request->requestId;
         try {
@@ -397,15 +398,20 @@ final class ThemeTemplateController
             $recovery = isset($source) && strlen($source) <= 2097152 ? $this->codeEditor($source, 'php') : '';
             $response = Response::html($this->layout('Template save failed', '<p role="status">' . $this->e($message) . '</p>' . $recovery), $response->status());
         }
-        try {
-            $this->audit->record((string)($this->user['username'] ?? 'admin'), 'theme.template.save_result', '/admin/theme-templates/save', '', $response->status() < 400 ? 'success' : 'failed', ['request_id' => $id, 'method' => $request->method, 'status' => $response->status()]);
-        } catch (RuntimeException $exception) {
-            error_log('Press template-save audit unavailable; reference ' . $id);
-        }
         if ($request->header('X-Press-Editor') === '1') {
             $response = Response::json(['ok' => $response->status() < 400, 'message' => $message, 'request_id' => $id, 'location' => $response->headers()['Location'] ?? null], $response->status() < 400 ? 200 : $response->status());
         }
-        return $response->withHeader('X-Request-ID', $id)->withHeader('Cache-Control', 'private, no-store');
+        return $this->finishSaveResponse($request, $response);
+    }
+
+    private function finishSaveResponse(Request $request, Response $response): Response
+    {
+        try {
+            $this->audit->record((string)($this->user['username'] ?? 'admin'), 'theme.template.save_result', $request->path, '', $response->status() < 400 ? 'success' : 'failed', ['request_id' => $request->requestId, 'method' => $request->method, 'status' => $response->status()]);
+        } catch (RuntimeException $exception) {
+            error_log('Press template-save audit unavailable; reference ' . $request->requestId);
+        }
+        return $response->withHeader('X-Request-ID', $request->requestId)->withHeader('Cache-Control', 'private, no-store');
     }
 
     private function saveAttempt(Request $request): Response
@@ -455,7 +461,7 @@ final class ThemeTemplateController
         }
 
         $this->audit->record((string)($this->user['username'] ?? 'admin'), 'theme.template.updated', $theme . ':' . $key, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
-        return Response::redirect('/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key));
+        return Response::redirect('/admin/theme-templates/edit/' . rawurlencode($theme) . '/' . rawurlencode($key), 303);
     }
 
     public function restore(Request $request): Response

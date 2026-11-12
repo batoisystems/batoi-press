@@ -99,8 +99,15 @@ try {
     backlogCheck($posts->allPublished() === [] && $posts->findBySlug('post')['tags'] === ['one','two'], 'Post deletion retains tags privately.');
     backlogCheck(AdminAccess::canAccess(['role'=>'author'],'/admin/posts/trash','POST') && !AdminAccess::canAccess(['role'=>'viewer'],'/admin/posts/trash','POST'), 'Route permissions remain scoped.');
     foreach (SocialMetadata::FIELDS as $field) backlogCheck(str_contains($postUi->edit()->content(), 'name="' . $field . '"'), 'Post SEO field missing.');
-    $updates = new UpdateController($config, $csrf, $audit, $owner);
+    $updates = new UpdateController($config, $csrf, $audit, $owner, $session);
     backlogCheck(str_contains($updates->index()->content(), 'Optional, but recommended'), 'Checksum remains optional.');
+    $oversizedZip = $updates->stage($csrf->token(), ['package' => ['error' => UPLOAD_ERR_INI_SIZE]], '');
+    backlogCheck($oversizedZip->status() === 413 && str_contains($oversizedZip->content(), 'upload_max_filesize'), 'Staging must explain the PHP ZIP size limit.');
+    $postLimit = ini_parse_quantity((string)ini_get('post_max_size'));
+    if ($postLimit > 0 && $postLimit < PHP_INT_MAX) {
+        $oversizedRequest = $updates->stage('', [], '', $postLimit + 1);
+        backlogCheck($oversizedRequest->status() === 413 && str_contains($oversizedRequest->content(), 'post_max_size'), 'Staging must identify an oversized request even when PHP discards its form token.');
+    }
     require_once dirname(__DIR__) . '/helpers/date.php';
     $site = ['name'=>'Fixture'];
     $posts = [['slug'=>'one','title'=>'One','published_at'=>'2026-09-28']];

@@ -7,6 +7,7 @@ use Batoi\Press\Core\Config;
 use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\Response;
 use Batoi\Press\Security\Csrf;
+use Batoi\Press\Security\Session;
 use Batoi\Press\Update\BackupManager;
 use Batoi\Press\Update\RollbackManager;
 use Batoi\Press\Update\UpdateRunner;
@@ -15,11 +16,14 @@ use Batoi\Press\Security\UploadGuard;
 
 final class UpdateController
 {
+    private const MAX_PACKAGE_BYTES = 50 * 1024 * 1024;
+
     public function __construct(
         private readonly Config $config,
         private readonly Csrf $csrf,
         private readonly AuditLog $audit,
-        private readonly array $user
+        private readonly array $user,
+        private readonly Session $session
     )
     {
     }
@@ -36,6 +40,11 @@ final class UpdateController
             'Check, stage, back up, and apply Batoi Press releases with rollback protection.',
             '<form method="post" action="/admin/updates/check" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Check for Updates', 'refresh') . '</form>'
         );
+
+        $applyNotice = $this->session->pull('update_apply_notice');
+        if (is_string($applyNotice)) {
+            $body .= '<p class="bp-notice" role="status">' . $this->e($applyNotice) . '</p>';
+        }
 
         $cards = '<dl class="bp-admin-stats bp-admin-stats-compact">';
         $cards .= AdminLayout::statCard('Current version', $current, 'Release channel: ' . $channel);
@@ -55,11 +64,14 @@ final class UpdateController
         if (!function_exists('sodium_crypto_sign_verify_detached')) {
             $body .= '<p class="bp-error">Signed releases require PHP Sodium in the web server PHP configuration. Enable extension=sodium and restart PHP, or contact your host, before uploading. The optional SHA-256 checksum does not replace signature verification.</p>';
         }
+        if (!ini_get('file_uploads')) {
+            $body .= '<p class="bp-error">PHP file uploads are disabled. Ask your host to enable file_uploads before staging a package.</p>';
+        }
         $body .= '<div class="bp-update-workflow">' . AdminLayout::section('Update workflow', $this->updateWorkflow(), 'Recommended sequence for release maintenance.') . '</div>';
 
         $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Create backup</h2><p>Create a minimal update backup before staging or applying a package.</p></div></header><form method="post" action="/admin/updates/backup" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Create Backup', 'download') . '</form></section>';
         $body .= '<section class="bp-admin-section"><header><div><h2>Stage package</h2><p>Upload a release ZIP and verify its archive safety before applying it.</p></div></header><form method="post" action="/admin/updates/stage" enctype="multipart/form-data" class="bp-form bp-compact-form">' . $this->csrf->field();
-        $body .= '<label>Package ZIP <input type="file" name="package" accept=".zip,application/zip" required><span class="bp-field-help">Upload the downloaded <code>batoi-press-{version}.zip</code> file itself, not a release webpage or an extracted folder.</span></label>';
+        $body .= '<label>Package ZIP <input type="file" name="package" accept=".zip,application/zip" required><span class="bp-field-help">Select the downloaded <code>batoi-press-{version}.zip</code>. Press accepts up to 50 MiB. This server reports <code>upload_max_filesize=' . $this->e((string)ini_get('upload_max_filesize')) . '</code> and <code>post_max_size=' . $this->e((string)ini_get('post_max_size')) . '</code>; the request also includes form overhead.</span></label>';
         $body .= '<label>SHA-256 Checksum <input type="text" name="sha256"><span class="bp-field-help">Optional, but recommended when applying a package downloaded outside the built-in release flow.</span></label>';
         $body .= AdminLayout::submitButton('Verify and Stage', 'upload') . '</form></section></div>';
         $body .= $this->stageList();
@@ -100,14 +112,46 @@ final class UpdateController
         return $this->message('Backup', ($result['ok'] ?? false) ? 'Backup created: ' . (string)$result['path'] : (string)($result['error'] ?? 'Backup failed.'), !($result['ok'] ?? false), ($result['ok'] ?? false) ? 200 : 500);
     }
 
-    public function stage(string $token, array $files, string $sha256): Response
+    public function stage(string $token, array $files, string $sha256, int $contentLength = 0): Response
     {
+        // PHP drops both the upload and the form token when the entire request exceeds its limit.
+        $postLimit = ini_parse_quantity((string)ini_get('post_max_size'));
+        if ($token === '' && $files === [] && $postLimit > 0 && $contentLength > $postLimit) {
+            return $this->message('Stage Update', 'The upload request exceeds PHP’s post_max_size. Ask your host to raise it above the ZIP size to allow for form overhead, then retry.', true, 413);
+        }
+
         if (!$this->csrf->validate($token)) {
             return $this->message('Updates', 'Security token expired.', true, 400);
         }
 
+        if (!ini_get('file_uploads')) {
+            return $this->message('Stage Update', 'PHP file uploads are disabled. Ask your host to enable file_uploads and try again.', true, 503);
+        }
         $file = $files['package'] ?? [];
-        $error = is_array($file) ? (new UploadGuard(['zip'], 50 * 1024 * 1024))->validate($file) : 'Package upload failed.';
+        if (!is_array($file)) {
+            return $this->message('Stage Update', 'Select a single Batoi Press release ZIP and retry.', true, 400);
+        }
+
+        $uploadError = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+        if ($uploadError !== UPLOAD_ERR_OK) {
+            $message = match ($uploadError) {
+                UPLOAD_ERR_INI_SIZE => 'The ZIP exceeds PHP’s upload_max_filesize. Ask your host to raise that limit and ensure post_max_size is larger, then retry.',
+                UPLOAD_ERR_FORM_SIZE => 'The ZIP exceeds the form’s upload size limit.',
+                UPLOAD_ERR_PARTIAL => 'The upload was interrupted before the full ZIP arrived. Select the ZIP and retry.',
+                UPLOAD_ERR_NO_FILE => 'Select the downloaded Batoi Press release ZIP before staging.',
+                UPLOAD_ERR_NO_TMP_DIR, UPLOAD_ERR_CANT_WRITE => 'PHP could not store the uploaded ZIP. Ask your host to check the PHP upload directory, its write permissions, and free disk space.',
+                UPLOAD_ERR_EXTENSION => 'A PHP extension stopped the upload. Ask your host to check the PHP error log.',
+                default => 'PHP could not receive the ZIP. Retry the upload or ask your host to check the PHP error log.',
+            };
+            $status = match ($uploadError) {
+                UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 413,
+                UPLOAD_ERR_NO_TMP_DIR, UPLOAD_ERR_CANT_WRITE => 500,
+                default => 400,
+            };
+            return $this->message('Stage Update', $message, true, $status);
+        }
+
+        $error = (new UploadGuard(['zip'], self::MAX_PACKAGE_BYTES))->validate($file);
         if ($error !== null) {
             return $this->message('Stage Update', $error, true, 400);
         }
@@ -121,10 +165,10 @@ final class UpdateController
         }
         $target = $this->config->paths()->dataPath('tmp/update-package-' . date('Ymd-His') . '-' . bin2hex(random_bytes(4)) . '.zip');
         if (!is_dir(dirname($target)) && !mkdir(dirname($target), 0775, true) && !is_dir(dirname($target))) {
-            return $this->message('Stage Update', 'Unable to prepare the update staging directory.', true, 500);
+            return $this->message('Stage Update', 'Press could not create its update staging directory. Check write access and free disk space in the Press data directory.', true, 500);
         }
         if (!move_uploaded_file((string)$file['tmp_name'], $target)) {
-            return $this->message('Stage Update', 'Unable to save uploaded package.', true, 500);
+            return $this->message('Stage Update', 'Press received the ZIP but could not move it into update staging. Check write access and free disk space in the Press data directory.', true, 500);
         }
 
         $result = (new UpdateRunner($this->config->paths()))->stage($target, trim($sha256));
@@ -176,7 +220,8 @@ final class UpdateController
             }
             if (isset($result['compatibility']['base_url'])) $message .= ' Corrected base URL to ' . (string)$result['compatibility']['base_url']['to'] . '.';
             if ($result['compatibility']['base_url_review'] ?? false) $message .= ' The public base URL could not be confirmed. Review it in Settings.';
-            return $this->message('Apply Update', $message);
+            $this->session->set('update_apply_notice', $message);
+            return Response::redirect('/admin/updates', 303)->withHeader('Cache-Control', 'private, no-store');
         }
 
         $message = (string)($result['error'] ?? 'Update apply failed.');
