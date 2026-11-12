@@ -174,14 +174,15 @@ final class StaticExporter
             }
             $this->writeHtml($workDir, $target, $this->renderTheme($layout, [
                 'page' => $page,
-                'postUrls' => $this->postUrls($publishedPosts),
+                'isHomepage' => $slug === $homepage,
+                'postUrls' => $this->posts->publicPaths($publishedPosts),
                 'title' => (string)($page['title'] ?? ''),
                 'latestPosts' => !empty($page['show_latest_posts']) ? array_slice($publishedPosts, 0, $latestPostsLimit) : [],
             ], '/' . ($slug === $homepage ? '' : $pagePath . '/')));
         }
 
         $posts = $publishedPosts;
-        $postUrls = $this->postUrls($posts);
+        $postUrls = $this->posts->publicPaths($posts);
         foreach ($posts as $post) {
             $slug = (string)($post['slug'] ?? '');
             $postPath = trim($this->posts->publicPath($post), '/');
@@ -227,18 +228,6 @@ final class StaticExporter
     private function products(): ProductRepository
     {
         return $this->productRepository ?? new ProductRepository($this->paths, new FileStore(), new HtmlContent());
-    }
-
-    private function postUrls(array $posts): array
-    {
-        $urls = [];
-        foreach ($posts as $post) {
-            $slug = (string)($post['slug'] ?? '');
-            if ($slug !== '') {
-                $urls[$slug] = $this->posts->publicPath($post);
-            }
-        }
-        return $urls;
     }
 
     private function renderTheme(string $layout, array $data, string $requestUri, int $status = 200): string

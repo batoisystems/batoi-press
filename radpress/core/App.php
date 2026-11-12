@@ -21,6 +21,9 @@ final class App
         class_exists(SecurityHeaders::class);
         class_exists(Response::class);
         $config = Config::load($this->root);
+        $site = $config->site();
+        $redirect = PublicDelivery::canonicalHost($request, (string)($site['base_url'] ?? ''));
+        if ($redirect !== null) return SecurityHeaders::apply($redirect, $request, $config)->withHeader('X-Request-ID', $request->requestId);
         if (!str_starts_with($request->path, '/admin')) {
             try { $GLOBALS['bp_plugin_context'] = (new PluginManager($config->paths()))->boot(); }
             catch (\RuntimeException) { return SecurityHeaders::apply(Response::html('An optional extension is unavailable. Please try again later.', 503), $request, $config); }
@@ -32,13 +35,15 @@ final class App
 
         $files = new FileStore();
         $html = new HtmlContent();
-        $theme = new Theme($config->paths(), $config->site());
+        $theme = new Theme($config->paths(), $site, PHP_SAPI !== 'cli' && $request->method === 'GET'
+            && PublicDelivery::isPublicRead($request));
         $pages = new PageRepository($config->paths(), $files, $html);
         $posts = new PostRepository($config->paths(), $files, $html);
         $products = new ProductRepository($config->paths(), $files, $html);
 
         $response = (new Router($theme, $pages, $posts, $config, $products))->dispatch($request);
         if (str_starts_with($request->path, '/admin')) $response = $response->withHeader('Cache-Control', 'private, no-store');
+        $response = PublicDelivery::compress($request, $response, $site);
         return SecurityHeaders::apply($response, $request, $config)->withHeader('X-Request-ID', (string)($response->headers()['X-Request-ID'] ?? $request->requestId));
     }
 }

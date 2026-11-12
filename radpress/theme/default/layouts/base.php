@@ -4,7 +4,7 @@ declare(strict_types=1);
 $seoTitle = $page['seo_title'] ?? $post['seo_title'] ?? '';
 $pageTitle = $seoTitle !== '' ? $seoTitle : (isset($title) && $title !== '' ? $title . ' | ' . ($site['name'] ?? 'Batoi Press') : ($site['name'] ?? 'Batoi Press'));
 $description = $page['seo_description'] ?? $post['seo_description'] ?? $site['tagline'] ?? '';
-$canonical = \Batoi\Press\Core\SocialMetadata::canonical((string)($site['base_url'] ?? ''), (string)($_SERVER['REQUEST_URI'] ?? '/'));
+$canonical = $canonicalUrl;
 $bodyClass = 'bp-public-body bp-theme-versatile';
 if (isset($page)) {
     $bodyClass .= ' bp-template-' . preg_replace('/[^a-z0-9_-]/', '', strtolower((string)($page['template'] ?? 'page')));
@@ -40,7 +40,7 @@ $fontStylesheet = filter_var($fontStylesheet, FILTER_VALIDATE_URL) && str_starts
     <meta name="theme-color" content="#0e68b0">
     <style><?php echo \Batoi\Press\Core\Appearance::css($site); ?></style>
     <?php echo \Batoi\Press\Core\SocialMetadata::render($page ?? $post ?? [], $site, (string)$pageTitle, (string)$description, $canonical, isset($post)); ?>
-    <link rel="canonical" href="<?php echo bp_attr($canonical); ?>">
+    <?php if ($canonical !== ''): ?><link rel="canonical" href="<?php echo bp_attr($canonical); ?>"><?php endif; ?>
     <?php if ($faviconHref !== ''): ?>
     <link rel="icon" type="<?php echo bp_attr($faviconType); ?>" href="<?php echo bp_attr($faviconHref); ?>">
     <?php endif; ?>

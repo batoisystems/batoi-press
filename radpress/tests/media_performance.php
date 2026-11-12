@@ -25,6 +25,13 @@ try {
     mediaPerfCheck(substr_count($markup,'loading="eager"') === 2 && str_contains($markup, 'fetchpriority="high"') && str_contains($markup, 'width="'), 'hero eager priority and dimensions');
     $later = $media->markup('<img src="/assets/images/hero.png"><img src="/assets/images/hero.png">', ['lazy_images'=>true]);
     mediaPerfCheck(substr_count($later, 'loading="lazy"') === 1, 'lazy loading excludes first image');
+    $carousel = $media->markup('<section data-uif="carousel">'
+        . '<article data-uif-role="slide" data-uif-state="active"><img src="/assets/images/hero.png"></article>'
+        . '<article data-uif-role="slide"><img src="/assets/images/hero.png"></article>'
+        . '<article data-uif-role="slide"><img src="/assets/images/hero.png" loading="eager"></article>'
+        . '</section>', []);
+    mediaPerfCheck(substr_count($carousel, 'fetchpriority="high"') === 1 && substr_count($carousel, 'loading="lazy"') === 1
+        && substr_count($carousel, 'loading="eager"') === 1, 'carousel prioritizes its initial image and preserves explicit loading');
     $variants = (new ImageVariants($paths))->generate('/assets/images/hero.png');
     mediaPerfCheck(hash_file('sha256', $imagePath) === $original, 'original preserved');
     if (function_exists('imagewebp')) {

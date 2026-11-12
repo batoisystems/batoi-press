@@ -159,8 +159,8 @@ File responses have an empty `Response::content()`; callers should use `send()`.
 Existing path restrictions, MIME handling and private preview controls remain.
 
 An optional integer `asset_cache_max_age` in the existing `site.json` config sets
-mutable public asset freshness in seconds (0 by default, capped at 86400), always
-with revalidation. No configuration file is replaced to introduce this setting.
+mutable public asset freshness in seconds (3600 by default, capped at 86400), always
+with revalidation. Set it to 0 to revalidate on each use.
 Only theme URLs whose `h` parameter matches their current SHA-256 fingerprint
 receive one-year immutable caching. Filename suffixes and library versions are
 not assumed to identify content. Cookie/Authorization requests use
@@ -182,27 +182,34 @@ and actual proxy/static-file headers require browser inspection; the view report
 “not verified” rather than guessing. Optional encoders and OPcache are separated
 from blocking runtime or operation prerequisites.
 
-### Compression configuration
+### Public compression and images
 
-Use the host's supported Apache/cPanel or reverse-proxy settings. Have the host
-merge changes into existing rules; do not replace `.htaccess`. For Apache with
-`mod_deflate` and permitted overrides, this optional example targets text assets:
+Batoi Press negotiates gzip for eligible public HTML and XML when PHP provides
+zlib. It excludes admin, private responses, authenticated requests, forms,
+and streamed files. Set `public_compression` to `false` in `site.json` if
+the host or CDN manages text compression. Existing Apache rules remain in use.
 
-```apache
-<IfModule mod_deflate.c>
-    AddOutputFilterByType DEFLATE text/css text/javascript application/javascript text/plain application/xml
-</IfModule>
-```
+Native carousel images keep their original URLs and explicit loading settings.
+Batoi Press gives the first visible carousel image priority when it is the first
+content image and defers inactive slides without explicit loading settings.
+Published pages can use WebP variants for existing local JPEG and PNG images.
+Where PHP GD supports WebP, public requests can prepare one eligible image at a
+time for later requests. Originals remain available, including on hosts with
+read-only media storage. Page-level hero and lazy-loading settings are available
+in the editor.
 
-Choose one compression layer. Do not enable PHP zlib/`ob_gzhandler` and hosting
-compression together. PHP file streaming disables zlib for its identity-byte
-response; avoid output handlers that buffer entire file responses. Exclude media
-range responses and already-compressed images/video/ZIPs from compression. Keep
-`Vary: Accept-Encoding` for negotiated text responses and verify actual headers,
-lengths, conditional responses and seeking in the browser after host changes.
-See [Apache mod_deflate](https://httpd.apache.org/docs/2.4/mod/mod_deflate.html)
-and [PHP zlib configuration](https://www.php.net/manual/en/zlib.configuration.php).
-No hosting configuration is automatically changed by this implementation.
+### Search metadata and crawl files
+
+The configured site URL determines canonical URLs and sitemap entries. Public
+GET and HEAD requests on the matching www or non-www alias redirect to the
+configured host. The configured homepage also redirects from its page URL to
+the site root. Existing admin and API URLs continue to work on their host.
+
+The generated robots file points to the sitemap. On Apache, an existing static
+robots file takes precedence. For a subdirectory installation, configure the
+host's root robots file to advertise the sitemap. The renderer fills missing
+search metadata from the page and site settings, while themes can supply their
+own tags. The defaults take effect when the application renders the site.
 
 ## Major-upgrade hosting contract
 

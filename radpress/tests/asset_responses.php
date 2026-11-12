@@ -34,6 +34,8 @@ try {
     checkAsset($make(['HTTP_COOKIE'=>'session=secret'], 'GET', $query, [], true)->headers()['Cache-Control'] === 'private, no-store', 'cookie never cached');
     checkAsset($make(['HTTP_AUTHORIZATION'=>'Bearer secret'])->headers()['Cache-Control'] === 'private, no-store', 'authorization never cached');
     checkAsset($make(['PHP_AUTH_USER'=>'fixture-user'])->headers()['Cache-Control'] === 'private, no-store', 'server-authenticated requests never cached');
+    checkAsset($make()->headers()['Cache-Control'] === 'public, max-age=3600, must-revalidate', 'anonymous assets default to one hour');
+    checkAsset($make([], 'GET', [], ['asset_cache_max_age'=>0])->headers()['Cache-Control'] === 'public, max-age=0, must-revalidate', 'explicit zero TTL is preserved');
     checkAsset($make([], 'GET', [], ['asset_cache_max_age'=>600])->headers()['Cache-Control'] === 'public, max-age=600, must-revalidate', 'configurable TTL');
     file_put_contents($file, 'ABCDEFGHIJ');
     checkAsset($make(['HTTP_IF_NONE_MATCH'=>$etag])->status() === 200, 'same-length same-second replacement invalidates ETag');

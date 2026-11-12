@@ -39,13 +39,13 @@ final class Response
         return new self($body, $status, ['Content-Type' => $contentType]);
     }
 
-    public static function redirect(string $location): self
+    public static function redirect(string $location, int $status = 302): self
     {
         if (str_starts_with($location, '/') && function_exists('bp_url')) {
             $location = \bp_url($location);
         }
 
-        return new self('Redirecting to ' . $location, 302, ['Location' => $location, 'Content-Type' => 'text/plain; charset=UTF-8']);
+        return new self('Redirecting to ' . $location, $status, ['Location' => $location, 'Content-Type' => 'text/plain; charset=UTF-8']);
     }
 
     public function content(): string
@@ -66,6 +66,33 @@ final class Response
     public function withHeader(string $name, string $value): self
     {
         return new self($this->body, $this->status, array_merge($this->headers, [$name => $value]), $this->inlineScriptHashes, $this->fileBody);
+    }
+
+    public function varyOn(string ...$names): self
+    {
+        $headers = $this->headers;
+        foreach ($headers as $name => $value) {
+            if (strcasecmp($name, 'Vary') !== 0) continue;
+            $names = [...array_map('trim', explode(',', $value)), ...$names];
+            unset($headers[$name]);
+        }
+        $fields = [];
+        foreach ($names as $name) {
+            if ($name !== '') $fields[strtolower($name)] ??= $name;
+        }
+        $headers['Vary'] = isset($fields['*']) ? '*' : implode(', ', $fields);
+        return new self($this->body, $this->status, $headers, $this->inlineScriptHashes, $this->fileBody);
+    }
+
+    public function gzip(): self
+    {
+        if ($this->fileBody !== null) return $this;
+        $body = gzencode($this->body, 5);
+        if ($body === false || strlen($body) >= strlen($this->body)) return $this;
+        return new self($body, $this->status, [
+            'Content-Encoding' => 'gzip',
+            'Content-Length' => (string)strlen($body),
+        ] + $this->headers, $this->inlineScriptHashes);
     }
 
     public function withInlineScript(string $script): self

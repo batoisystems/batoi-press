@@ -36,6 +36,65 @@ final class SocialMetadata
         return $base . $path;
     }
 
+    public static function siteBase(string $url): string
+    {
+        $url = rtrim(trim($url), '/');
+        $parts = parse_url($url);
+        return filter_var($url, FILTER_VALIDATE_URL) && $parts !== false
+            && in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true)
+            && !isset($parts['user']) && !isset($parts['pass']) && !isset($parts['query']) && !isset($parts['fragment'])
+            && !preg_match('/[[:cntrl:] ]/', $url) && !str_contains($url, '\\') ? $url : '';
+    }
+
+    public static function searchDefaults(array $record, array $site, bool $homepage): array
+    {
+        $title = trim((string)($record['seo_title'] ?? ''));
+        $description = trim((string)($record['seo_description'] ?? ''));
+        $siteName = trim((string)($site['name'] ?? ''));
+        $label = trim((string)($record['title'] ?? ''));
+        if ($homepage && $siteName !== '' && ($title === '' || in_array(strtolower($title), ['home', 'homepage'], true))) {
+            $record['seo_title'] = $siteName;
+        } elseif ($title === '' && $label !== '' && $siteName !== '' && strcasecmp($label, $siteName) !== 0) {
+            $record['seo_title'] = $label . ' | ' . $siteName;
+        }
+        if ($description === '' || ($homepage && in_array(strtolower($description), ['home', 'homepage'], true))) {
+            $body = (string)($record['body'] ?? '');
+            $body = preg_replace('~<(script|style|pre|form)\b[^>]*>.*?</\1\s*>~is', '', $body) ?? '';
+            $body = preg_replace('~</(?:p|div|section|article|h[1-6])>~i', '$0 ', $body) ?? '';
+            preg_match_all('~<p\b[^>]*>(.*?)</p>~is', $body, $paragraphs);
+            $tagline = (string)($site['tagline'] ?? '');
+            $candidates = [$homepage ? $tagline : '', (string)($record['subtitle'] ?? ''), ...($paragraphs[1] ?? []), $tagline, $body];
+            foreach ($candidates as $candidate) {
+                $plain = trim(preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags($candidate), ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?? '');
+                if ($plain === '' || strcasecmp($plain, $label) === 0) continue;
+                preg_match('/^.{1,155}/us', $plain, $excerpt);
+                $short = $excerpt[0] ?? '';
+                if ($short !== $plain) $short = rtrim(preg_replace('/\s+\S*$/u', '', $short) ?? $short) . '…';
+                $record['seo_description'] = $short;
+                break;
+            }
+        }
+        return $record;
+    }
+
+    public static function missingSearchTags(string $html, array $record, string $canonical): string
+    {
+        if (!preg_match('~<head\b[^>]*>(.*?)</head\s*>~is', $html, $match)) return '';
+        $head = $match[1];
+        $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $tags = '';
+        if ($canonical !== '' && !preg_match('~<link\b[^>]*\brel\s*=\s*(?:"[^"]*\bcanonical\b[^"]*"|\'[^\']*\bcanonical\b[^\']*\'|canonical\b)~i', $head)) {
+            $tags .= '<link rel="canonical" href="' . $escape($canonical) . '">' . "\n";
+        }
+        if (!empty($record['seo_title']) && !preg_match('~<title\b~i', $head)) {
+            $tags .= '<title>' . $escape((string)$record['seo_title']) . '</title>' . "\n";
+        }
+        if (!empty($record['seo_description']) && !preg_match('~<meta\b[^>]*\bname\s*=\s*["\']?description\b~i', $head)) {
+            $tags .= '<meta name="description" content="' . $escape((string)$record['seo_description']) . '">' . "\n";
+        }
+        return $tags;
+    }
+
     public static function render(array $record, array $site, string $title, string $description, string $url, bool $post): string
     {
         $pick = static fn(string $key, string $fallback): string => trim((string)($record[$key] ?? '')) ?: $fallback;

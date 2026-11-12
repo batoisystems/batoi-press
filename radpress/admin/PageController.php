@@ -242,7 +242,8 @@ final class PageController
             . $this->input('Hero image URL', 'hero_image', (string)($page['hero_image'] ?? ''), false)
             . $this->input('Responsive image sizes', 'image_sizes', (string)($page['image_sizes'] ?? '100vw'), false);
         foreach (['hero_preload' => 'Preload hero image', 'lazy_images' => 'Lazy-load later images (review below-the-fold placement)'] as $field => $label) {
-            $pageAssets .= '<label>' . $label . '<select name="' . $field . '"><option value="0">Disabled</option><option value="1"' . (!empty($page[$field]) ? ' selected' : '') . '>Enabled</option></select></label>';
+            $enabled = $page[$field] ?? ($field === 'lazy_images');
+            $pageAssets .= '<label>' . $label . '<select name="' . $field . '"><option value="0">Disabled</option><option value="1"' . ($enabled ? ' selected' : '') . '>Enabled</option></select></label>';
         }
         $pageAssets .= '<label>Hero priority <select name="hero_priority"><option value="auto">Automatic</option><option value="high"' . (($page['hero_priority'] ?? '') === 'high' ? ' selected' : '') . '>High</option></select></label></div></details>';
         $content = '<div class="bp-form-grid">' . $this->input('Title', 'title', (string)($page['title'] ?? ''), true, 'data-bp-slug-source') . $this->input('Slug', 'slug', $slug, true, 'data-bp-slug-target') . $modeSwitch . $editor . $pageAssets . '</div>';

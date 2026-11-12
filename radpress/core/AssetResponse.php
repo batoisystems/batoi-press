@@ -8,7 +8,7 @@ final class AssetResponse
     public static function policy(array $settings, bool $fingerprinted = false): string
     {
         if ($fingerprinted) return 'public, max-age=31536000, immutable';
-        return 'public, max-age=' . max(0, min(86400, (int)($settings['asset_cache_max_age'] ?? 0))) . ', must-revalidate';
+        return 'public, max-age=' . max(0, min(86400, (int)($settings['asset_cache_max_age'] ?? 3600))) . ', must-revalidate';
     }
 
     public static function make(string $path, Request $request, array $settings = [], bool $themeAsset = false): Response

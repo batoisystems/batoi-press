@@ -7,7 +7,8 @@ final class Theme
 {
     public function __construct(
         private readonly Paths $paths,
-        private readonly array $site
+        private readonly array $site,
+        private readonly bool $warmImages = false
     ) {
     }
 
@@ -27,6 +28,15 @@ final class Theme
             $site['font_family'] = LocalFontManager::FAMILY;
             $site['font_stylesheet_url'] = '';
         }
+        $recordKey = isset($data['page']) ? 'page' : 'post';
+        $searchRecord = null;
+        if ($status === 200 && empty($options['preview_banner']) && is_array($data[$recordKey] ?? null)) {
+            $searchRecord = SocialMetadata::searchDefaults($data[$recordKey], $site, (bool)($data['isHomepage'] ?? false));
+        }
+        $base = SocialMetadata::siteBase((string)($site['base_url'] ?? ''));
+        $canonicalUrl = $base === '' ? '' : (isset($data['canonicalPath'])
+            ? $base . $data['canonicalPath']
+            : SocialMetadata::canonical($base, (string)($_SERVER['REQUEST_URI'] ?? '/')));
         extract($data, EXTR_SKIP);
         $theme = $manager->context($slug);
         if (array_filter($theme['errors'] ?? [], static fn(string $error): bool => preg_match('/^(?:PHP requires|PRESS requires|.*theme (?:contract|compatibility|token|color|partial)|Theme colors)/i',$error) === 1)) return Response::html('The active theme requires compatibility review. Use Themes to select a compatible theme.',503);
@@ -42,11 +52,17 @@ final class Theme
             ob_start();
             require $layoutFile;
             $content = (string)ob_get_clean();
-            $content = (new MediaPerformance($this->paths))->markup($content, (array)($data['page'] ?? []), $localizedAssets);
+            $mediaSettings = isset($data['page']) ? (array)$data['page'] + ['lazy_images' => true] : [];
+            $content = (new MediaPerformance($this->paths))->markup($content, $mediaSettings, $localizedAssets,
+                $status === 200 && $localizedAssets && $this->warmImages && empty($options['preview_banner']));
             if ($localizedAssets && function_exists('bp_localize_markup_urls')) {
                 $content = \bp_localize_markup_urls($content);
             }
 
+            if ($searchRecord !== null) {
+                if ($recordKey === 'page') $page = $searchRecord;
+                else $post = $searchRecord;
+            }
             $baseFile = $this->paths->themePath($slug . '/layouts/base.php');
             ob_start();
             require $baseFile;
@@ -64,7 +80,9 @@ final class Theme
         $themeHead = $manager->tags($slug, 'head', $localizedAssets);
         $themeBody = $manager->tags($slug, 'body', $localizedAssets);
         $libraries = new AssetLibraryManager($this->paths);
-        $head = $themeHead . $libraries->tags('head', $localizedAssets);
+        $head = ($status === 200 && empty($options['preview_banner'])
+            ? SocialMetadata::missingSearchTags($html, $searchRecord ?? [], $canonicalUrl) : '')
+            . $themeHead . $libraries->tags('head', $localizedAssets);
         if ($localFont !== '') $head .= '<style data-bp-local-font>' . $localFont . '</style>';
         $body = $themeBody . $libraries->tags('body', $localizedAssets);
         $integrationsPath = $this->paths->configPath('integrations.json');
@@ -90,7 +108,8 @@ final class Theme
             $inlineScripts[] = $pageJs;
         }
         if ($head !== '') {
-            $html = str_contains($html, '</head>') ? str_replace('</head>', $head . '</head>', $html) : $head . $html;
+            $html = preg_replace_callback('~</head\s*>~i', static fn(array $match): string => $head . $match[0], $html, 1, $inserted) ?? $html;
+            if ($inserted === 0) $html = $head . $html;
         }
         if ($body !== '') {
             $html = str_contains($html, '</body>') ? str_replace('</body>', $body . '</body>', $html) : $html . $body;

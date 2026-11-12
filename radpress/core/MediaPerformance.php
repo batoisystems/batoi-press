@@ -18,7 +18,7 @@ final class MediaPerformance
         return ['hero_image' => $url,
             'hero_preload' => filter_var($input['hero_preload'] ?? $existing['hero_preload'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'hero_priority' => ($input['hero_priority'] ?? $existing['hero_priority'] ?? 'auto') === 'high' ? 'high' : 'auto',
-            'lazy_images' => filter_var($input['lazy_images'] ?? $existing['lazy_images'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'lazy_images' => filter_var($input['lazy_images'] ?? $existing['lazy_images'] ?? true, FILTER_VALIDATE_BOOLEAN),
             'image_sizes' => substr(trim((string)($input['image_sizes'] ?? $existing['image_sizes'] ?? '100vw')), 0, 500)];
     }
 
@@ -40,18 +40,31 @@ final class MediaPerformance
         return '<link rel="preload" as="image" href="' . self::e($localized ? \bp_url($image['url']) : $image['url']) . '" fetchpriority="' . (($page['hero_priority'] ?? '') === 'high' ? 'high' : 'auto') . '"' . $this->responsive($image, $page, $localized) . '>';
     }
 
-    public function markup(string $html, array $page, bool $localized = true): string
+    public function markup(string $html, array $page, bool $localized = true, bool $warm = false): string
     {
         if (!class_exists(\DOMDocument::class)) return $html;
+        $slides = [];
+        if (preg_match('~\bdata-uif\s*=\s*(["\'])carousel\1~i', $html)) {
+            preg_match_all('~(<(?:article|div)\b[^>]*\bdata-uif-role\s*=\s*(["\'])slide\2[^>]*>)\s*(<img\b[^>]*>)~i',
+                $html, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+            foreach ($matches as $slide) {
+                $slides[$slide[3][1]] = preg_match('~\bdata-uif-state\s*=\s*(["\'])active\1~i', $slide[1][0]) === 1;
+            }
+            if ($slides !== [] && !in_array(true, $slides, true)) $slides[array_key_first($slides)] = true;
+        }
+
         $index = 0;
-        return preg_replace_callback('/<img\b[^>]*>/i', function ($match) use ($page, &$index, $localized) {
+        $queued = false;
+        $variants = new ImageVariants($this->paths);
+        return preg_replace_callback('/<img\b[^>]*>/i', function ($match) use ($page, &$index, $localized, $warm, $slides, $variants, &$queued) {
             $index++;
+            [$tag, $offset] = $match[0];
             $dom = new \DOMDocument();
-            @$dom->loadHTML('<?xml encoding="utf-8" ?>' . $match[0], LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+            @$dom->loadHTML('<?xml encoding="utf-8" ?>' . $tag, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
             $img = $dom->getElementsByTagName('img')->item(0);
-            if (!$img) return $match[0];
+            if (!$img) return $tag;
             $image = $this->image($img->getAttribute('src'));
-            if ($image === null) return $match[0];
+            if ($image === null) return $tag;
             $hero = $image['url'] === ($page['hero_image'] ?? '');
             if (!$img->hasAttribute('width') && !$img->hasAttribute('height')) {
                 $img->setAttribute('width', (string)$image['width']);
@@ -60,14 +73,25 @@ final class MediaPerformance
             if ($hero) {
                 $img->setAttribute('loading', 'eager');
                 $img->setAttribute('fetchpriority', ($page['hero_priority'] ?? '') === 'high' ? 'high' : 'auto');
-            } elseif (!empty($page['lazy_images']) && $index > 1 && !$img->hasAttribute('loading')) $img->setAttribute('loading', 'lazy');
-            $set = (new ImageVariants($this->paths))->srcset($image, $localized);
-            if ($set !== '' && !$img->hasAttribute('srcset')) {
-                $img->setAttribute('srcset', $set);
-                $img->setAttribute('sizes', (string)($page['image_sizes'] ?? '100vw'));
+            } elseif (!$img->hasAttribute('loading') && (($slides[$offset] ?? null) === false
+                || (!empty($page['lazy_images']) && $index > 1))) {
+                $img->setAttribute('loading', 'lazy');
+            }
+            if ($index === 1 && empty($page['hero_image']) && ($slides[$offset] ?? false)
+                && !$img->hasAttribute('fetchpriority') && strtolower($img->getAttribute('loading')) !== 'lazy') {
+                $img->setAttribute('fetchpriority', 'high');
+            }
+            if (!$img->hasAttribute('srcset')) {
+                $set = $variants->srcset($image, $localized);
+                if ($set !== '') {
+                    $img->setAttribute('srcset', $set);
+                    if (!$img->hasAttribute('sizes')) $img->setAttribute('sizes', (string)($page['image_sizes'] ?? '100vw'));
+                } elseif ($warm && !$queued) {
+                    $queued = $variants->scheduleWebp($image);
+                }
             }
             return $dom->saveHTML($img);
-        }, $html) ?? $html;
+        }, $html, -1, $count, PREG_OFFSET_CAPTURE) ?? $html;
     }
 
     private function responsive(array $image, array $page, bool $localized): string

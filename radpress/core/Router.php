@@ -77,6 +77,17 @@ final class Router
             return Response::xml($this->sitemap());
         }
 
+        if ($request->path === '/robots.txt' && in_array($request->method, ['GET', 'HEAD'], true)) {
+            $site = SocialMetadata::siteBase((string)($this->config->site()['base_url'] ?? ''));
+            $mount = (string)parse_url($site, PHP_URL_PATH);
+            $robots = "User-agent: *\n";
+            foreach (['admin', 'install.php', 'api/', 'mcp'] as $path) {
+                $robots .= 'Disallow: ' . $mount . '/' . $path . "\n";
+            }
+            if ($site !== '') $robots .= 'Sitemap: ' . $site . "/sitemap.xml\n";
+            return Response::body($robots, 'text/plain; charset=UTF-8');
+        }
+
         if ($request->path === '/feed.xml') {
             return Response::xml($this->feed());
         }
@@ -109,11 +120,12 @@ final class Router
             }
             return $this->theme->render('blog', [
                 'posts' => array_slice($publishedPosts, ($pageNumber - 1) * $perPage, $perPage),
-                'postUrls' => $this->postUrls($publishedPosts),
+                'postUrls' => $this->posts->publicPaths($publishedPosts),
                 'pageNumber' => $pageNumber,
                 'pageCount' => $pageCount,
                 'title' => ucwords(str_replace('-', ' ', $postType)),
                 'archivePath' => '/' . $postType,
+                'canonicalPath' => '/' . $postType . ($pageNumber > 1 ? '?page=' . $pageNumber : ''),
             ]);
         }
 
@@ -137,9 +149,10 @@ final class Router
             return $this->theme->render('post', [
                 'post' => $post,
                 'title' => (string)$post['title'],
+                'canonicalPath' => $this->posts->publicPath($post),
                 'widgets' => $this->sidebarWidgets(),
                 'recentPosts' => $this->posts->allPublished(),
-                'postUrls' => $this->postUrls($this->posts->allPublished()),
+                'postUrls' => $this->posts->publicPaths($this->posts->allPublished(false)),
                 'previousPost' => $adjacent['previous'],
                 'nextPost' => $adjacent['next'],
             ]);
@@ -149,12 +162,25 @@ final class Router
             return $this->admin($request);
         }
 
+        $homepage = Slug::normalize((string)($this->config->site()['homepage'] ?? 'home'));
         $page = $request->path === '/'
-            ? $this->pages->findBySlug(Slug::normalize((string)($this->config->site()['homepage'] ?? 'home')))
+            ? $this->pages->findBySlug($homepage)
             : $this->pages->findByPath($request->path);
 
+        if ($page !== null && PublicationState::isPublic($page) && ($page['slug'] ?? '') === $homepage
+            && $request->path !== '/' && in_array($request->method, ['GET', 'HEAD'], true)) {
+            $query = $request->query;
+            unset($query['route']);
+            $suffix = http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+            $location = BasePath::detect($request->server) . '/' . ($suffix === '' ? '' : '?' . $suffix);
+            return Response::body('Redirecting to homepage', 'text/plain; charset=UTF-8', 301)->withHeader('Location', $location);
+        }
+
         return $page !== null && PublicationState::isPublic($page)
-            ? $this->theme->render($this->theme->pageLayout((string)($page['template'] ?? 'page')), $this->pageData($page))
+            ? $this->theme->render($this->theme->pageLayout((string)($page['template'] ?? 'page')), $this->pageData($page) + [
+                'canonicalPath' => ($page['slug'] ?? '') === $homepage ? '/' : $this->pages->publicPath($page),
+                'isHomepage' => ($page['slug'] ?? '') === $homepage,
+            ])
             : $this->notFound();
     }
 
@@ -165,13 +191,13 @@ final class Router
         if (is_array($page['blocks'] ?? null) && $page['blocks'] !== []) {
             $page['body'] = (new PageBlockRenderer($this->config->paths(), $this->posts, $this->products(), $this->config->site()))->render($page['blocks']);
         }
+        $showLatest = !empty($page['show_latest_posts']);
+        $publishedPosts = $this->posts->allPublished($showLatest);
         return [
             'page' => $page,
             'title' => (string)($page['title'] ?? ''),
-            'postUrls' => $this->postUrls($this->posts->allPublished()),
-            'latestPosts' => !empty($page['show_latest_posts'])
-                ? array_slice($this->posts->allPublished(), 0, $limit)
-                : [],
+            'postUrls' => $this->posts->publicPaths($publishedPosts),
+            'latestPosts' => $showLatest ? array_slice($publishedPosts, 0, $limit) : [],
             'contact' => [
                 'status' => (string)($_GET['contact'] ?? ''),
                 'recaptcha_site_key' => (string)($integrations['recaptcha_site_key'] ?? ''),
@@ -604,18 +630,6 @@ final class Router
         return (new \Batoi\Press\Content\WidgetRepository($this->config->paths()))->load()['widgets'];
     }
 
-    private function postUrls(array $posts): array
-    {
-        $urls = [];
-        foreach ($posts as $post) {
-            $slug = (string)($post['slug'] ?? '');
-            if ($slug !== '') {
-                $urls[$slug] = $this->posts->publicPath($post);
-            }
-        }
-        return $urls;
-    }
-
     private function products(): ProductRepository
     {
         return $this->productRepository ?? new ProductRepository($this->config->paths(), new FileStore(), new HtmlContent());
@@ -659,15 +673,18 @@ final class Router
 
     private function sitemap(): string
     {
-        $baseUrl = rtrim((string)($this->config->site()['base_url'] ?? ''), '/');
+        $site = $this->config->site();
+        $baseUrl = SocialMetadata::siteBase((string)($site['base_url'] ?? ''));
         $urls = [];
-        foreach ($this->pages->allPublished() as $page) {
+        $homepage = Slug::normalize((string)($site['homepage'] ?? 'home'));
+        foreach ($this->pages->allPublished(false) as $page) {
             $slug = (string)($page['slug'] ?? '');
-            $urls[] = $baseUrl . ($slug === Slug::normalize((string)($site['homepage'] ?? 'home')) ? '/' : $this->pages->publicPath($page));
+            $urls[] = $baseUrl . ($slug === $homepage ? '/' : $this->pages->publicPath($page));
         }
         $urls[] = $baseUrl . '/blog';
-        foreach ($this->posts->allPublished() as $post) {
-            $urls[] = $baseUrl . $this->posts->publicPath($post);
+        foreach ($this->posts->publicPaths($this->posts->allPublished(false)) as $path) {
+            $urls[] = $baseUrl . '/' . explode('/', ltrim($path, '/'), 2)[0];
+            $urls[] = $baseUrl . $path;
         }
         $publishedProducts = $this->products()->published();
         if ($publishedProducts !== []) {
@@ -679,7 +696,7 @@ final class Router
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
         $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
-        foreach ($urls as $url) {
+        foreach ($baseUrl === '' ? [] : array_unique($urls) as $url) {
             $xml .= '  <url><loc>' . htmlspecialchars($url, ENT_XML1) . '</loc></url>' . "\n";
         }
         return $xml . '</urlset>';

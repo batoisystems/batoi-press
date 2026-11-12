@@ -46,9 +46,9 @@ final class PageRepository
         return trim($this->publicPath($page), '/') === implode('/', $segments) ? $page : null;
     }
 
-    public function allPublished(): array
+    public function allPublished(bool $withBody = true): array
     {
-        return array_values(array_filter($this->all(), static fn (array $page): bool => PublicationState::isPublic($page)));
+        return array_values(array_filter($withBody ? $this->all() : $this->metadata(), static fn (array $page): bool => PublicationState::isPublic($page)));
     }
 
     public function all(): array
@@ -199,6 +199,7 @@ final class PageRepository
         if (is_string($page)) {
             $page = $this->findBySlug($page) ?? ['slug' => Slug::normalize($page)];
         }
+        if ((string)($page['parent_slug'] ?? '') === '') return '/' . rawurlencode(Slug::normalize((string)($page['slug'] ?? '')));
 
         $pages = [];
         foreach ($this->metadata() as $candidate) {

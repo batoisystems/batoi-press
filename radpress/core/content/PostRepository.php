@@ -37,9 +37,9 @@ final class PostRepository
         return $post !== null && $this->publicPath($post) === '/' . $postType . '/' . implode('/', $segments) ? $post : null;
     }
 
-    public function allPublished(): array
+    public function allPublished(bool $withBody = true): array
     {
-        return array_values(array_filter($this->all(), static fn (array $post): bool => PublicationState::isPublic($post)));
+        return array_values(array_filter($withBody ? $this->all() : $this->metadata(), static fn (array $post): bool => PublicationState::isPublic($post)));
     }
 
     public function all(): array
@@ -163,6 +163,28 @@ final class PostRepository
         if (is_string($post)) {
             $post = $this->findBySlug($post) ?? ['slug' => Slug::normalize($post)];
         }
+        return $this->pathWithParents($post, (string)($post['parent_slug'] ?? '') === '' ? [] : $this->parentIndex());
+    }
+
+    public function publicPaths(array $posts): array
+    {
+        $parents = [];
+        foreach ($posts as $post) {
+            if ((string)($post['parent_slug'] ?? '') !== '') {
+                $parents = $this->parentIndex();
+                break;
+            }
+        }
+        $urls = [];
+        foreach ($posts as $post) {
+            $slug = (string)($post['slug'] ?? '');
+            if ($slug !== '') $urls[$slug] = $this->pathWithParents($post, $parents);
+        }
+        return $urls;
+    }
+
+    private function parentIndex(): array
+    {
         $posts = [];
         foreach ($this->metadata() as $candidate) {
             $candidateSlug = (string)($candidate['slug'] ?? '');
@@ -170,7 +192,11 @@ final class PostRepository
                 $posts[$candidateSlug] = $candidate;
             }
         }
+        return $posts;
+    }
 
+    private function pathWithParents(array $post, array $posts): string
+    {
         $segments = [];
         $current = $post;
         $visited = [];
