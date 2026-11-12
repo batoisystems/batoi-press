@@ -76,7 +76,7 @@ final class VersionChecker
                 if (getenv($variable)) return false; // Do not bypass a configured proxy or resolve it unsafely.
             }
         }
-        $resolve = $nativeResolverUnsafe ? $this->directDnsEntry() : null;
+        $resolve = $nativeResolverUnsafe ? self::directDnsEntry($this->manifestUrl) : null;
         if ($nativeResolverUnsafe && $resolve === null) return false;
         if (function_exists('curl_init')) {
             $handle = curl_init($this->manifestUrl);
@@ -111,9 +111,52 @@ final class VersionChecker
         return $os === 'Darwin' && !in_array($sapi, ['cli', 'phpdbg', 'cli-server'], true);
     }
 
-    private function directDnsEntry(): ?string
+    public static function isHttpsUrl(string $url): bool
     {
-        $parts = parse_url($this->manifestUrl);
+        if (!filter_var($url, FILTER_VALIDATE_URL) || preg_match('/[\\\\\x00-\x20\x7f]/', $url)) return false;
+        $parts = parse_url($url);
+        return strtolower($parts['scheme'] ?? '') === 'https' && !empty($parts['host'])
+            && !isset($parts['user']) && !isset($parts['pass']) && !isset($parts['fragment']);
+    }
+
+    /** Stream a direct HTTPS response into a private file, stopping at the byte limit. */
+    public static function downloadHttps(string $url, $file, int $maxBytes, int $timeout): bool
+    {
+        if (!self::isHttpsUrl($url) || !function_exists('curl_init')) return false;
+        $resolve = null;
+        if (self::requiresDirectDns(PHP_OS_FAMILY, PHP_SAPI)) {
+            foreach (['HTTPS_PROXY', 'https_proxy', 'ALL_PROXY', 'all_proxy'] as $variable) {
+                if (getenv($variable)) return false;
+            }
+            $resolve = self::directDnsEntry($url);
+            if ($resolve === null) return false;
+        }
+        $handle = curl_init($url);
+        if ($handle === false) return false;
+        $written = 0;
+        $options = [
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => $timeout,
+            CURLOPT_USERAGENT => 'Batoi Press Updater',
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use ($file, $maxBytes, &$written): int {
+                $length = strlen($chunk);
+                if ($length > $maxBytes - $written || fwrite($file, $chunk) !== $length) return 0;
+                $written += $length;
+                return $length;
+            },
+        ];
+        if ($resolve !== null) $options[CURLOPT_RESOLVE] = [$resolve];
+        if (!curl_setopt_array($handle, $options) || curl_exec($handle) !== true) return false;
+        return (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE) === 200 && $written > 0 && fflush($file);
+    }
+
+    private static function directDnsEntry(string $url): ?string
+    {
+        $parts = parse_url($url);
         $host = (string)($parts['host'] ?? '');
         if (($parts['scheme'] ?? '') !== 'https' || isset($parts['user']) || isset($parts['pass']) || !preg_match('/^[a-z0-9.-]+$/iD', $host) || !function_exists('dns_get_record')) return null;
         $addresses = [];

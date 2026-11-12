@@ -207,11 +207,62 @@ try {
     } finally { $_SERVER = $originalServer; }
     upgradeCheck($response->status()===303 && ($response->headers()['Location']??'')==='/admin/updates','Successful apply must redirect to the Updates page as a GET.');
     $updates = new Batoi\Press\Admin\UpdateController(Batoi\Press\Core\Config::load($root),$csrf,$audit,['username'=>'owner','role'=>'owner'],$session);
+    upgradeCheck($updates->upgrade('invalid-token')->status() === 400, 'One-click upgrade requires a valid CSRF token.');
     $content = $updates->index()->content();
+    upgradeCheck(str_contains($content, 'action="' . bp_url('/admin/updates/upgrade') . '"') && str_contains($content, 'Upgrade to Latest'), 'Updates must offer one-click upgrade as a form action.');
+    upgradeCheck(str_contains($content, 'target="_blank" rel="noopener" aria-label="View site (opens in a new tab)"'), 'The Admin navbar must open View site in a new tab.');
     upgradeCheck(str_contains($content,'Update applied.') && str_contains($content,'Preserved theme default as default-preserved.') && str_contains($content,'Corrected base URL to https://press.example.test.'),'Updates page must explain successful apply, automatic preservation and URL repair.');
     upgradeCheck(!str_contains($updates->index()->content(),'Update applied.'),'Refreshing Updates must not repeat the apply notice.');
     $event = $audit->entries(1)[0];
     upgradeCheck($event['action']==='update.applied' && $event['details']['themes'][0]['to']==='default-preserved' && $event['details']['base_url']['to']==='https://press.example.test','Update audit must retain migration results.');
+
+    [$root, $paths, $runner] = upgradeFixture('one-click');
+    $package = upgradePackage($root, '1.1.0', []);
+    $index = [
+        'channel' => 'stable',
+        'version' => '1.1.0',
+        'minimum_php' => '8.3.0',
+        'download_url' => 'https://releases.example.test/batoi-press-1.1.0.zip',
+        'checksum_sha256' => hash_file('sha256', $package),
+    ];
+    $calls = [];
+    $fetch = static function (array $manifest) use ($package, &$calls, $runner): Closure {
+        return static function (string $url, $file, int $limit) use ($manifest, $package, &$calls, $runner): bool {
+            $calls[] = $url;
+            if (str_ends_with($url, '/latest.json')) {
+                $parallel = $runner->upgradeLatest([], static fn () => throw new RuntimeException('Concurrent updater reached download.'));
+                upgradeCheck(!($parallel['ok'] ?? true) && str_contains($parallel['error'], 'already running'), 'The update lock must cover remote fetch and install.');
+                $body = json_encode($manifest, JSON_THROW_ON_ERROR);
+            } else {
+                $body = file_get_contents($package);
+            }
+            return strlen($body) <= $limit && fwrite($file, $body) === strlen($body);
+        };
+    };
+    $signIndex = static fn (array $manifest): array => ReleaseSignature::sign($manifest, $secret, 'fixture', 'release-index');
+    $tests = [
+        [$index, 'signature is required', 1],
+        [$signIndex(array_replace($index, ['minimum_php' => '99.0.0'])), 'requires PHP', 1],
+        [$signIndex(array_replace($index, ['download_url' => 'http://releases.example.test/package.zip'])), 'valid package download', 1],
+        [$signIndex(array_replace($index, ['checksum_sha256' => str_repeat('0', 64)])), 'checksum verification failed', 2],
+        [$signIndex(array_replace($index, ['version' => '1.2.0'])), 'version does not match', 2],
+    ];
+    foreach ($tests as [$manifest, $message, $expectedCalls]) {
+        $calls = [];
+        $failed = $runner->upgradeLatest(['DOCUMENT_ROOT' => $paths->publicPath()], $fetch($manifest));
+        upgradeCheck(!($failed['ok'] ?? true) && str_contains($failed['error'], $message) && count($calls) === $expectedCalls, 'One-click must reject invalid releases: ' . json_encode($failed));
+        upgradeCheck(glob($paths->dataPath('backups/*.zip')) === [] && glob($paths->dataPath('tmp/auto-update-*')) === [], 'Rejected downloads must leave no backup or automatic stage.');
+    }
+    $calls = [];
+    $installed = $runner->upgradeLatest(['DOCUMENT_ROOT' => $paths->publicPath()], $fetch($signIndex($index)));
+    upgradeCheck(($installed['ok'] ?? false) && $installed['version'] === '1.1.0' && count($calls) === 2 && is_file($installed['backup']), 'One-click must apply the verified release and create a rollback backup.');
+    upgradeCheck(glob($paths->dataPath('tmp/auto-update-*')) === [], 'The automatic stage must be cleaned up after install.');
+    $calls = [];
+    $current = $runner->upgradeLatest([], $fetch($signIndex($index)));
+    upgradeCheck(($current['no_update'] ?? false) && !$current['manifest_behind'] && count($calls) === 1, 'Repeat clicks must skip package download and install.');
+    $calls = [];
+    $older = $runner->upgradeLatest([], $fetch($signIndex(array_replace($index, ['version' => '1.0.0']))));
+    upgradeCheck(($older['no_update'] ?? false) && $older['manifest_behind'] && count($calls) === 1, 'An older stable manifest must never downgrade the installation.');
 
     [$root,$paths,$runner] = upgradeFixture('linked-theme');
     $store->write($root.'/outside.txt','outside sentinel');symlink($root.'/outside.txt',$paths->themePath('default/linked.txt'));

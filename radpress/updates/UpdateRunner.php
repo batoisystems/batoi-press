@@ -10,11 +10,19 @@ use ZipArchive;
 
 final class UpdateRunner
 {
+    private const MAX_INDEX_BYTES = 256 * 1024;
+    private const MAX_PACKAGE_BYTES = 100 * 1024 * 1024;
+
     public function __construct(private readonly Paths $paths)
     {
     }
 
     public function stage(string $packagePath, ?string $sha256 = null): array
+    {
+        return $this->stagePackage($packagePath, $sha256);
+    }
+
+    private function stagePackage(string $packagePath, ?string $sha256, ?string $automaticStage = null): array
     {
         $verifier = new PackageVerifier();
         if ($sha256 !== null && $sha256 !== '' && !$verifier->verifyChecksum($packagePath, $sha256)) {
@@ -30,7 +38,7 @@ final class UpdateRunner
             return ['ok' => false, 'error' => 'Package contains unsafe ZIP paths.'];
         }
 
-        $stageDir = $this->paths->dataPath('tmp/update-stage-' . date('Ymd-His') . '-' . bin2hex(random_bytes(3)));
+        $stageDir = $automaticStage ?? $this->paths->dataPath('tmp/update-stage-' . date('Ymd-His') . '-' . bin2hex(random_bytes(3)));
         if (!mkdir($stageDir, 0700, true)) {
             return ['ok'=>false, 'error'=>'Unable to create update staging storage.'];
         }
@@ -51,11 +59,12 @@ final class UpdateRunner
         }
 
         $updateConfig = $this->updateConfig();
+        $signatureRequired = $automaticStage !== null || (bool)($updateConfig['require_signed_packages'] ?? false);
         try {
             $signatureError = ReleaseSignature::verify(
                 (array)$package['manifest'],
                 (array)($updateConfig['release_public_keys'] ?? []),
-                (bool)($updateConfig['require_signed_packages'] ?? false),
+                $signatureRequired,
                 'package-manifest'
             );
         } catch (\RuntimeException $exception) {
@@ -64,7 +73,7 @@ final class UpdateRunner
         if ($signatureError !== null) {
             return ['ok' => false, 'error' => $signatureError, 'stage_dir' => $stageDir];
         }
-        $fileError = $this->verifyStagedFiles((string)$package['root'], (array)$package['manifest'], (bool)($updateConfig['require_signed_packages'] ?? false));
+        $fileError = $this->verifyStagedFiles((string)$package['root'], (array)$package['manifest'], $signatureRequired);
         if ($fileError !== null) {
             return ['ok' => false, 'error' => $fileError, 'stage_dir' => $stageDir];
         }
@@ -74,6 +83,101 @@ final class UpdateRunner
 
     public function apply(string $stageDir, ?array $server = null): array
     {
+        return $this->withUpdateLock(fn (): array => $this->applyLocked($stageDir, $server ?? $_SERVER));
+    }
+
+    public function rollback(string $backup): array
+    {
+        return $this->withUpdateLock(fn (): array => (new RollbackManager($this->paths))->restore($backup));
+    }
+
+    public function upgradeLatest(?array $server = null, ?callable $download = null): array
+    {
+        if ($download === null && !function_exists('curl_init')) {
+            return ['ok' => false, 'error' => 'Enable PHP cURL to download signed updates, or use the manual upload on the Updates screen.'];
+        }
+        return $this->withUpdateLock(fn (): array => $this->upgradeLatestLocked($server ?? $_SERVER, $download ?? VersionChecker::downloadHttps(...)));
+    }
+
+    private function upgradeLatestLocked(array $server, callable $download): array
+    {
+        $config = $this->updateConfig();
+        $current = $config['current_version'] ?? '';
+        $manifestUrl = $config['stable_manifest_url'] ?? 'https://www.batoi.com/pub/press/latest.json';
+        $keys = (array)($config['release_public_keys'] ?? []);
+        if (!is_string($current) || $current === '' || ($config['channel'] ?? 'stable') !== 'stable') {
+            return ['ok' => false, 'error' => 'One-click upgrades require a configured installation on the stable channel.'];
+        }
+        if (!function_exists('sodium_crypto_sign_verify_detached') || $keys === []) {
+            return ['ok' => false, 'error' => 'Enable PHP Sodium and configure the trusted release keys to verify signed updates.'];
+        }
+        if (!is_string($manifestUrl) || !VersionChecker::isHttpsUrl($manifestUrl)) {
+            return ['ok' => false, 'error' => 'Configure a direct HTTPS stable manifest URL in the update settings.'];
+        }
+
+        $file = tmpfile();
+        if ($file === false) return ['ok' => false, 'error' => 'Unable to create a temporary release file. Check the server’s temporary storage.'];
+        $stageDir = $this->paths->dataPath('tmp/auto-update-' . bin2hex(random_bytes(12)));
+        try {
+            if (!$download($manifestUrl, $file, self::MAX_INDEX_BYTES, 10) || !rewind($file)) {
+                return ['ok' => false, 'error' => 'Unable to fetch the update manifest. Check outbound HTTPS, DNS and CA certificates. The manifest URL must serve the index directly.'];
+            }
+            $index = stream_get_contents($file, self::MAX_INDEX_BYTES + 1);
+            if (!is_string($index) || $index === '' || strlen($index) > self::MAX_INDEX_BYTES) {
+                return ['ok' => false, 'error' => 'The update manifest is empty, unreadable or too large.'];
+            }
+            $check = (new VersionChecker($manifestUrl, static fn (): string => $index, $keys, true))->check($current);
+            if (!($check['ok'] ?? false)) return $check;
+            $latest = $check['latest_version'];
+            $manifest = $check['manifest'];
+            if (($manifest['channel'] ?? '') !== 'stable' || preg_match('/^\d+\.\d+\.\d+$/D', $latest) !== 1) {
+                return ['ok' => false, 'error' => 'The signed manifest does not describe a stable release.'];
+            }
+            if (!$check['update_available']) return ['ok' => true, 'no_update' => true, 'version' => $current, 'manifest_behind' => $check['manifest_behind']];
+
+            $minimum = $manifest['minimum_php'] ?? null;
+            $url = $manifest['download_url'] ?? null;
+            $checksum = $manifest['checksum_sha256'] ?? null;
+            if (!is_string($minimum) || preg_match('/^\d+\.\d+\.\d+$/D', $minimum) !== 1
+                || !is_string($url) || !VersionChecker::isHttpsUrl($url)
+                || !is_string($checksum) || preg_match('/^[a-f0-9]{64}$/iD', $checksum) !== 1) {
+                return ['ok' => false, 'error' => 'The signed manifest is missing valid package download or compatibility details.'];
+            }
+            if (version_compare(PHP_VERSION, $minimum, '<')) return ['ok' => false, 'error' => 'The latest release requires PHP ' . $minimum . ' or newer.'];
+            if (!class_exists(ZipArchive::class)) return ['ok' => false, 'error' => 'Enable PHP ZipArchive to install the latest release.'];
+            if (!ftruncate($file, 0) || !rewind($file) || !$download($url, $file, self::MAX_PACKAGE_BYTES, 30) || !fflush($file)) {
+                return ['ok' => false, 'error' => 'Unable to fetch the release ZIP. Check PHP cURL, temporary storage and outbound HTTPS. The package URL must serve the ZIP directly.'];
+            }
+
+            $staged = $this->stagePackage(stream_get_meta_data($file)['uri'], $checksum, $stageDir);
+            if (!($staged['ok'] ?? false)) return $staged;
+            return $this->applyLocked($stageDir, $server, $latest);
+        } finally {
+            fclose($file);
+            $this->clearAutomaticStage($stageDir);
+        }
+    }
+
+    private function clearAutomaticStage(string $directory): void
+    {
+        if (!is_dir($directory) || is_link($directory)) return;
+        try {
+            $entries = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($entries as $entry) {
+                if ($entry->isDir() && !$entry->isLink()) @rmdir($entry->getPathname());
+                else @unlink($entry->getPathname());
+            }
+            @rmdir($directory);
+        } catch (\UnexpectedValueException) {
+            error_log('Press could not clean up its automatic update staging directory.');
+        }
+    }
+
+    private function withUpdateLock(callable $operation): array
+    {
         $directory = $this->paths->dataPath('tmp');
         if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) return ['ok'=>false, 'error'=>'Unable to prepare update storage.'];
         $previousMask = umask(umask() | 0022);
@@ -82,7 +186,7 @@ final class UpdateRunner
             if ($lock === false) return ['ok'=>false, 'error'=>'Unable to lock update storage.'];
             try {
                 if (!flock($lock, LOCK_EX | LOCK_NB)) return ['ok'=>false, 'error'=>'Another update is already running. Please try again later.'];
-                return $this->applyLocked($stageDir, $server ?? $_SERVER);
+                return $operation();
             } finally {
                 fclose($lock);
             }
@@ -91,7 +195,7 @@ final class UpdateRunner
         }
     }
 
-    private function applyLocked(string $stageDir, array $server): array
+    private function applyLocked(string $stageDir, array $server, ?string $automaticVersion = null): array
     {
         if (!is_dir($stageDir)) {
             return ['ok' => false, 'error' => 'The selected staged package is no longer available. Stage the package again.'];
@@ -107,7 +211,10 @@ final class UpdateRunner
         }
         $manifest = $package['manifest'];
         $packageRoot = $package['root'];
-        $verificationError = $this->verifyPackage($package);
+        if ($automaticVersion !== null && ($manifest['version'] ?? null) !== $automaticVersion) {
+            return ['ok' => false, 'error' => 'The signed package version does not match the signed release index.'];
+        }
+        $verificationError = $this->verifyPackage($package, $automaticVersion !== null);
         if ($verificationError !== null) return ['ok'=>false, 'error'=>$verificationError];
 
         $files = $manifest['files'] ?? null;
@@ -198,6 +305,9 @@ final class UpdateRunner
             if (!($health['ok'] ?? false)) {
                 throw new \RuntimeException('Post-update health check failed: ' . implode('; ', $health['errors'] ?? []));
             }
+            if ($automaticVersion !== null && ($this->updateConfig()['current_version'] ?? null) !== $automaticVersion) {
+                throw new \RuntimeException('The installed version does not match the signed release index.');
+            }
             $compatibility->recordInstalledRelease($manifest, $installedTargets, $createdDirectories);
             unset($migrations['preserved_prefixes']);
         } catch (\Throwable $error) {
@@ -258,13 +368,14 @@ final class UpdateRunner
     }
 
     /** Recheck current trust policy and source inventory at the install boundary. */
-    private function verifyPackage(array $package): ?string
+    private function verifyPackage(array $package, bool $forceSignature = false): ?string
     {
         $config = $this->updateConfig();
         $manifest = $package['manifest'];
+        $signatureRequired = $forceSignature || (bool)($config['require_signed_packages'] ?? false);
         try {
-            $error = ReleaseSignature::verify($manifest, (array)($config['release_public_keys'] ?? []), (bool)($config['require_signed_packages'] ?? false), 'package-manifest');
-            return $error ?? $this->verifyStagedFiles($package['root'], $manifest, (bool)($config['require_signed_packages'] ?? false) || ($manifest['trust']['signature_required'] ?? false) === true);
+            $error = ReleaseSignature::verify($manifest, (array)($config['release_public_keys'] ?? []), $signatureRequired, 'package-manifest');
+            return $error ?? $this->verifyStagedFiles($package['root'], $manifest, $signatureRequired || ($manifest['trust']['signature_required'] ?? false) === true);
         } catch (\RuntimeException $error) { return $error->getMessage(); }
     }
 

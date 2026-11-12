@@ -4,6 +4,19 @@ Batoi Press uses release-based updates.
 
 ## Current release behavior
 
+Open **Admin → Updates** and select **Upgrade to Latest**. Press checks the
+configured stable index, downloads a newer compatible release directly to the
+server, and verifies both the index and package before installing. The upgrade
+creates a rollback backup, enables maintenance mode during file replacement,
+and runs health checks. Press restores the backup if a guarded installation
+fails. The Updates page reports the result.
+
+One-click upgrades require PHP cURL, Sodium, ZipArchive, writable temporary
+storage and direct HTTPS URLs for the index and ZIP. If the installed version
+matches or is newer than the stable release, Press leaves it in place. Use
+**Check for Updates** to check without installing, or **Stage package** to
+install a ZIP manually.
+
 Official 2.x packages and release indexes use Ed25519 signatures. The default
 configuration requires signed packages and trusts the configured release public
 keys. PHP Sodium is required for signature verification; it must not be bypassed.

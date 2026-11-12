@@ -595,6 +595,13 @@ final class Router
             return (new UpdateController($this->config, $csrf, $audit, $user, $session))->check($request->input('csrf_token'));
         }
 
+        if ($request->path === '/admin/updates/upgrade') {
+            if (in_array($request->method, ['GET', 'HEAD'], true)) return Response::redirect('/admin/updates');
+            if ($request->method !== 'POST') return Response::html('Method not allowed.', 405)->withHeader('Allow', 'GET, HEAD, POST');
+            $token = $request->post['csrf_token'] ?? '';
+            return (new UpdateController($this->config, $csrf, $audit, $user, $session))->upgrade(is_string($token) ? $token : '');
+        }
+
         if ($request->path === '/admin/updates/backup' && $request->method === 'POST') {
             return (new UpdateController($this->config, $csrf, $audit, $user, $session))->backup($request->input('csrf_token'));
         }

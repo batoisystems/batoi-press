@@ -9,7 +9,6 @@ use Batoi\Press\Core\Response;
 use Batoi\Press\Security\Csrf;
 use Batoi\Press\Security\Session;
 use Batoi\Press\Update\BackupManager;
-use Batoi\Press\Update\RollbackManager;
 use Batoi\Press\Update\UpdateRunner;
 use Batoi\Press\Update\VersionChecker;
 use Batoi\Press\Security\UploadGuard;
@@ -37,8 +36,9 @@ final class UpdateController
 
         $body = AdminLayout::pageHeader(
             'Updates',
-            'Check, stage, back up, and apply Batoi Press releases with rollback protection.',
-            '<form method="post" action="/admin/updates/check" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Check for Updates', 'refresh') . '</form>'
+            'Install the latest stable release. Press verifies the package, creates a backup, and restores it if the upgrade fails.',
+            '<form method="post" action="/admin/updates/check" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Check for Updates', 'refresh', 'class="bp-button bp-button-secondary"') . '</form>'
+            . '<form method="post" action="/admin/updates/upgrade" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Upgrade to Latest', 'download', 'class="bp-button"') . '</form>'
         );
 
         $applyNotice = $this->session->pull('update_apply_notice');
@@ -67,7 +67,7 @@ final class UpdateController
         if (!ini_get('file_uploads')) {
             $body .= '<p class="bp-error">PHP file uploads are disabled. Ask your host to enable file_uploads before staging a package.</p>';
         }
-        $body .= '<div class="bp-update-workflow">' . AdminLayout::section('Update workflow', $this->updateWorkflow(), 'Recommended sequence for release maintenance.') . '</div>';
+        $body .= '<div class="bp-update-workflow">' . AdminLayout::section('Manual update workflow', $this->updateWorkflow(), 'Use these steps when installing a release ZIP yourself.') . '</div>';
 
         $body .= '<div class="bp-admin-grid"><section class="bp-admin-section"><header><div><h2>Create backup</h2><p>Create a minimal update backup before staging or applying a package.</p></div></header><form method="post" action="/admin/updates/backup" class="bp-inline-form">' . $this->csrf->field() . AdminLayout::submitButton('Create Backup', 'download') . '</form></section>';
         $body .= '<section class="bp-admin-section"><header><div><h2>Stage package</h2><p>Upload a release ZIP and verify its archive safety before applying it.</p></div></header><form method="post" action="/admin/updates/stage" enctype="multipart/form-data" class="bp-form bp-compact-form">' . $this->csrf->field();
@@ -185,7 +185,7 @@ final class UpdateController
 
         $backup = basename($backup);
         $path = $this->config->paths()->dataPath('backups/' . $backup);
-        $result = (new RollbackManager($this->config->paths()))->restore($path);
+        $result = (new UpdateRunner($this->config->paths()))->rollback($path);
         $this->audit->record((string)($this->user['username'] ?? 'admin'), ($result['ok'] ?? false) ? 'update.rollback' : 'update.rollback_failed', $backup, (string)($_SERVER['REMOTE_ADDR'] ?? ''));
 
         return $this->message('Rollback', ($result['ok'] ?? false) ? 'Rollback restored from backup.' : (string)($result['error'] ?? 'Rollback failed.'), !($result['ok'] ?? false), ($result['ok'] ?? false) ? 200 : 500);
@@ -207,12 +207,34 @@ final class UpdateController
             return $this->message('Apply Update', 'The selected staged package is no longer available. Stage the package again.', true, 404);
         }
 
-        $result = (new UpdateRunner($this->config->paths()))->apply($path);
-        $target = (string)($result['version'] ?? $stage);
+        return $this->applyResult((new UpdateRunner($this->config->paths()))->apply($path), $stage);
+    }
+
+    public function upgrade(string $token): Response
+    {
+        if (!$this->csrf->validate($token)) {
+            return $this->message('Upgrade to Latest', 'Security token expired.', true, 400);
+        }
+        $result = (new UpdateRunner($this->config->paths()))->upgradeLatest();
+        if ($result['no_update'] ?? false) {
+            $version = (string)$result['version'];
+            $message = ($result['manifest_behind'] ?? false)
+                ? 'Installed version ' . $version . ' is newer than the published stable release.'
+                : 'Batoi Press ' . $version . ' is already up to date.';
+            $this->session->set('update_apply_notice', $message);
+            return Response::redirect('/admin/updates', 303)->withHeader('Cache-Control', 'private, no-store');
+        }
+        return $this->applyResult($result, 'latest stable release', 'Upgrade to Latest');
+    }
+
+    private function applyResult(array $result, string $fallbackTarget, string $title = 'Apply Update'): Response
+    {
+        $target = (string)($result['version'] ?? $fallbackTarget);
         $this->audit->record((string)($this->user['username'] ?? 'admin'), ($result['ok'] ?? false) ? 'update.applied' : 'update.apply_failed', $target, (string)($_SERVER['REMOTE_ADDR'] ?? ''), ($result['ok'] ?? false) ? 'success' : 'failure', (array)($result['compatibility'] ?? []));
 
         if ($result['ok'] ?? false) {
             $message = 'Update applied. Installed files: ' . (string)($result['installed_files'] ?? 0) . '. Cache files cleared: ' . (string)($result['cache_cleared'] ?? 0) . '. Backup: ' . (string)($result['backup'] ?? '');
+            if ($title === 'Upgrade to Latest') $message = 'Batoi Press ' . $target . ' installed. ' . $message;
             foreach ((array)($result['compatibility']['themes'] ?? []) as $theme) {
                 $message .= ($theme['mode'] ?? '') === 'in_place'
                     ? ' Kept customized theme ' . (string)$theme['from'] . ' unchanged.'
@@ -229,7 +251,7 @@ final class UpdateController
             $message .= ($result['rolled_back'] ?? false) ? ' Automatic rollback completed.' : ' Automatic rollback failed: ' . (string)($result['rollback_error'] ?? 'unknown error');
         }
 
-        return $this->message('Apply Update', $message, true, 500);
+        return $this->message($title, $message, true, 500);
     }
 
     private function isStageName(string $stage): bool

@@ -48,10 +48,11 @@ final class AdminLayout
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
-    public static function buttonLink(string $label, string $href, string $icon, bool $secondary = false): string
+    public static function buttonLink(string $label, string $href, string $icon, bool $secondary = false, bool $newTab = false): string
     {
         $class = $secondary ? 'bp-button bp-button-secondary' : 'bp-button';
-        return '<a class="' . $class . '" href="' . self::e($href) . '">' . self::buttonIcon($icon) . '<span>' . self::e($label) . '</span></a>';
+        $attributes = $newTab ? ' target="_blank" rel="noopener" aria-label="' . self::e($label . ' (opens in a new tab)') . '"' : '';
+        return '<a class="' . $class . '" href="' . self::e($href) . '"' . $attributes . '>' . self::buttonIcon($icon) . '<span>' . self::e($label) . '</span></a>';
     }
 
     public static function submitButton(string $label, string $icon, string $attributes = ''): string
@@ -105,7 +106,7 @@ final class AdminLayout
         $siteName = self::siteName();
         $logout = self::$csrf !== null ? '<form method="post" action="' . self::e(\bp_url('/admin/logout')) . '" class="bp-topbar-logout">' . self::$csrf->field() . self::submitButton('Log Out', 'logout', 'class="bp-button bp-button-secondary bp-button-danger"') . '</form>' : '';
         $updates = AdminAccess::canSeeNav(self::$user, '/admin/updates') ? self::buttonLink('Updates', \bp_url('/admin/updates'), 'refresh', true) : '';
-        return '<a class="bp-skip-link" href="#bp-admin-content">Skip to content</a><div class="bp-admin-shell"><aside class="bp-admin-sidebar" id="bp-admin-navigation"><button type="button" class="bp-button bp-button-secondary" data-bp-admin-nav-close hidden>Close menu</button><div class="bp-admin-brand">' . self::brandMark() . '<div><span>' . self::e($siteName) . '</span><small>CMS Console</small></div></div>' . self::navigation() . '</aside><div class="bp-admin-workspace"><header class="bp-admin-topbar"><button type="button" class="bp-admin-nav-toggle bp-button bp-button-secondary" data-bp-admin-nav-toggle aria-controls="bp-admin-navigation" aria-expanded="false" hidden>Menu</button><div class="bp-admin-topbar-title"><span>Batoi Press</span><strong>' . self::e($siteName) . '</strong></div><nav aria-label="Admin actions">' . self::buttonLink('View site', \bp_url('/'), 'site', true) . $updates . $logout . '</nav></header><main id="bp-admin-content" tabindex="-1" class="' . self::e($mainClass) . '">' . $body . '</main></div></div>';
+        return '<a class="bp-skip-link" href="#bp-admin-content">Skip to content</a><div class="bp-admin-shell"><aside class="bp-admin-sidebar" id="bp-admin-navigation"><button type="button" class="bp-button bp-button-secondary" data-bp-admin-nav-close hidden>Close menu</button><div class="bp-admin-brand">' . self::brandMark() . '<div><span>' . self::e($siteName) . '</span><small>CMS Console</small></div></div>' . self::navigation() . '</aside><div class="bp-admin-workspace"><header class="bp-admin-topbar"><button type="button" class="bp-admin-nav-toggle bp-button bp-button-secondary" data-bp-admin-nav-toggle aria-controls="bp-admin-navigation" aria-expanded="false" hidden>Menu</button><div class="bp-admin-topbar-title"><span>Batoi Press</span><strong>' . self::e($siteName) . '</strong></div><nav aria-label="Admin actions">' . self::buttonLink('View site', \bp_url('/'), 'site', true, newTab: true) . $updates . $logout . '</nav></header><main id="bp-admin-content" tabindex="-1" class="' . self::e($mainClass) . '">' . $body . '</main></div></div>';
     }
 
     private static function authShell(string $title, string $body, string $mainClass): string
