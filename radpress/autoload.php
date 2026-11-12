@@ -39,6 +39,10 @@ spl_autoload_register(static function (string $class): void {
         return;
     }
 
+    if ($top === 'Application' && ($parts[0] ?? null) === 'Social') {
+        $parts[0] = 'social';
+    }
+
     $file = __DIR__ . '/' . $map[$top] . ($parts ? '/' . implode('/', $parts) : '') . '.php';
 
     if (is_file($file)) {
