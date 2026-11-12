@@ -190,7 +190,10 @@ try {
     $files->write($paths->themePath('demo/layouts/page.php'), '<?php echo $page["body"];');
     $pages = new PageRepository($paths, $files, new HtmlContent());
     $pages->save(['title'=>'Blocks', 'slug'=>'blocks', 'status'=>'published', 'blocks'=>$blocks], 'owner');
-    $public = (new \Batoi\Press\Core\App($root))->handle(new \Batoi\Press\Core\Request('GET', '/blocks', [], [], []));
+    $app = new \Batoi\Press\Core\App($root);
+    $alias = $app->handle(new \Batoi\Press\Core\Request('GET', '/blocks', [], [], []));
+    assertTemplate($alias->status() === 301 && ($alias->headers()['Location'] ?? '') === '/', 'Homepage slug must redirect to the root');
+    $public = $app->handle(new \Batoi\Press\Core\Request('GET', '/', [], [], []));
     assertTemplate($public->status() === 200 && str_contains($public->content(), 'data-custom-block="posts"'), 'Public route must use the active-theme block partial');
     $export = (new \Batoi\Press\Core\StaticExporter($paths, $pages, $posts, $site, $products))->export();
     assertTemplate($export['ok'] ?? false, 'Custom block export must succeed');
