@@ -88,6 +88,20 @@ Page layouts also receive `$latestPosts`. It is an empty array unless the page e
 
 The Admin Themes preview supports home, standard, landing, ecommerce, post, blog, archive, and 404 layouts without activating the candidate theme. Static export uses the same page-template resolver and copies active-theme assets to matching public paths.
 
+### Collection layouts
+
+A theme can provide a custom layout by declaring a key and label in `theme.json` and adding a corresponding PHP partial. The following declaration uses `partials/collections/member-directory.php`.
+
+```json
+"collection_layouts": {
+  "member-directory": "Member directory"
+}
+```
+
+Place `cards.php`, `list.php`, or `table.php` in the same directory to override a built-in layout. The partial receives `$title`, `$layout`, `$fields` (selected field keys, labels, and types), `$items` (filtered and ordered records containing the selected public values), `$site`, and `$escape`. Escape displayed values and attributes and use `bp_url()` for site-relative links. Values are strings or null, with dates in ISO format and numbers in canonical decimal form. Match on a field key such as `$item['name']` for custom markup.
+
+Owners and admins can edit available collection layouts in **Theme Templates**. A declared custom layout uses the bundled cards until its PHP file is available. Use **Collections → Preview draft** to check the layout against sample records. Page blocks choose the layout independently of the stored collection.
+
 ## Integrating the 2.3 Appearance and Widget Features
 
 The bundled default theme (Batoi Versatile 3.2.0) implements these features.
@@ -314,6 +328,44 @@ changes apply to every matching block in that theme. Use page CSS for a
 page-specific variation. Public rendering, theme preview and static export use
 the same partials. A theme missing an optional file uses the bundled default;
 existing themes do not need a migration or new manifest capability.
+
+
+### Composing blocks without changing PHP
+
+The page builder offers category dropdowns populated from existing posts/products,
+item limits, and **Custom class**. Classes are validated space-separated CSS
+identifiers, applied outside the theme partial so existing custom partials need
+no changes. Add page-specific rules in **Page CSS and JavaScript**.
+
+**Grid** contains 1–12 ordered cells and 1–4 desktop columns. Each cell supports
+HTML, posts, products, gallery, widget, form or trusted plugin blocks. Nested
+grids are rejected. Columns collapse on smaller screens; shared container CSS is
+added only to pages containing grids, including custom themes and static export.
+Cell source remains editable as JSON when JavaScript is unavailable.
+
+**Image gallery** uses **Choose from Media**, with alt text, ordered selection,
+move/remove controls and an item limit (1–24). The selection is stored as
+`gallery_images`, one safe URL `|` alt text per line. A nonempty selection takes
+precedence over gallery HTML; clearing it restores the retained HTML. Existing
+HTML-only galleries remain compatible. Public and exported rendering use the
+same gallery partial.
+
+Page HTML blocks offer Source, Visual editor, and Live preview. Switching views
+does not rewrite the source; deliberate visual edits may normalize HTML. Preview
+runs in a sandbox with scripts, forms and navigation disabled. Saved carousel
+roots retain validated `data-uif-autoplay` booleans and `data-uif-interval` values
+from 500 to 300000 milliseconds. Other active UIF commands remain forbidden.
+
+Settings → **Archive widgets** selects a configured widget separately for each
+post type. The default blog layout places it outside the paginated post grid.
+Custom archive layouts receive optional `$archiveWidget` HTML and can place it
+without modifying content or widget storage. Empty selections preserve existing
+layouts. Static exports include configured archive widgets.
+
+The default theme uses Settings → Appearance → **System** to follow OS colour
+preference on all pages, including live OS changes; explicit site/visitor choices
+continue to take precedence. Colour-scheme also adapts native browser controls.
+Existing custom theme files are preserved and retain their own appearance UI.
 
 These remain trusted PHP source files with the same privileges as existing theme
 layouts. They separate presentation from repository logic; they are not a PHP

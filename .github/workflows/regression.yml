@@ -16,7 +16,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: zip, sodium, curl, mbstring, dom
+          extensions: zip, sodium, curl, mbstring, dom, xmlreader
           coverage: none
       - uses: actions/setup-node@v4
         with:

@@ -46,6 +46,7 @@ final class SecurityHeaders
         $scriptSources = ["'self'", 'https://cdn.jsdelivr.net'];
         $connectSources = ["'self'"];
         $frameSources = ['https://www.youtube.com', 'https://player.vimeo.com'];
+        if (str_starts_with($request->path, '/admin/')) $frameSources[] = "'self'"; // Sandboxed source-editor previews.
         $styleSources = ["'self'", "'unsafe-inline'"];
         $fontSources = ["'self'", 'data:'];
         if (preg_match('/^G-[A-Z0-9]{4,20}$/', strtoupper((string)($integrations['analytics_measurement_id'] ?? ''))) === 1) {

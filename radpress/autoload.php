@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 // Optional integration libraries must not participate in core boot.
 spl_autoload_register(static function (string $class): void {
-    if (!str_starts_with($class, 'Firebase\\JWT\\')) return;
+    if (!str_starts_with($class, 'Firebase\\JWT\\') && !str_starts_with($class, 'OpenSpout\\')) return;
     $composerAutoload = __DIR__ . '/vendor/autoload.php';
     if (is_file($composerAutoload)) {
         static $loader = null;

@@ -125,6 +125,7 @@ final class Router
                 'pageCount' => $pageCount,
                 'title' => ucwords(str_replace('-', ' ', $postType)),
                 'archivePath' => '/' . $postType,
+                'archiveWidget' => $this->archiveWidget($postType),
                 'canonicalPath' => '/' . $postType . ($pageNumber > 1 ? '?page=' . $pageNumber : ''),
             ]);
         }
@@ -264,6 +265,7 @@ final class Router
 
         if ($request->path === '/admin/plugins') return (new \Batoi\Press\Admin\PluginController($this->config, $csrf, $audit, $user))->handle($request);
         if ($request->path === '/admin/forms') return (new \Batoi\Press\Admin\FormController($this->config, $csrf, $audit, $user))->handle($request);
+        if ($request->path === '/admin/collections') return (new \Batoi\Press\Admin\CollectionController($this->config, $csrf, $audit, $user))->handle($request, $_FILES);
         if (preg_match('#^/admin/extensions/([a-z][a-z0-9-]{0,63})/(index|[a-z][a-z0-9-]{0,63})$#D', $request->path, $extension)) {
             if (!in_array($request->method, ['GET','POST'], true)) return Response::html('Method not allowed.', 405)->withHeader('Allow','GET, POST');
             if ($request->method === 'POST' && !$csrf->validate($request->input('csrf_token'))) return Response::html('Invalid request token.',400);
@@ -640,6 +642,13 @@ final class Router
         );
         $body .= '<section class="bp-empty-state"><h2>Permission required</h2><p>Access to <code>' . htmlspecialchars($path, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</code> is limited by the current account role.</p></section>';
         return Response::html(AdminLayout::render('Access Restricted', $body), 403);
+    }
+
+    private function archiveWidget(string $postType): string
+    {
+        $title = (string)($this->config->site()['archive_widgets'][$postType] ?? '');
+        if ($title === '') return '';
+        return (new PageBlockRenderer($this->config->paths(), $this->posts, $this->products(), $this->config->site()))->render([['type'=>'widget', 'widget'=>$title]]);
     }
 
     private function sidebarWidgets(): array

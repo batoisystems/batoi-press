@@ -217,6 +217,8 @@ This development line requires supported PHP 8.3+ with native JSON, sessions, ha
 
 Installer and Hosting Health use the same capability registry. DOM enables rich HTML editing; without it new content is stored as escaped plain text with an editor notice. Fileinfo is required for new uploads; GD is optional for derivatives. ZIP enables package/archive features. Sodium is required for signed automatic updates; use verified manual deployment when unavailable, never unsigned update fallback. Encrypted-secret features require Sodium or OpenSSL AES-256-GCM. Existing Sodium v1 secrets still need Sodium. cURL enables remote adapters; mbstring improves multilingual case folding; neither is a core install requirement.
 
+Data Collections use private JSON and support CSV on the core hosting profile. XLSX is available when PHP has ZIP, DOM, XMLReader, libxml, and Fileinfo. Hosting Health shows Excel availability. The required library ships with the release and loads on demand.
+
 Forms and Webhook delivery are optional, default-off modules under Admin → Plugins. Queued form email and webhook jobs require encrypted storage. Ordinary contact forms remain on their existing delivery path. An optional cron/CLI runner can process one queued job per invocation; without it use Forms → Process next delivery. Public requests never drain the queue.
 
 Private storage must remain outside the document root or be denied by verified server rules. On Nginx, set the root to public_html; Apache .htaccess protections are not Nginx protections. Do not assume a health screen proves HTTP access is denied. Test direct requests to configuration, sessions, logs and backups on the actual host.
@@ -263,3 +265,20 @@ location ~ /\. { deny all; }
 ```
 
 These are configuration examples, not executed Apache/Nginx acceptance. On the actual installation verify public pages, authenticated administration and the installer lock, then confirm direct requests for configuration, session, submission, queue, log, backup and staged files return 403/404 with no private body. Test root/subdirectory routing and HTTPS cookie behavior after any proxy configuration change. Never expose private folders to make asset URLs work.
+
+
+## Editorial maintenance mode
+
+Settings → **Maintenance mode** can temporarily replace public pages with a
+selected static page or the built-in notice. The selector excludes Trash but
+includes drafts: selecting a draft explicitly makes that page's content visible
+to visitors while maintenance is on. Other drafts remain private. Visitors get
+HTTP 503, Retry-After, no-store and noindex headers; media and theme assets remain
+available, and admin sign-in stays accessible. Active authenticated owners and
+administrators see the normal site with private/no-store preview responses.
+
+This setting is independent of the updater's operational maintenance lock. The
+updater lock always takes priority, including for administrators. Disabling
+editorial maintenance restores public routing without changing page status,
+content, theme or domain. A separately hosted static export is not controlled by
+this runtime setting.

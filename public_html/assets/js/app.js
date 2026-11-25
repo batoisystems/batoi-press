@@ -84,7 +84,7 @@ function activeEditorSurface(editor) {
 // Read the active UIF surface before taking a form snapshot, including source mode.
 function syncContentEditorFields(form) {
     form.querySelectorAll('[data-bp-content-editor]').forEach((host) => {
-        const field = host.querySelector('textarea[name]');
+        const field = host.querySelector('textarea');
         const editor = host.querySelector('.uif-editor');
         const surface = editor && activeEditorSurface(editor);
         if (!field || !surface) return;
@@ -204,12 +204,14 @@ function openEditorMedia(host, link, event) {
     if (!window.HTMLDialogElement || !window.fetch) return;
     event.preventDefault();
     const editor = host.querySelector('.uif-editor');
-    const surface = editor ? activeEditorSurface(editor) : host.querySelector('textarea[name]');
+    const sourceFrame = host.querySelector('[data-bp-source-preview]');
+    const visualBody = sourceFrame && !sourceFrame.hidden && sourceFrame.contentDocument?.body.contentEditable === 'true' ? sourceFrame.contentDocument.body : null;
+    const surface = editor ? activeEditorSurface(editor) : visualBody || host.querySelector('textarea');
     if (!surface) return;
     const cursor = surface instanceof HTMLTextAreaElement ? [surface.selectionStart, surface.selectionEnd] : null;
-    const selection = window.getSelection();
+    const selection = surface.ownerDocument.getSelection();
     const range = !cursor && selection?.rangeCount && surface.contains(selection.getRangeAt(0).commonAncestorContainer) ? selection.getRangeAt(0).cloneRange() : null;
-    const returnFocus = event.currentTarget;
+    const returnFocus = link;
     const dialog = document.createElement('dialog');
     dialog.className = 'bp-media-picker';
     dialog.setAttribute('aria-label', 'Insert an image');
@@ -290,6 +292,13 @@ function openEditorMedia(host, link, event) {
         if (!chosen) return;
         const decorative = insert.elements.decorative.checked, alt = insert.elements.alt.value.trim();
         if (!decorative && !alt) { status.textContent = 'Add alt text or mark this image decorative.'; insert.elements.alt.focus(); return; }
+        if (link.hasAttribute('data-bp-gallery-media')) {
+            const lines = surface.value.split('\n').filter((line) => line.trim());
+            if (lines.length >= 24) { status.textContent = 'A gallery supports at most 24 images.'; return; }
+            lines.push(chosen.url + ' | ' + (decorative ? '' : alt.replace(/[\r\n|]/g, ' ')));
+            surface.value = lines.join('\n'); surface.dispatchEvent(new Event('input', {bubbles:true}));
+            inserted = true; dialog.close(); return;
+        }
         const image = document.createElement('img'); image.src = chosen.url; image.alt = decorative ? '' : alt;
         image.width = chosen.width; image.height = chosen.height; image.loading = 'lazy'; image.decoding = 'async';
         if (chosen.srcset && chosen.srcset.split(', ').every((entry) => {
@@ -325,15 +334,21 @@ function openEditorMedia(host, link, event) {
 }
 
 function enhanceEditorMedia() {
-    document.querySelectorAll('[data-bp-editor-media]').forEach((link) => {
-        link.addEventListener('click', (event) => openEditorMedia(link.closest('[data-bp-content-editor]'), link, event));
+    document.addEventListener('click', (event) => {
+        const link = event.target.closest('[data-bp-editor-media]');
+        if (link) openEditorMedia(link.closest('[data-bp-content-editor]'), link, event);
+        const helper = event.target.closest('[data-bp-editor-insert]');
+        const host = helper?.closest('[data-bp-content-editor]');
+        if (host && !host.querySelector('.uif-editor')) insertEditorSnippet(host, helper.dataset.bpEditorInsert);
     });
 }
 
 function insertEditorSnippet(host, kind) {
     const editor = host.querySelector('.uif-editor');
-    const surface = editor ? activeEditorSurface(editor) : null;
-    if (!editor || !surface) {
+    const frame = host.querySelector('[data-bp-source-preview]');
+    const visualBody = frame && !frame.hidden && frame.contentDocument?.body.contentEditable === 'true' ? frame.contentDocument.body : null;
+    const surface = editor ? activeEditorSurface(editor) : visualBody || host.querySelector('textarea');
+    if (!surface) {
         return;
     }
 
@@ -363,10 +378,10 @@ function insertEditorSnippet(host, kind) {
         return;
     }
 
-    const selection = window.getSelection();
+    const selection = surface.ownerDocument.getSelection();
     let range = selection?.rangeCount ? selection.getRangeAt(0) : null;
     if (!range || !surface.contains(range.commonAncestorContainer)) {
-        range = document.createRange();
+        range = surface.ownerDocument.createRange();
         range.selectNodeContents(surface);
         range.collapse(false);
     }
@@ -390,7 +405,7 @@ function insertEditorSnippet(host, kind) {
     if (selection && selectedNode) {
         const selectedOffset = selectedNode.textContent?.indexOf(snippet.selected) ?? -1;
         if (selectedOffset >= 0) {
-            const selectedRange = document.createRange();
+            const selectedRange = surface.ownerDocument.createRange();
             selectedRange.setStart(selectedNode, selectedOffset);
             selectedRange.setEnd(selectedNode, selectedOffset + snippet.selected.length);
             selection.removeAllRanges();
@@ -615,6 +630,210 @@ function enhanceMenuBuilder() {
         });
 
         refresh();
+    });
+}
+
+// Source remains canonical until a deliberate visual edit; switching views is read-only.
+function enhanceSourceEditors(scope = document) {
+    scope.querySelectorAll('[data-bp-source-editor]').forEach((host) => {
+        if (host.dataset.bpSourceReady) return;
+        host.dataset.bpSourceReady = 'true';
+        const source = host.querySelector('textarea'), frame = host.querySelector('[data-bp-source-preview]');
+        let view = 'source', timer;
+        const paint = () => {
+            frame.srcdoc = '<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src https: http: data:; style-src \'self\' \'unsafe-inline\'; form-action \'none\'; base-uri \'none\'">' + (frame.dataset.bpPreviewHead || '') + '<style>body{font:16px/1.6 system-ui,sans-serif;padding:1rem;overflow-wrap:anywhere}img{max-width:100%;height:auto}body:focus{outline:none}</style></head><body>' + source.value + '</body></html>';
+        };
+        frame.addEventListener('load', () => {
+            const body = frame.contentDocument?.body;
+            if (!body) return;
+            body.contentEditable = String(view === 'visual');
+            frame.contentDocument.addEventListener('click', (event) => { if (event.target.closest('a')) event.preventDefault(); });
+            body.addEventListener('input', () => {
+                if (view !== 'visual') return;
+                source.value = body.innerHTML;
+                source.dispatchEvent(new Event('input', {bubbles:true}));
+            });
+        });
+        host.querySelectorAll('[data-bp-source-view]').forEach((button) => button.addEventListener('click', () => {
+            view = button.dataset.bpSourceView;
+            host.querySelectorAll('[data-bp-source-view]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+            host.dataset.bpEditorView = view;
+            host.querySelector('.bp-editor-source-pane').hidden = view === 'visual';
+            source.hidden = view === 'visual'; frame.hidden = view === 'source';
+            host.querySelector('[data-bp-visual-toolbar]').hidden = view !== 'visual';
+            paint();
+        }));
+        host.querySelectorAll('[data-bp-format]').forEach((button) => {
+            button.addEventListener('mousedown', (event) => event.preventDefault());
+            button.addEventListener('click', () => {
+                if (view !== 'visual') return;
+                const command = button.dataset.bpFormat;
+                const value = command === 'createLink' ? window.prompt('Link URL') : command === 'formatBlock' ? 'h2' : null;
+                if (command === 'createLink' && !value) return;
+                frame.contentDocument.execCommand(command, false, value);
+                source.value = frame.contentDocument.body.innerHTML; source.dispatchEvent(new Event('input', {bubbles:true}));
+            });
+        });
+        source.addEventListener('input', () => {
+            if (view !== 'preview') return;
+            clearTimeout(timer); timer = setTimeout(paint, 150);
+        });
+        if (host.dataset.bpSourceInitial === 'visual') host.querySelector('[data-bp-source-view="visual"]').click();
+    });
+}
+
+function enhanceGalleryLists(scope = document) {
+    scope.querySelectorAll('[data-bp-gallery-images]').forEach((source) => {
+        if (source.dataset.bpGalleryReady) return;
+        source.dataset.bpGalleryReady = 'true';
+        const host = source.closest('[data-bp-content-editor]'), list = host.querySelector('[data-bp-gallery-list]');
+        const refresh = () => {
+            list.replaceChildren();
+            const lines = source.value.split('\n').filter((line) => line.trim());
+            lines.forEach((line, index) => {
+                const row = document.createElement('div'), text = document.createElement('span');
+                text.textContent = `${index + 1}. ${line}`; row.append(text);
+                [['↑', -1], ['↓', 1], ['Remove', 0]].forEach(([label, direction]) => {
+                    const button = document.createElement('button'); button.type = 'button'; button.textContent = label;
+                    button.setAttribute('aria-label', `${label} gallery image ${index + 1}`);
+                    button.disabled = direction === -1 && index === 0 || direction === 1 && index === lines.length - 1;
+                    button.addEventListener('click', () => {
+                        if (direction === 0) lines.splice(index, 1);
+                        else [lines[index], lines[index + direction]] = [lines[index + direction], lines[index]];
+                        source.value = lines.join('\n'); source.dispatchEvent(new Event('input', {bubbles:true}));
+                    }); row.append(button);
+                }); list.append(row);
+            });
+        };
+        source.addEventListener('input', refresh); refresh();
+    });
+}
+
+function refreshBlockFields(row) {
+    const type = row.querySelector('[data-bp-block-type]')?.value || 'html';
+    row.querySelectorAll(':scope > [data-bp-block-field]').forEach((field) => { field.hidden = !field.dataset.bpBlockField.split(' ').includes(type); });
+    row.querySelectorAll('[data-bp-block-category] option[data-bp-category-type]').forEach((option) => {
+        option.hidden = option.dataset.bpCategoryType !== type && !option.selected;
+        option.disabled = option.dataset.bpCategoryType !== type && !option.selected;
+    });
+    if (type === 'collection') refreshCollectionBlock(row);
+}
+
+function refreshCollectionBlock(row, reset = false) {
+    const panel = row.querySelector(':scope > [data-bp-block-field="collection"]');
+    const builder = row.closest('[data-bp-page-blocks]');
+    if (!panel || !builder) return;
+    const id = panel.querySelector('[data-bp-collection]').value;
+    const collections = JSON.parse(builder.dataset.bpCollectionFields || '{}');
+    const fields = Object.hasOwn(collections, id) ? Object.entries(collections[id]) : [];
+    for (const [selector, label] of [['[data-bp-collection-filter]', 'All records'], ['[data-bp-collection-sort]', 'Entry order']]) {
+        const field = panel.querySelector(selector);
+        const selected = reset ? '' : field.value;
+        field.replaceChildren(new Option(label, ''), ...fields.map(([key, name]) => new Option(name, key)));
+        if (selected && !fields.some(([key]) => key === selected)) field.add(new Option(selected + ' (saved)', selected));
+        field.value = selected;
+    }
+    const filter = panel.querySelector('[data-bp-collection-value]');
+    if (reset) {
+        filter.value = '';
+        panel.querySelector('[data-bp-collection-selected-fields]').value = '';
+    }
+    panel.querySelector('[data-bp-collection-field-hints]').textContent = fields.length ? 'Available keys: ' + fields.map(([key]) => key).join(', ') : '';
+}
+
+function enhanceCollectionSchema() {
+    document.querySelectorAll('[data-bp-collection-schema]').forEach((form) => {
+        const fields = form.querySelector('[data-bp-collection-schema-fields]');
+        const template = form.querySelector('[data-bp-collection-schema-template]');
+        const add = form.querySelector('[data-bp-collection-add-field]');
+        const maxFields = Number(form.dataset.bpCollectionSchema);
+        let index = fields.children.length;
+        const refresh = (type) => { type.closest('fieldset').querySelector('[data-bp-collection-choices]').hidden = type.value !== 'choice'; };
+        fields.querySelectorAll('[data-bp-collection-field-type]').forEach(refresh);
+        fields.addEventListener('change', (event) => {
+            if (event.target.matches('[data-bp-collection-field-type]')) refresh(event.target);
+        });
+        fields.addEventListener('click', (event) => {
+            if (!event.target.closest('[data-bp-collection-remove-field]')) return;
+            event.target.closest('fieldset').remove();
+            add.disabled = false;
+            add.focus();
+        });
+        add.disabled = fields.children.length >= maxFields;
+        add.addEventListener('click', () => {
+            if (fields.children.length >= maxFields) return;
+            const field = template.content.firstElementChild.cloneNode(true);
+            field.querySelectorAll('[name]').forEach((input) => { input.name = input.name.replace('__INDEX__', String(index)); });
+            index++;
+            fields.append(field);
+            refresh(field.querySelector('[data-bp-collection-field-type]'));
+            add.disabled = fields.children.length >= maxFields;
+            field.querySelector('input').focus();
+        });
+    });
+}
+
+function enhanceGridBlocks(builder) {
+    const template = builder.querySelector('[data-bp-block-template]');
+    builder.querySelectorAll('[data-bp-block-row]').forEach((row) => {
+        if (row.querySelector('[data-bp-block-type]')?.value !== 'grid') return;
+        const source = row.querySelector('[data-bp-grid-source]'), editor = row.querySelector('[data-bp-grid-editor]'), count = row.querySelector('[data-bp-grid-count]');
+        if (!source || source.dataset.bpGridReady) return;
+        source.dataset.bpGridReady = 'true';
+        let cells;
+        try { cells = JSON.parse(source.value); if (!Array.isArray(cells)) throw new Error(); }
+        catch { return; } // Keep malformed source visible for correction; never discard it.
+        if (cells.length === 0) { cells = [{type:'html',body:''}]; source.value = JSON.stringify(cells); }
+        const read = () => Array.from(editor.children, (cell) => {
+            const value = {};
+            cell.querySelectorAll('[data-bp-cell-key]').forEach((field) => { value[field.dataset.bpCellKey] = field.value; });
+            return value;
+        });
+        const save = () => { source.value = JSON.stringify(read()); source.dispatchEvent(new Event('input', {bubbles:true})); };
+        const paint = () => {
+            editor.replaceChildren(); count.value = String(cells.length || 1);
+            (cells.length ? cells : [{type:'html',body:''}]).forEach((value, index) => {
+                const cell = template.content.firstElementChild.cloneNode(true);
+                cell.removeAttribute('data-bp-block-row'); cell.setAttribute('data-bp-grid-cell', '');
+                cell.querySelector('.bp-reorder-actions')?.remove();
+                cell.querySelector('[data-bp-block-field="grid"]')?.remove();
+                cell.querySelector('[data-bp-block-type] option[value="grid"]')?.remove();
+                cell.querySelectorAll('[name]').forEach((field) => {
+                    const key = field.name.replace(/^block_/, '').replace(/\[\]$/, '').replace(/^plugin$/, 'plugin_block');
+                    field.dataset.bpCellKey = key; field.removeAttribute('name');
+                    if (Object.hasOwn(value, key)) {
+                        const saved = typeof value[key] === 'boolean' ? (value[key] ? '1' : '0') : String(value[key]);
+                        if (key.startsWith('collection') && field instanceof HTMLSelectElement && saved && !Array.from(field.options).some((option) => option.value === saved)) {
+                            field.add(new Option(saved + ' (saved)', saved));
+                        }
+                        field.value = saved;
+                    }
+                });
+                // Template IDs must be unique across cells and added blocks.
+                cell.querySelectorAll('[id]').forEach((element) => {
+                    const old = element.id, id = `${old}-cell-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`;
+                    cell.querySelectorAll('[for]').forEach((label) => { if (label.htmlFor === old) label.htmlFor = id; }); element.id = id;
+                });
+                const heading = document.createElement('strong'); heading.textContent = `Cell ${index + 1}`; cell.prepend(heading);
+                const up = document.createElement('button'); up.type = 'button'; up.textContent = 'Move cell up'; up.disabled = index === 0;
+                up.addEventListener('click', () => { cells = read(); [cells[index - 1], cells[index]] = [cells[index], cells[index - 1]]; paint(); save(); }); cell.append(up);
+                cell.addEventListener('input', save);
+                cell.addEventListener('change', (event) => {
+                    if (event.target.matches('[data-bp-collection]')) refreshCollectionBlock(cell, true);
+                    refreshBlockFields(cell);
+                    save();
+                });
+                editor.append(cell); refreshBlockFields(cell);
+            });
+            enhanceSourceEditors(editor); enhanceGalleryLists(editor);
+        };
+        count.addEventListener('change', () => {
+            const total = Math.max(1, Math.min(12, Number(count.value) || 1)); cells = read();
+            if (total < cells.length && !window.confirm('Remove the last grid cells? Unsaved content in those cells will be removed.')) { count.value = String(cells.length); return; }
+            cells = cells.slice(0, total); while (cells.length < total) cells.push({type:'html', body:''}); paint(); save();
+        });
+        source.addEventListener('change', () => { try { const next = JSON.parse(source.value); if (Array.isArray(next) && next.length >= 1 && next.length <= 12) { cells = next; paint(); } } catch { /* Server reports malformed JSON. */ } });
+        paint();
     });
 }
 
@@ -1028,17 +1247,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const list = builder.querySelector('[data-bp-block-list]');
         const template = builder.querySelector('[data-bp-block-template]');
         const addType = builder.querySelector('[data-bp-add-block-type]');
-        const refresh = (row) => {
-            const type = row.querySelector('[data-bp-block-type]')?.value || 'html';
-            row.querySelectorAll('[data-bp-block-field]').forEach((field) => {
-                field.hidden = !(field.getAttribute('data-bp-block-field') || '').split(' ').includes(type);
-            });
-        };
+        const refresh = refreshBlockFields;
         if (!(list instanceof HTMLElement) || !(template instanceof HTMLTemplateElement)) return;
         list.querySelectorAll('[data-bp-block-row]').forEach((row) => refresh(row));
+        enhanceGridBlocks(builder);
         list.addEventListener('change', (event) => {
             const select = event.target.closest('[data-bp-block-type]');
-            if (select) refresh(select.closest('[data-bp-block-row]'));
+            if (select) { refresh(select.closest('[data-bp-grid-cell], [data-bp-block-row]')); enhanceGridBlocks(builder); }
+            if (event.target.matches('[data-bp-collection]') && !event.target.closest('[data-bp-grid-cell]')) {
+                refreshCollectionBlock(event.target.closest('[data-bp-block-row]'), true);
+            }
         });
         list.addEventListener('click', (event) => {
             const remove = event.target.closest('[data-bp-remove-block]');
@@ -1060,13 +1278,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const select = row.querySelector('[data-bp-block-type]');
             if (select && addType) select.value = addType.value;
             refresh(row);
+            if (list.children.length >= 30) return;
             list.append(row);
+            refresh(row);
+            enhanceGridBlocks(builder); enhanceSourceEditors(row); enhanceGalleryLists(row);
             row.querySelector('input, textarea, select')?.focus();
         });
     });
 
     enhanceMenuBuilder();
+    enhanceCollectionSchema();
     enhanceContentEditors();
+    enhanceSourceEditors(); enhanceGalleryLists();
     window.requestAnimationFrame(enhanceContentEditors);
     enhanceEditorRecovery();
     enhanceEditorMedia();

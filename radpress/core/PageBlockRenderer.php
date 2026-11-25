@@ -16,25 +16,49 @@ final class PageBlockRenderer
     ) {
     }
 
-    public function render(array $blocks): string
+    private array $context = [];
+    private ?CollectionView $collections = null;
+
+    public function render(array $blocks, int $depth = 0): string
     {
+        if ($depth > 1) return '';
         $html = '';
-        $sitePath = $this->paths->configPath('site.json');
-        $site = $this->site ?? (is_file($sitePath) ? (new FileStore())->readJson($sitePath) : []);
-        $posts = $this->posts->allPublished();
-        $products = $this->products->published();
-        $widgets = (new \Batoi\Press\Content\WidgetRepository($this->paths))->load()['widgets'];
+        if ($depth === 0) {
+            $sitePath = $this->paths->configPath('site.json');
+            $this->context = [
+                $this->site ?? (is_file($sitePath) ? (new FileStore())->readJson($sitePath) : []),
+                $this->posts->allPublished(), $this->products->published(),
+                (new \Batoi\Press\Content\WidgetRepository($this->paths))->load()['widgets'],
+            ];
+        }
+        [$site, $posts, $products, $widgets] = $this->context;
 
         foreach (array_slice($blocks, 0, 30) as $block) {
             if (!is_array($block)) {
                 continue;
             }
+            $start = strlen($html);
             $type = (string)($block['type'] ?? 'html');
             $title = trim((string)($block['title'] ?? ''));
             $heading = $title !== '' ? '<h2>' . htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</h2>' : '';
+            try {
+            if ($type === 'grid') {
+                $html .= '<section class="bp-content-block">' . $heading . '<div class="bp-block-grid bp-block-grid-' . max(1, min(4, (int)($block['columns'] ?? 2))) . '">';
+                foreach (array_slice((array)($block['cells'] ?? []), 0, 12) as $cell) {
+                    if (is_array($cell) && ($cell['type'] ?? '') !== 'grid') $html .= '<div class="bp-block-cell">' . $this->render([$cell], $depth + 1) . '</div>';
+                }
+                $html .= '</div></section>';
+                continue;
+            }
             if ($type === 'plugin') {
                 $body = ($GLOBALS['bp_plugin_context'] ?? null)?->renderBlock((string)($block['plugin_block'] ?? ''), $block) ?? '';
                 if ($body !== '') $html .= '<section class="bp-content-block">' . $heading . $body . '</section>';
+                continue;
+            }
+
+            if ($type === 'collection') {
+                $this->collections ??= new CollectionView($this->paths, $site);
+                $html .= $this->collections->render($block);
                 continue;
             }
 
@@ -54,6 +78,14 @@ final class PageBlockRenderer
                 continue;
             }
             if ($type === 'gallery') {
+                if (trim((string)($block['gallery_images'] ?? '')) !== '') {
+                    $body = '';
+                    foreach (array_slice(WidgetRenderer::galleryImages((string)$block['gallery_images']), 0, max(1, min(24, (int)($block['limit'] ?? 6)))) as $image) {
+                        $url = htmlspecialchars(function_exists('bp_url') ? \bp_url($image['url']) : $image['url'], ENT_QUOTES, 'UTF-8');
+                        $body .= '<a href="' . $url . '" data-uif-role="item"><img loading="lazy" src="' . $url . '" alt="' . htmlspecialchars($image['alt'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"></a>';
+                    }
+                    $block['body'] = '<div class="bp-widget-gallery" data-uif="lightbox">' . $body . '</div>';
+                }
                 $html .= ThemePartial::render($this->paths, $site, 'block-gallery', [
                     'title' => $title, 'block' => $block, 'body' => (string)($block['body'] ?? ''),
                 ]);
@@ -84,9 +116,24 @@ final class PageBlockRenderer
                     }
                 }
             }
+            } finally {
+                $classes = self::classNames((string)($block['custom_class'] ?? ''));
+                if ($classes !== '' && strlen($html) > $start) $html = substr($html, 0, $start) . '<div class="' . htmlspecialchars($classes, ENT_QUOTES, 'UTF-8') . '">' . substr($html, $start) . '</div>';
+            }
         }
 
         return $html;
+    }
+
+    public static function gridCss(): string
+    {
+        return '.bp-block-grid{display:grid;gap:1.5rem;grid-template-columns:repeat(2,minmax(0,1fr))}.bp-block-grid-1{grid-template-columns:minmax(0,1fr)}.bp-block-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}.bp-block-grid-4{grid-template-columns:repeat(4,minmax(0,1fr))}.bp-block-cell{min-width:0;overflow-wrap:anywhere}.bp-block-cell img,.bp-block-cell video{max-width:100%;height:auto}.bp-block-cell iframe{max-width:100%}.bp-block-cell pre{overflow:auto}.bp-block-cell .bp-post-grid,.bp-block-cell .bp-product-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr))}.bp-block-cell .bp-product-grid{padding:0}.bp-block-cell .bp-content-block{margin-top:0}@media(max-width:56rem){.bp-block-grid-3,.bp-block-grid-4{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:36rem){.bp-block-grid{grid-template-columns:minmax(0,1fr)}}';
+    }
+
+    public static function classNames(string $value): string
+    {
+        $classes = preg_split('/\s+/', trim(substr($value, 0, 500))) ?: [];
+        return implode(' ', array_unique(array_filter($classes, static fn(string $class): bool => preg_match('/^-?[_a-zA-Z]+[_a-zA-Z0-9-]*$/D', $class) === 1)));
     }
 
     private function filterItems(array $items, string $category, int $limit): array

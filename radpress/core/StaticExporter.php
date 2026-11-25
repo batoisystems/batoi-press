@@ -162,6 +162,7 @@ final class StaticExporter
     {
         $homepage = Slug::normalize((string)($this->site['homepage'] ?? 'home'));
         $publishedPosts = $this->posts->allPublished();
+        $blockRenderer = new PageBlockRenderer($this->paths, $this->posts, $this->products(), $this->site);
         foreach ($this->pages->allPublished() as $page) {
             $slug = (string)($page['slug'] ?? '');
             $pagePath = trim($this->pages->publicPath($page), '/');
@@ -170,7 +171,7 @@ final class StaticExporter
             $layout = $theme->pageLayout((string)($page['template'] ?? 'page'));
             $latestPostsLimit = max(1, min(12, (int)($page['latest_posts_limit'] ?? 3)));
             if (is_array($page['blocks'] ?? null) && $page['blocks'] !== []) {
-                $page['body'] = (new PageBlockRenderer($this->paths, $this->posts, $this->products(), $this->site))->render($page['blocks']);
+                $page['body'] = $blockRenderer->render($page['blocks']);
             }
             $this->writeHtml($workDir, $target, $this->renderTheme($layout, [
                 'page' => $page,
@@ -199,7 +200,7 @@ final class StaticExporter
         }
         foreach ($this->posts->types() as $postType) {
             $typePosts = array_values(array_filter($posts, static fn(array $post): bool => ($post['post_type'] ?? 'blog') === $postType));
-            $this->writeHtml($workDir, $postType . '/index.html', $this->renderTheme('blog', ['posts' => $typePosts, 'postUrls' => $postUrls, 'title' => ucwords(str_replace('-', ' ', $postType)), 'archivePath' => '/' . $postType], '/' . $postType . '/'));
+            $this->writeHtml($workDir, $postType . '/index.html', $this->renderTheme('blog', ['posts' => $typePosts, 'postUrls' => $postUrls, 'title' => ucwords(str_replace('-', ' ', $postType)), 'archivePath' => '/' . $postType, 'archiveWidget' => (new PageBlockRenderer($this->paths, $this->posts, $this->products(), $this->site))->render([['type'=>'widget', 'widget'=>(string)($this->site['archive_widgets'][$postType] ?? '')]])], '/' . $postType . '/'));
         }
         $this->writeHtml($workDir, 'archive/index.html', $this->renderTheme('archive', ['posts' => $posts, 'postUrls' => $postUrls, 'title' => 'Archive'], '/archive/'));
         $products = $this->products()->published();

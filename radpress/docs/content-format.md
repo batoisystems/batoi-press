@@ -11,6 +11,20 @@ Metadata stores title, slug, status, template, author, dates, SEO fields, and op
 
 Pages can enable a **Latest posts section** and choose a limit from 1 to 12. The renderer supplies the newest published posts to the active page layout; the bundled Standard and Landing layouts render them below the page body. Enable this setting on the page selected as the homepage to maintain a dynamic homepage feed without changing the homepage route contract.
 
+## Data Collections
+
+Use **Admin → Collections** for structured records such as directory entries, schedules, and resources. Create a collection, define its fields, and keep the collection and field keys stable once pages refer to them. Fields are private by default. Owners and admins manage fields, publication, and exports. An owner or admin can allow editors to update draft records in a specific collection.
+
+Use **Add record** for individual entries or **Import or paste** for batches. Put the headers on the first row. Import UTF-8 CSV or select a worksheet from an XLSX file. Map each source column, review the proposed changes, and apply the batch to the draft. Updates can match a unique field or the `_record_id` column from an earlier export. Blank record IDs add new rows. During updates, skip columns to preserve existing values, or map blank cells to clear optional values. Format identifiers as text in Excel to preserve leading zeros. Spreadsheet formulas enter text fields as literal expressions. Use pasted values for calculated numbers and dates.
+
+Admin exports include active draft records, their stable IDs, and private fields. CSV protects formula-like text for spreadsheet applications. Use XLSX when exact round-tripping of that text matters. Uploads are limited to 2 MB, 64 source columns, and 2,000 data rows. Each collection supports 24 fields and 2,000 records within a 1.5 MB working JSON budget. Archive records to leave them out of the next publication.
+
+Use **Review draft changes** to compare published values with pending public edits. **Publish selected records** applies the checked additions, updates, or removals. **Publish latest import** applies pending changes from the most recent import on records without earlier pending public edits or later edits. Review those records individually. **Publish entire draft** applies all pending records and changes to the collection name or public field definitions. Older publications whose rows cannot be matched safely to Record IDs need one entire-draft publication before selective publishing.
+
+**Preview draft** shows the current draft in a public layout. **Restore previous publication** switches back to the prior public revision under the current field visibility rules. The editable records remain available for further work. A private update backup includes the collection JSON at `radpress/content/collections/`.
+
+In the Page editor, add a **Collection** block. Choose cards, list, table, or a layout supplied by the active theme. You can select display fields, enter an exact-match filter, and sort the view. A membership page can filter by `category` equal to `L1`, while another page can display the same collection as a table. Static Export renders the published revision available at export time.
+
 ## Editor Workflow
 
 Page and post bodies remain sanitized HTML in both editor modes:

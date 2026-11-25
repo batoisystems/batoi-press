@@ -21,6 +21,7 @@ final class RuntimeCapabilities
             'fileinfo' => ['Validated uploads', 'feature', 'Enable Fileinfo for new uploads. Existing media remains available.'],
             'mbstring' => ['Unicode case folding', 'recommended', 'Enable mbstring for multilingual case-insensitive search. Original text is preserved.'],
             'zip' => ['ZIP packages', 'feature', 'Enable ZIP for archives; manual file deployment remains available.'],
+            'collection_xlsx' => ['Collection XLSX', 'feature', 'Enable ZIP, DOM, XMLReader, libxml and Fileinfo for Excel import and export. CSV remains available.'],
             'signatures' => ['Signed updates', 'feature', 'Enable Sodium for verified automatic updates. Never disable signature verification.'],
             'encryption' => ['Encrypted secrets', 'feature', 'Enable Sodium or OpenSSL AES-256-GCM for secrets and MFA.'],
             'http' => ['Remote integrations', 'feature', 'Enable cURL for remote adapters. Local publishing and login do not require it.'],
@@ -40,6 +41,9 @@ final class RuntimeCapabilities
             'fileinfo' => class_exists(\finfo::class),
             'mbstring' => function_exists('mb_strtolower'),
             'zip' => class_exists(\ZipArchive::class),
+            'collection_xlsx' => class_exists(\ZipArchive::class) && class_exists(\DOMDocument::class) && class_exists(\XMLReader::class)
+                && class_exists(\finfo::class) && extension_loaded('libxml')
+                && is_file(dirname(__DIR__) . '/vendor/openspout/openspout/src/Reader/XLSX/Reader.php'),
             'signatures' => function_exists('sodium_crypto_sign_verify_detached'),
             'encryption' => function_exists('sodium_crypto_aead_xchacha20poly1305_ietf_encrypt') || (function_exists('openssl_get_cipher_methods') && in_array('aes-256-gcm', openssl_get_cipher_methods(), true)),
             'http' => function_exists('curl_init'),

@@ -20,7 +20,7 @@ final class ContentEditor
         return '<div class="bp-editor-recovery bp-field-wide"><span role="status" aria-live="polite" data-bp-recovery-status>' . ($recovered ? 'Recovery opened. Review the form before saving.' : 'Use the save action to apply your changes.') . '</span><button type="button" class="bp-button bp-button-secondary" data-bp-recovery-retry hidden>Retry recovery</button><a href="' . self::e($url) . '" target="_blank" rel="noopener" data-bp-recovery-review>Review recovery copies</a><span class="bp-field-help">Private recovery covers content, blocks and metadata. Publishing settings and page code require the normal save action.</span></div>';
     }
 
-    public static function render(Config $config, string $value, string $help, string $id, bool $sourceOnly = false, string $name = 'body'): string
+    public static function render(Config $config, string $value, string $help, string $id, bool $sourceOnly = false, string $name = 'body', bool $visualInitially = false): string
     {
         if (!\Batoi\Press\Core\RuntimeCapabilities::available('dom')) {
             return '<div class="bp-field-wide"><label for="' . self::e($id) . '">Body text</label><textarea id="' . self::e($id) . '" name="' . self::e($name) . '" rows="18">' . self::e(html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8')) . '</textarea><p class="bp-notice">Rich HTML is unavailable on this host. New content is stored as escaped plain text. Enable PHP DOM to edit structured markup.</p></div>';
@@ -40,7 +40,7 @@ final class ContentEditor
 
         $label = $sourceOnly ? 'Body HTML source' : 'Body HTML';
         $sourceNotice = $sourceOnly
-            ? '<div class="bp-text-only-notice"><strong>HTML source editing</strong><p>The source is submitted directly to Batoi Press so supported embeds, inline styles, and structured markup are not altered by the visual editor. Unsafe scripts, event handlers, and URLs are still removed when saving.</p></div>'
+            ? '<div class="bp-text-only-notice"><strong>HTML source editing</strong><p>Switch views without changing the source. Deliberate visual edits may normalize HTML. Supported component attributes and inline styles are preserved; unsafe scripts, event handlers, and URLs are removed when saving.</p></div>'
             : '';
 
         $guide = '<div class="bp-editor-assistance" aria-labelledby="' . $fieldId . '-image-help"><div><strong id="' . $fieldId . '-image-help">Insert an image</strong><p>Choose Insert from Media to select or upload an image at the current cursor position. Without JavaScript, Media provides a URL and HTML snippet.</p></div>'
@@ -50,7 +50,14 @@ final class ContentEditor
             . '<p>Inline math uses <code>\( … \)</code>; display math uses <code>\[ … \]</code>. Code blocks use <code>&lt;pre&gt;&lt;code&gt;</code> and receive public copy controls automatically.</p>'
             . '<div class="bp-editor-helper-actions"><button type="button" class="bp-button bp-button-secondary" data-bp-editor-insert="inline-math">Inline math</button><button type="button" class="bp-button bp-button-secondary" data-bp-editor-insert="display-math">Display math</button><button type="button" class="bp-button bp-button-secondary" data-bp-editor-insert="code-block">Code block</button></div></div>';
 
-        return '<div class="bp-field-wide bp-content-editor" data-bp-content-editor>' . $sourceNotice . '<label for="' . $fieldId . '">' . $label . '</label><textarea ' . $attributes . '>' . self::e($value) . '</textarea><span class="bp-field-help">' . self::e($help) . '</span>' . $guide . '</div>';
+        $views = $sourceOnly ? '<div class="bp-editor-views" role="group" aria-label="Editor view"><button type="button" data-bp-source-view="source" aria-pressed="true">Source</button><button type="button" data-bp-source-view="visual" aria-pressed="false">Visual editor</button><button type="button" data-bp-source-view="preview" aria-pressed="false">Live preview</button></div><div data-bp-visual-toolbar hidden role="group" aria-label="Visual formatting"><button type="button" data-bp-format="bold">Bold</button><button type="button" data-bp-format="italic">Italic</button><button type="button" data-bp-format="formatBlock">Heading</button><button type="button" data-bp-format="insertUnorderedList">List</button><button type="button" data-bp-format="createLink">Link</button></div>' : '';
+        $field = '<label for="' . $fieldId . '">' . $label . '</label><textarea ' . $attributes . '>' . self::e($value) . '</textarea>';
+        if ($sourceOnly) {
+            $manager = new \Batoi\Press\Core\ThemeManager($config->paths());
+            $previewHead = '<link rel="stylesheet" href="' . self::e(\bp_url('/assets/uif/uif.css')) . '">' . $manager->tags($manager->activeSlug($config->site()), 'head');
+            $field = '<div class="bp-editor-surfaces"><div class="bp-editor-source-pane">' . $field . '</div><iframe title="Content visual editor and preview" sandbox="allow-same-origin" data-bp-source-preview data-bp-preview-head="' . self::e($previewHead) . '" hidden></iframe></div>';
+        }
+        return '<div class="bp-field-wide bp-content-editor" data-bp-content-editor' . ($sourceOnly ? ' data-bp-source-editor' . ($visualInitially ? ' data-bp-source-initial="visual"' : '') : '') . '>' . $sourceNotice . $views . $field . '<span class="bp-field-help">' . self::e($help) . '</span>' . $guide . '</div>';
     }
 
     /**

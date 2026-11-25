@@ -7,6 +7,10 @@ namespace Composer\Autoload;
 class ComposerStaticInit57ead8f94a88c5546e5c032135793e3c
 {
     public static $prefixLengthsPsr4 = array (
+        'O' =>
+        array (
+            'OpenSpout\\' => 10,
+        ),
         'F' =>
         array (
             'Firebase\\JWT\\' => 13,
@@ -14,6 +18,10 @@ class ComposerStaticInit57ead8f94a88c5546e5c032135793e3c
     );
 
     public static $prefixDirsPsr4 = array (
+        'OpenSpout\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/openspout/openspout/src',
+        ),
         'Firebase\\JWT\\' =>
         array (
             0 => __DIR__ . '/..' . '/firebase/php-jwt/src',

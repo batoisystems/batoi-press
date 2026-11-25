@@ -110,6 +110,11 @@ final class SafeHtml
             $state = $root->getAttribute('data-uif-state');
             if (in_array($state, $states, true)) $attributes['data-uif-state'] = $state;
             if ($kind === 'carousel') {
+                $autoplay = $root->getAttribute('data-uif-autoplay');
+                if (in_array($autoplay, ['true', 'false'], true)) $attributes['data-uif-autoplay'] = $autoplay;
+                $interval = $root->getAttribute('data-uif-interval');
+                if (preg_match('/^[1-9]\d{2,5}$/D', $interval) && (int)$interval >= 500 && (int)$interval <= 300000) $attributes['data-uif-interval'] = $interval;
+
                 foreach (['data-uif-items-per-slide', 'data-uif-step'] as $name) {
                     $value = $root->getAttribute($name);
                     if (preg_match('/^[1-9]\d{0,2}$/D', $value) && (int)$value <= 100) $attributes[$name] = $value;

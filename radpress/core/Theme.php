@@ -83,6 +83,10 @@ final class Theme
         $head = ($status === 200 && empty($options['preview_banner'])
             ? SocialMetadata::missingSearchTags($html, $searchRecord ?? [], $canonicalUrl) : '')
             . $themeHead . $libraries->tags('head', $localizedAssets);
+        if (str_contains($content, 'bp-block-grid')) $head .= '<style data-bp-grid-layout>' . PageBlockRenderer::gridCss() . '</style>';
+        if (str_contains($content, 'bp-collection')) {
+            $head .= '<link rel="stylesheet" href="' . htmlspecialchars($localizedAssets && function_exists('bp_url') ? \bp_url('/assets/css/collections.css') : '/assets/css/collections.css', ENT_QUOTES, 'UTF-8') . '">';
+        }
         if ($localFont !== '') $head .= '<style data-bp-local-font>' . $localFont . '</style>';
         $body = $themeBody . $libraries->tags('body', $localizedAssets);
         $integrationsPath = $this->paths->configPath('integrations.json');

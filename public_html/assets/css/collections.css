@@ -1,0 +1,13 @@
+.bp-collection { margin-block: 1.5rem; }
+.bp-collection :is(.bp-collection-cards, .bp-collection-list) { padding: 0; margin: 0; list-style: none; }
+.bp-collection-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1rem; }
+.bp-collection-cards > li { padding: 1rem; border: 1px solid var(--bp-border, #e5e7eb); border-radius: .15rem; }
+.bp-collection-list > li { padding-block: .8rem; border-bottom: 1px solid var(--bp-border, #e5e7eb); }
+.bp-collection-name { font-weight: 650; overflow-wrap: anywhere; }
+.bp-collection dl { margin: .5rem 0 0; }
+.bp-collection dt { font-weight: 600; font-size: .875em; }
+.bp-collection dd { margin: 0 0 .4rem; overflow-wrap: anywhere; }
+.bp-collection-table { overflow-x: auto; }
+.bp-collection-table table { width: 100%; border-collapse: collapse; }
+.bp-collection-table :is(th, td) { text-align: start; vertical-align: top; padding: .55rem .7rem; border-bottom: 1px solid var(--bp-border, #e5e7eb); overflow-wrap: anywhere; }
+.bp-collection img { width: auto; max-width: 100%; max-height: 12rem; object-fit: contain; }

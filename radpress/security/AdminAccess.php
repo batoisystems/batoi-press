@@ -36,6 +36,7 @@ final class AdminAccess
         if ($role === 'editor') {
             return self::matches($path, [
                 '/admin/pages',
+                '/admin/collections',
                 '/admin/proposals',
                 '/admin/proposals/',
                 '/admin/pages/new',

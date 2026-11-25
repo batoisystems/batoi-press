@@ -767,6 +767,33 @@ final class ContentMutationService
         ];
     }
 
+    private function machineBlocks(array $blocks, int $depth = 0): void
+    {
+        if (!array_is_list($blocks) || count($blocks) > ($depth === 0 ? 30 : 12)) throw new ContentMutationException('Invalid page block list.', 'validation_failed', 422);
+        foreach ($blocks as $block) {
+            if (!is_array($block) || !in_array($block['type'] ?? '', ['html', 'posts', 'gallery', 'products', 'widget', 'grid', 'collection'], true)
+                || array_diff(array_keys($block), ['type', 'title', 'body', 'category', 'widget', 'limit', 'show_image', 'show_date', 'show_read_more', 'custom_class', 'gallery_images', 'columns', 'cells', ...\Batoi\Press\Core\CollectionView::BLOCK_FIELDS]) !== []) throw new ContentMutationException('Invalid page block.', 'validation_failed', 422);
+            foreach ($block as $key => $part) {
+                $valid = match ($key) {
+                    'limit' => is_int($part) && $part >= 1 && $part <= 24,
+                    'columns' => is_int($part) && $part >= 1 && $part <= 4,
+                    'cells' => is_array($part),
+                    'show_image', 'show_date', 'show_read_more' => is_bool($part),
+                    default => is_string($part),
+                };
+                if (!$valid) throw new ContentMutationException('Invalid page block field.', 'validation_failed', 422);
+            }
+            if ($block['type'] === 'collection') {
+                try { \Batoi\Press\Core\CollectionView::normalize($block); }
+                catch (\InvalidArgumentException $error) { throw new ContentMutationException($error->getMessage(), 'validation_failed', 422); }
+            }
+            if (($block['type'] ?? '') === 'grid') {
+                if ($depth !== 0 || empty($block['cells'])) throw new ContentMutationException('Grid cells cannot be empty or contain nested grids.', 'validation_failed', 422);
+                $this->machineBlocks($block['cells'], $depth + 1);
+            } elseif (!empty($block['cells'])) throw new ContentMutationException('Only grids accept cells.', 'validation_failed', 422);
+        }
+    }
+
     private function machineInput(string $type, array $input): void
     {
         $allowed = $this->machineFields($type);
@@ -777,20 +804,7 @@ final class ContentMutationService
                 if ($field === 'tags') foreach ($value as $tag) {
                     if (!is_string($tag) || strlen($tag) > 80) throw new ContentMutationException('Invalid tag.', 'validation_failed', 422);
                 }
-                if ($field === 'blocks') foreach ($value as $block) {
-                    if (!is_array($block) || !in_array($block['type'] ?? '', ['html', 'posts', 'gallery', 'products', 'widget'], true)
-                        || array_diff(array_keys($block), ['type', 'title', 'body', 'category', 'widget', 'limit', 'show_image', 'show_date', 'show_read_more']) !== []) {
-                        throw new ContentMutationException('Invalid page block.', 'validation_failed', 422);
-                    }
-                    foreach ($block as $key => $part) {
-                        $valid = match ($key) {
-                            'limit' => is_int($part) && $part >= 1 && $part <= 24,
-                            'show_image', 'show_date', 'show_read_more' => is_bool($part),
-                            default => is_string($part),
-                        };
-                        if (!$valid) throw new ContentMutationException('Invalid page block field.', 'validation_failed', 422);
-                    }
-                }
+                if ($field === 'blocks') $this->machineBlocks($value);
             } elseif ($field === 'show_latest_posts') {
                 if (!is_bool($value)) throw new ContentMutationException('show_latest_posts must be boolean.', 'validation_failed', 422);
             } elseif ($field === 'latest_posts_limit') {

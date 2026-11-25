@@ -33,7 +33,7 @@ final class Appearance
             foreach (self::palette($site, $mode) as $key => $value) $tokens .= '--bp-' . str_replace('_', '-', $key) . ':' . $value . ';';
             $rules[$mode] = $tokens;
         }
-        return ':root{' . $rules['light'] . '}[data-bp-color-mode="dark"]{' . $rules['dark'] . '}@media(prefers-color-scheme:dark){[data-bp-color-mode="system"]{' . $rules['dark'] . '}}';
+        return ':root{color-scheme:light;' . $rules['light'] . '}:root[data-bp-color-mode="dark"]{color-scheme:dark;' . $rules['dark'] . '}@media(prefers-color-scheme:dark){:root[data-bp-color-mode="system"]{color-scheme:dark;' . $rules['dark'] . '}}';
     }
 
     public static function footerLinks(string $source): array

@@ -178,6 +178,7 @@ function requiredEntries(): array
         'LICENSE',
         'public_html/index.php',
         'public_html/admin.php',
+        'public_html/assets/css/collections.css',
         'public_html/assets/uif/uif.css',
         'public_html/assets/uif/uif.iife.js',
         'public_html/assets/uif/uif.life.js',
@@ -190,7 +191,11 @@ function requiredEntries(): array
         'public_html/assets/img/batoi-press/press-color-tile-512.png',
         'public_html/assets/img/batoi-press/press-mono.svg',
         'radpress/autoload.php',
+        'radpress/admin/CollectionController.php',
         'radpress/config/update.json',
+        'radpress/theme/default/partials/collection.php',
+        'radpress/vendor/openspout/openspout/src/Reader/XLSX/Reader.php',
+        'radpress/vendor/openspout/openspout/src/Writer/XLSX/Writer.php',
         'radpress/theme/default/assets/css/theme.css',
         'radpress/theme/default/assets/js/theme.js',
         'radpress/theme/default/layouts/landing.php',
@@ -263,7 +268,7 @@ function allowedManifestTargetPrefixes(): array
 
 function isExcludedEntry(string $entry): bool
 {
-    if (str_starts_with($entry, 'radpress/app/plugins/') || str_starts_with($entry, 'radpress/content/forms/')) return true;
+    if (str_starts_with($entry, 'radpress/app/plugins/') || str_starts_with($entry, 'radpress/content/forms/') || str_starts_with($entry, 'radpress/content/collections/')) return true;
     if (str_ends_with($entry, '.json.lock') || in_array(basename($entry), ['setup.lock','disabled.lock'], true) || str_contains(basename($entry), '.tmp-')) return true;
     if ($entry === 'radpress/tests' || str_starts_with($entry, 'radpress/tests/')) return true;
     if (str_starts_with($entry, 'radpress/content/menus/') && str_ends_with($entry, '.json.lock')) return true;

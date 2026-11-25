@@ -27,6 +27,29 @@ final class ThemePartial
         $file = $paths->themePath($slug . '/' . self::FILES[$key]);
         if (!is_file($file)) $file = $fallback;
 
+        return self::renderFile($file, $site, $data);
+    }
+
+    public static function renderCollection(Paths $paths, array $site, string $layout, array $data): string
+    {
+        $manager = new ThemeManager($paths);
+        $slug = $manager->activeSlug($site);
+        if (!isset($manager->collectionLayouts($slug)[$layout])) $layout = 'cards';
+        $file = $paths->themePath($slug . '/partials/collections/' . $layout . '.php');
+        if (!is_file($file) || is_link($file) || is_link(dirname($file))) {
+            $file = self::bundledCollectionPath();
+            if (!isset(CollectionView::LAYOUTS[$layout])) $layout = 'cards';
+        }
+        return self::renderFile($file, $site, ['layout' => $layout] + $data);
+    }
+
+    public static function bundledCollectionPath(): string
+    {
+        return dirname(__DIR__) . '/theme/default/partials/collection.php';
+    }
+
+    private static function renderFile(string $file, array $site, array $data): string
+    {
         // Use an isolated scope: templates receive presentation data, not services.
         return (static function (string $file, array $site, array $data): string {
             $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

@@ -38,6 +38,8 @@ final class AuditLog
     public function recordRequest(array $user, Request $request, string $outcome = 'seen'): void
     {
         $path = $request->path;
+        $query = $request->query;
+        if ($path === '/admin/collections') unset($query['q'], $query['value']);
         $kind = match (true) {
             str_contains($path, '/download/') => 'admin.download',
             $request->method === 'POST' => 'admin.action',
@@ -54,7 +56,7 @@ final class AuditLog
                 'request_id' => $request->requestId,
                 'method' => $request->method,
                 'route' => $path,
-                'query' => $this->safeQuery($request->query),
+                'query' => $this->safeQuery($query),
                 'user_agent' => (string)($request->server['HTTP_USER_AGENT'] ?? ''),
             ]
         );

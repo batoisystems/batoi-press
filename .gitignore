@@ -1,6 +1,8 @@
 /.DS_Store
 /dist/
-/specs/
+!/specs/
+/specs/*
+!/specs/data-collections-implementation-plan.md
 /tools/
 !/.github/
 !/.github/workflows/
@@ -33,6 +35,7 @@ radpress/data/commerce/
 radpress/data/editor-recovery/
 radpress/data/plugins/
 radpress/content/forms/
+radpress/content/collections/
 radpress/app/plugins/
 radpress/config/plugin-keys.json
 radpress/config/installed.lock

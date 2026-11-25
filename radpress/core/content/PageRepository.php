@@ -116,7 +116,7 @@ final class PageRepository
             $blockInput[0]['body'] = $body;
         }
         $blocks = $this->normalizeBlocks($blockInput, $body);
-        $body = implode("\n", array_map(static fn(array $block): string => in_array($block['type'], ['html', 'gallery'], true) ? $block['body'] : '', $blocks));
+        $body = $this->blockBody($blocks);
         $meta = [
             'id' => (string)($existing['id'] ?? 'pg_' . bin2hex(random_bytes(6))),
             'type' => 'page',
@@ -159,34 +159,55 @@ final class PageRepository
         }
     }
 
-    private function normalizeBlocks(mixed $value, string $fallbackBody): array
+    private function blockBody(array $blocks): string
     {
-        $allowed = ['html', 'posts', 'gallery', 'products', 'widget', 'form', 'plugin'];
+        $bodies = [];
+        foreach ($blocks as $block) {
+            if ($block['type'] === 'grid') $bodies[] = $this->blockBody($block['cells']);
+            elseif (in_array($block['type'], ['html', 'gallery'], true)) $bodies[] = $block['body'];
+        }
+        return implode("\n", $bodies);
+    }
+
+    private function normalizeBlocks(mixed $value, string $fallbackBody, int $depth = 0): array
+    {
+        $allowed = ['html', 'posts', 'gallery', 'products', 'widget', 'form', 'plugin', 'grid', 'collection'];
         if (!is_array($value) || count($value) > 30) {
             throw new RuntimeException('Page blocks must be an array of at most 30 items.');
         }
+        if (!array_is_list($value)) throw new RuntimeException('Content blocks must be an ordered list.');
         $encoded = json_encode($value);
         if ($encoded === false || strlen($encoded) > 1048576 || strlen($fallbackBody) > 1048576) {
             throw new RuntimeException('Page content exceeds the 1 MiB content limit.');
         }
         $blocks = [];
         foreach (is_array($value) ? array_slice($value, 0, 30) : [] as $block) {
-            if (!is_array($block)) continue;
+            if (!is_array($block)) throw new RuntimeException('Each content block must be an object.');
+            foreach ($block as $key => $part) if ($key !== 'cells' && !is_scalar($part) && $part !== null) throw new RuntimeException('Invalid content block field.');
             $type = in_array(($block['type'] ?? ''), $allowed, true) ? (string)$block['type'] : 'html';
+            if ($type === 'grid' && $depth > 0) throw new RuntimeException('Grid cells cannot contain nested grids.');
+            if ($type === 'grid' && (!is_array($block['cells'] ?? null) || count($block['cells']) < 1 || count($block['cells']) > 12)) throw new RuntimeException('A grid needs between 1 and 12 cells.');
             $body = in_array($type, ['html', 'gallery'], true) ? $this->html->sanitize((string)($block['body'] ?? '')) : '';
+            if ($type === 'gallery' && trim((string)($block['gallery_images'] ?? '')) !== '') {
+                \Batoi\Press\Core\WidgetRenderer::normalizeList([['type'=>'image_gallery', 'title'=>'Gallery', 'gallery_images'=>(string)$block['gallery_images']]], true);
+            }
             $blocks[] = [
                 'type' => $type,
+                'custom_class' => \Batoi\Press\Core\PageBlockRenderer::classNames((string)($block['custom_class'] ?? '')),
+                'columns' => max(1, min(4, (int)($block['columns'] ?? 2))),
+                'cells' => $type === 'grid' ? $this->normalizeBlocks($block['cells'], '', $depth + 1) : [],
                 'title' => substr(trim((string)($block['title'] ?? '')), 0, 160),
                 'body' => $body,
                 'category' => substr(trim((string)($block['category'] ?? '')), 0, 100),
                 'limit' => max(1, min(24, (int)($block['limit'] ?? 6))),
+                'gallery_images' => substr((string)($block['gallery_images'] ?? ''), 0, 8000),
                 'widget' => substr(trim((string)($block['widget'] ?? '')), 0, 160),
                 'form' => preg_match('/^[a-z][a-z0-9-]{0,63}$/D', (string)($block['form'] ?? '')) ? (string)$block['form'] : '',
                 'plugin_block' => is_string($block['plugin_block'] ?? null) && preg_match('/^[a-z][a-z0-9-]{0,63}:[a-z][a-z0-9-]{0,63}$/D', $block['plugin_block']) ? $block['plugin_block'] : '',
                 'show_image' => filter_var($block['show_image'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'show_date' => filter_var($block['show_date'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'show_read_more' => filter_var($block['show_read_more'] ?? false, FILTER_VALIDATE_BOOLEAN),
-            ];
+            ] + ($type === 'collection' ? \Batoi\Press\Core\CollectionView::normalize($block) : []);
         }
         if ($blocks === []) {
             $blocks[] = ['type' => 'html', 'title' => '', 'body' => $this->html->sanitize($fallbackBody), 'category' => '', 'limit' => 6, 'widget' => ''];

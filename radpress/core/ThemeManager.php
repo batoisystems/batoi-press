@@ -100,6 +100,7 @@ final class ThemeManager
             'supports' => $supports,
             'menu_locations' => $this->normalizeMenuLocations((array)($raw['menu_locations'] ?? [])),
             'page_templates' => $this->normalizePageTemplates((array)($raw['page_templates'] ?? [])),
+            'collection_layouts' => $this->normalizeCollectionLayouts($raw['collection_layouts'] ?? []),
             'assets' => [
                 'styles' => $this->normalizeEntries((array)($assets['styles'] ?? []), 'style'),
                 'scripts' => $this->normalizeEntries((array)($assets['scripts'] ?? []), 'script'),
@@ -170,6 +171,23 @@ final class ThemeManager
         } catch (RuntimeException) {
             return $this->normalizePageTemplates([]);
         }
+    }
+
+    public function collectionLayouts(string $slug): array
+    {
+        try { return ($this->manifest($slug)['collection_layouts'] ?? []) + CollectionView::LAYOUTS; }
+        catch (RuntimeException) { return CollectionView::LAYOUTS; }
+    }
+
+    private function normalizeCollectionLayouts(mixed $layouts): array
+    {
+        if (!is_array($layouts) || count($layouts) > 24) throw new RuntimeException('Invalid collection layout declarations.');
+        foreach ($layouts as $key => $label) {
+            if (!is_string($key) || !\Batoi\Press\Content\CollectionSchema::key($key) || !is_string($label) || trim($label) === '' || strlen($label) > 100) {
+                throw new RuntimeException('Invalid collection layout declaration.');
+            }
+        }
+        return $layouts;
     }
 
     public function menuLocations(string $slug): array

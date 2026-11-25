@@ -7,9 +7,11 @@ use Batoi\Press\Application\ContentMutationService;
 use Batoi\Press\Application\ContentRevision;
 use Batoi\Press\Application\IdempotencyStore;
 use Batoi\Press\Content\PageRepository;
+use Batoi\Press\Content\CollectionRepository;
 use Batoi\Press\Content\PostRepository;
 use Batoi\Press\Content\PublicationState;
 use Batoi\Press\Core\AuditLog;
+use Batoi\Press\Core\CollectionView;
 use Batoi\Press\Core\Config;
 use Batoi\Press\Core\HtmlContent;
 use Batoi\Press\Core\Request;
@@ -21,6 +23,10 @@ use RuntimeException;
 
 final class PageController
 {
+    private ?array $blockCategories = null;
+    private ?array $blockCollections = null;
+    private ?array $collectionLayouts = null;
+
     public function __construct(
         private readonly Config $config,
         private readonly PageRepository $pages,
@@ -173,7 +179,7 @@ final class PageController
                 (string)($this->user['username'] ?? 'admin'),
                 'admin_' . bin2hex(random_bytes(8))
             );
-        } catch (RuntimeException $exception) {
+        } catch (RuntimeException | \InvalidArgumentException $exception) {
             $recovery = '/admin/editor-recovery/list?' . http_build_query(['type'=>'page','identifier'=>$originalSlug,'format'=>'html']);
             return Response::html($this->layout('Pages', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>The editor may have preserved a private recovery copy. Review it before re-entering content.</p><p>' . AdminLayout::buttonLink('Review recovery copies',$recovery,'edit',true) . AdminLayout::buttonLink('Back to pages', '/admin/pages', 'back', true) . '</p>'), 409);
         }
@@ -283,17 +289,20 @@ final class PageController
         $template = $this->blockRow(['type' => 'html', 'title' => '', 'body' => '', 'category' => '', 'limit' => 6, 'widget' => ''], 999, true);
         $presentation = in_array((string)($this->user['role'] ?? ''), ['owner', 'admin'], true)
             ? '<p class="bp-field-help"><a href="/admin/theme-templates" target="_blank" rel="noopener">Edit block presentation in Theme Templates</a>. Changes apply to all matching blocks in the active theme; save page edits before switching.</p>' : '';
-        return '<div class="bp-field-wide bp-page-blocks" data-bp-page-blocks><div class="bp-block-toolbar"><div><strong>Page content blocks</strong><p>Reorder HTML, blog posts, galleries, products, and configured widgets.</p></div><label>Add block <select data-bp-add-block-type><option value="html">HTML content</option><option value="posts">Blog posts</option><option value="gallery">Image gallery</option><option value="products">Products</option><option value="widget">Widget</option><option value="form">Form</option><option value="plugin">Plugin block</option></select></label><button type="button" class="bp-button bp-button-secondary" data-bp-add-block>Add block</button></div><div class="bp-widget-rows" data-bp-reorder-list data-bp-block-list>' . $rows . '</div><template data-bp-block-template>' . $template . '</template>' . $presentation . '</div>';
+        $collectionFields = array_column($this->blockCollections(), 'fields', 'id');
+        $metadata = $this->e(json_encode($collectionFields, JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
+        return '<div class="bp-field-wide bp-page-blocks" data-bp-page-blocks data-bp-collection-fields="' . $metadata . '"><div class="bp-block-toolbar"><div><strong>Page content blocks</strong><p>Arrange page content and reusable blocks.</p></div><label>Add block <select data-bp-add-block-type><option value="html">HTML content</option><option value="posts">Blog posts</option><option value="gallery">Image gallery</option><option value="products">Products</option><option value="collection">Collection</option><option value="widget">Widget</option><option value="form">Form</option><option value="plugin">Plugin block</option><option value="grid">Grid</option></select></label><button type="button" class="bp-button bp-button-secondary" data-bp-add-block>Add block</button></div><div class="bp-widget-rows" data-bp-reorder-list data-bp-block-list>' . $rows . '</div><template data-bp-block-template>' . $template . '</template>' . $presentation . '</div>';
     }
 
     private function blockRow(array $block, int $index, bool $sourceOnly): string
     {
-        $type = in_array(($block['type'] ?? ''), ['html', 'posts', 'gallery', 'products', 'widget', 'form', 'plugin'], true) ? (string)$block['type'] : 'html';
+        $type = (string)($block['type'] ?? 'html');
         $options = '';
-        foreach (['html' => 'HTML content', 'posts' => 'Blog posts', 'gallery' => 'Image gallery', 'products' => 'Products', 'widget' => 'Widget', 'form' => 'Form', 'plugin'=>'Plugin block'] as $value => $label) {
+        foreach (['html' => 'HTML content', 'posts' => 'Blog posts', 'gallery' => 'Image gallery', 'products' => 'Products', 'collection' => 'Collection', 'widget' => 'Widget', 'form' => 'Form', 'plugin'=>'Plugin block', 'grid'=>'Grid'] as $value => $label) {
             $options .= '<option value="' . $value . '"' . ($type === $value ? ' selected' : '') . '>' . $label . '</option>';
         }
-        $editor = ContentEditor::render($this->config, (string)($block['body'] ?? ''), 'HTML and gallery markup is sanitized when saved.', 'bp-page-block-' . $index, $sourceOnly, 'block_body[]');
+        $editor = ContentEditor::render($this->config, (string)($block['body'] ?? ''), 'HTML and gallery markup is sanitized when saved.', 'bp-page-block-' . $index, true, 'block_body[]', !$sourceOnly && ($this->config->editor()['body_editor'] ?? 'rich_html') === 'rich_html');
+        $categoryOptions = $this->blockCategoryOptions($block);
         $postOptions = '';
         foreach (['show_image' => 'Featured image', 'show_date' => 'Publication date', 'show_read_more' => 'Read more link'] as $field => $label) {
             $postOptions .= '<label data-bp-block-field="posts">' . $label . ' <select name="block_' . $field . '[]"><option value="0">Hide</option><option value="1"' . (!empty($block[$field]) ? ' selected' : '') . '>Show</option></select></label>';
@@ -302,13 +311,89 @@ final class PageController
             . '<label>Block type <select name="block_type[]" data-bp-block-type>' . $options . '</select></label>'
             . '<label>Heading <input type="text" name="block_title[]" maxlength="160" value="' . $this->e((string)($block['title'] ?? '')) . '"></label>'
             . '<div class="bp-field-wide" data-bp-block-field="html gallery">' . $editor . '</div>'
-            . '<label data-bp-block-field="posts products">Category filter <input type="text" name="block_category[]" maxlength="100" value="' . $this->e((string)($block['category'] ?? '')) . '"><span class="bp-field-help">Leave blank to include every category.</span></label>'
-            . '<label data-bp-block-field="posts products">Items <input type="number" name="block_limit[]" min="1" max="24" value="' . max(1, min(24, (int)($block['limit'] ?? 6))) . '"></label>'
+            . '<label data-bp-block-field="posts products">Category filter <select name="block_category[]" data-bp-block-category>' . $categoryOptions . '</select></label>'
+            . '<label data-bp-block-field="posts products gallery">Items <input type="number" name="block_limit[]" min="1" max="24" value="' . max(1, min(24, (int)($block['limit'] ?? 6))) . '"></label>'
+            . '<label>Custom class <input name="block_custom_class[]" maxlength="500" value="' . $this->e((string)($block['custom_class'] ?? '')) . '"><span class="bp-field-help">Space-separated CSS classes. Style using Page CSS and JavaScript.</span></label>'
+            . '<div class="bp-field-wide" data-bp-block-field="gallery" data-bp-content-editor><label>Gallery images <textarea name="block_gallery_images[]" rows="4" data-bp-gallery-images>' . $this->e((string)($block['gallery_images'] ?? '')) . '</textarea></label><span class="bp-field-help">One image URL | alt text per line, in display order. An empty selection preserves gallery HTML above.</span><a class="bp-button bp-button-secondary" data-bp-editor-media data-bp-gallery-media data-bp-picker-url="' . $this->e(\bp_url('/admin/media/picker')) . '" data-bp-upload-url="' . $this->e(\bp_url('/admin/media/upload')) . '" href="' . $this->e(\bp_url('/admin/media?type=images')) . '" target="_blank" rel="noopener">Choose from Media</a><div data-bp-gallery-list></div></div>'
+            . '<div class="bp-field-wide" data-bp-block-field="grid"><label>Columns <input name="block_columns[]" type="number" min="1" max="4" value="' . max(1, min(4, (int)($block['columns'] ?? 2))) . '"></label><label>Cells <input type="number" min="1" max="12" value="' . max(1, count((array)($block['cells'] ?? []))) . '" data-bp-grid-count></label><div data-bp-grid-editor></div><details><summary>Grid cell source / no-JavaScript editing</summary><label>Cells JSON <textarea name="block_cells[]" rows="6" data-bp-grid-source>' . $this->e(json_encode($block['cells'] ?? [['type'=>'html', 'body'=>'']], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)) . '</textarea></label><p>Ordered array of 1–12 blocks: html, posts, gallery, products, widget, form or plugin. Each cell uses the same fields as a content block; nested grids are not supported.</p></details></div>'
             . $postOptions
             . '<label data-bp-block-field="widget">Widget title <input type="text" name="block_widget[]" maxlength="160" value="' . $this->e((string)($block['widget'] ?? '')) . '"><span class="bp-field-help">Matches a widget configured in Widgets.</span></label>'
             . '<label data-bp-block-field="form">Form ID <input name="block_form[]" maxlength="64" value="' . $this->e((string)($block['form'] ?? '')) . '"><span class="bp-field-help">Use the stable ID from Forms. Visitors open the secure form on its own page.</span></label>'
             . '<label data-bp-block-field="plugin">Plugin block <input name="block_plugin[]" maxlength="129" value="' . $this->e((string)($block['plugin_block'] ?? '')) . '" placeholder="plugin-id:block-name"><span class="bp-field-help">Use a block registered by an enabled trusted package.</span></label>'
+            . $this->collectionBlockFields($block)
             . '</section>';
+    }
+
+    private function blockCollections(): array
+    {
+        if ($this->blockCollections !== null) return $this->blockCollections;
+        $this->blockCollections = [];
+        $repository = new CollectionRepository($this->config->paths());
+        $manages = in_array((string)($this->user['role'] ?? ''), ['owner', 'admin'], true);
+        try { $summaries = $repository->summaries(); }
+        catch (RuntimeException) { return $this->blockCollections; }
+        foreach ($summaries as $id => $summary) {
+            $canEdit = $manages || $summary['editors'];
+            if (!$canEdit && !$summary['published']) continue;
+            $this->blockCollections[$id] = ['id' => $id, 'title' => $canEdit ? $summary['title'] : $summary['published_title'],
+                'fields' => $canEdit ? $summary['public_fields'] : $summary['published_fields']];
+        }
+        return $this->blockCollections;
+    }
+
+    private function collectionBlockFields(array $block): string
+    {
+        $collections = $this->blockCollections();
+        if ($this->collectionLayouts === null) {
+            $manager = new ThemeManager($this->config->paths());
+            $this->collectionLayouts = $manager->collectionLayouts($manager->activeSlug($this->config->site()));
+        }
+        $id = (string)($block['collection'] ?? '');
+        $select = function (string $label, string $key, array $options, string $default = '') use ($block): string {
+            $value = (string)($block[$key] ?? $default);
+            if ($value !== '' && !isset($options[$value])) $options[$value] = $value . ' (saved)';
+            $items = '';
+            foreach ($options as $option => $name) $items .= '<option value="' . $this->e($option) . '"' . ($option === $value ? ' selected' : '') . '>' . $this->e($name) . '</option>';
+            return '<label>' . $label . '<select name="block_' . $key . '[]" data-bp-' . str_replace('_', '-', $key) . '>' . $items . '</select></label>';
+        };
+        $fields = $collections[$id]['fields'] ?? [];
+        return '<fieldset class="bp-field-wide bp-collection-fieldset" data-bp-block-field="collection"><legend>Collection view</legend><div class="bp-form-grid">'
+            . $select('Collection', 'collection', ['' => 'Choose a collection'] + array_map(static fn (array $collection): string => $collection['title'], $collections))
+            . $select('Layout', 'collection_layout', $this->collectionLayouts, 'cards')
+            . $select('Filter field', 'collection_filter', ['' => 'All records'] + $fields)
+            . '<label>Filter equals<input name="block_collection_value[]" maxlength="2000" value="' . $this->e((string)($block['collection_value'] ?? '')) . '" data-bp-collection-value></label>'
+            . $select('Sort field', 'collection_sort', ['' => 'Entry order'] + $fields)
+            . $select('Sort direction', 'collection_order', ['asc' => 'Ascending', 'desc' => 'Descending'], 'asc')
+            . '<label class="bp-field-wide">Display fields<input name="block_collection_fields[]" value="' . $this->e((string)($block['collection_fields'] ?? '')) . '" data-bp-collection-selected-fields placeholder="All public fields"><span class="bp-field-help">Enter comma-separated field keys in display order. <span data-bp-collection-field-hints></span></span></label>'
+            . '</div></fieldset>';
+    }
+
+    private function blockCategoryOptions(array $block): string
+    {
+        $selected = (string)($block['category'] ?? '');
+        $options = '<option value="">All categories</option>';
+        $known = [];
+        if ($this->blockCategories === null) {
+            $this->blockCategories = [];
+            $products = new \Batoi\Press\Content\ProductRepository($this->config->paths(), new \Batoi\Press\Core\FileStore(), new HtmlContent());
+            foreach (['posts'=>$this->posts->metadata(), 'products'=>$products->metadata()] as $type => $items) {
+                $categories = [];
+                foreach ($items as $item) {
+                    $category = trim((string)($item['category'] ?? ''));
+                    if ($category !== '' && ($item['status'] ?? '') !== 'trashed') $categories[$category] = true;
+                }
+                ksort($categories, SORT_NATURAL | SORT_FLAG_CASE);
+                $this->blockCategories[$type] = array_keys($categories);
+            }
+        }
+        foreach ($this->blockCategories as $type => $categories) {
+            foreach ($categories as $category) {
+                $known[$category] = true;
+                $options .= '<option data-bp-category-type="' . $type . '" value="' . $this->e($category) . '"' . ($selected === $category && ($block['type'] ?? '') === $type ? ' selected' : '') . '>' . $this->e($category) . '</option>';
+            }
+        }
+        if ($selected !== '' && !isset($known[$selected])) $options .= '<option value="' . $this->e($selected) . '" selected>' . $this->e($selected) . ' (saved category)</option>';
+        return $options;
     }
 
     private function submittedBlocks(array $input): array
@@ -325,6 +410,15 @@ final class PageController
         $blocks = [];
         foreach (array_slice($types, 0, 30) as $index => $type) {
             $blocks[] = ['type' => (string)$type, 'title' => (string)($titles[$index] ?? ''), 'body' => (string)($bodies[$index] ?? ''), 'category' => (string)($categories[$index] ?? ''), 'limit' => (int)($limits[$index] ?? 6), 'widget' => (string)($widgets[$index] ?? ''), 'form' => (string)(((array)($input['block_form'] ?? []))[$index] ?? ''), 'plugin_block'=>(string)(((array)($input['block_plugin'] ?? []))[$index] ?? '')];
+            foreach (['custom_class', 'columns', 'gallery_images'] as $field) $blocks[array_key_last($blocks)][$field] = ((array)($input['block_' . $field] ?? []))[$index] ?? '';
+            if ($type === 'collection') {
+                foreach (CollectionView::BLOCK_FIELDS as $field) $blocks[array_key_last($blocks)][$field] = ((array)($input['block_' . $field] ?? []))[$index] ?? '';
+            }
+            if ($type === 'grid') {
+                try { $cells = json_decode((string)(((array)($input['block_cells'] ?? []))[$index] ?? '[]'), true, 16, JSON_THROW_ON_ERROR); }
+                catch (\JsonException) { throw new RuntimeException('Grid cell source must be valid JSON.'); }
+                $blocks[array_key_last($blocks)]['cells'] = $cells;
+            }
             foreach (['show_image', 'show_date', 'show_read_more'] as $field) {
                 $blocks[array_key_last($blocks)][$field] = ((array)($input['block_' . $field] ?? []))[$index] ?? '0';
             }

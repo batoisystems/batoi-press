@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
+$hasArchiveWidget = trim((string)($archiveWidget ?? '')) !== '';
 ?>
+<div class="bp-archive-layout<?php echo $hasArchiveWidget ? ' bp-archive-with-widget' : ''; ?>">
 <section class="bp-listing-page"<?php echo ($site['posts_load_more'] ?? true) ? ' data-bp-load-more' : ''; ?>>
     <header class="bp-page-heading"><p class="bp-eyebrow">Insights</p><h1><?php echo bp_esc((string)($title ?? 'Blog')); ?></h1><p>News, ideas, and practical guidance from <?php echo bp_esc((string)($site['name'] ?? 'our team')); ?>.</p></header>
     <?php if (empty($posts)): ?>
@@ -27,3 +29,6 @@ declare(strict_types=1);
         <?php endif; ?>
     <?php endif; ?>
 </section>
+
+<?php if ($hasArchiveWidget): ?><aside class="bp-post-sidebar" aria-label="Archive widget"><?php echo $archiveWidget; ?></aside><?php endif; ?>
+</div>

@@ -56,6 +56,7 @@ final class ThemeTemplateController
     private const MAX_THEME_FILES = 500;
     private const MAX_THEME_FILE_BYTES = 5242880;
     private const MAX_THEME_EXTRACTED_BYTES = 52428800;
+    private array $collectionTemplates = [];
 
     public function __construct(
         private readonly Config $config,
@@ -307,7 +308,7 @@ final class ThemeTemplateController
         );
 
         $cards = '<div class="bp-admin-action-grid">';
-        foreach (self::EDITABLE_FILES as $key => $template) {
+        foreach ($this->editableFiles($theme) as $key => $template) {
             $path = $this->templatePath($theme, $key);
             $creatable = $this->isCreatable($key);
             $status = is_file($path) && is_writable($path) ? 'Editable' : (is_file($path) ? 'Read only' : ($creatable ? 'Create on save' : 'Missing'));
@@ -329,7 +330,7 @@ final class ThemeTemplateController
 
         [$theme, $key] = $this->parseTarget($target);
         try {
-            $template = $this->template($key);
+            $template = $this->template($theme, $key);
         } catch (RuntimeException $exception) {
             return Response::html($this->layout('Theme Templates', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>' . AdminLayout::buttonLink('Back to templates', '/admin/theme-templates', 'back', true) . '</p>'), 404);
         }
@@ -427,7 +428,7 @@ final class ThemeTemplateController
         $theme = $this->resolveTheme($request->input('theme'));
         $key = $request->input('template');
         try {
-            $template = $this->template($key);
+            $template = $this->template($theme, $key);
         } catch (RuntimeException $exception) {
             return Response::html($this->layout('Theme Templates', '<p class="bp-error">' . $this->e($exception->getMessage()) . '</p><p>' . AdminLayout::buttonLink('Back to templates', '/admin/theme-templates?theme=' . rawurlencode($theme), 'back', true) . '</p>'), 404);
         }
@@ -478,7 +479,7 @@ final class ThemeTemplateController
         $key = $request->input('template');
         $snapshot = $request->input('snapshot');
         try {
-            $this->template($key);
+            $this->template($theme, $key);
             $snapshotPath = $this->snapshotPath($theme, $key, $snapshot);
             if ($snapshotPath === null || !is_file($snapshotPath)) {
                 throw new RuntimeException('Snapshot not found.');
@@ -982,7 +983,7 @@ final class ThemeTemplateController
             return;
         }
 
-        $template = $this->template($key);
+        $template = $this->template($theme, $key);
         $extension = pathinfo((string)$template['file'], PATHINFO_EXTENSION) ?: 'txt';
         $target = $this->config->paths()->dataPath('versions/theme/' . $theme . '/' . $key . '/' . date('Ymd-His') . '-' . bin2hex(random_bytes(3)) . '.' . $extension);
         $this->files->write($target, $this->files->read($path));
@@ -1019,7 +1020,9 @@ final class ThemeTemplateController
             'block-posts', 'block-products' => '$site, $title, $block, $items, $escape. Items are published and filtered; each has url. Post items also have image_url. Escape dynamic text and attributes.',
             'block-gallery' => '$site, $title, $block, $body, $escape. Body is already sanitized gallery HTML.',
             'block-widget' => '$site, $title, $block, $widget, $body, $escape. Body is the rendered widget HTML.',
-            default => '$site, $title, $page, $post, and URL/escaping helpers from the active layout.',
+            default => str_starts_with($key, 'collection-')
+                ? '$layout, $site, $title, $fields, $items, $escape. Fields and items contain only selected public values. Escape all dynamic output.'
+                : '$site, $title, $page, $post, and URL/escaping helpers from the active layout.',
         };
         $items .= '<div><dt>Context</dt><dd>' . $this->e($context) . '</dd></div>';
         $items .= '</dl><p class="bp-field-help">Avoid unescaped dynamic output. Use <code>bp_esc()</code> for text, <code>bp_attr()</code> for attributes, and <code>bp_url()</code> for local URLs.</p>';
@@ -1055,29 +1058,49 @@ final class ThemeTemplateController
         return '<section class="bp-editor-panel"><header><h2>' . $this->e($title) . '</h2><p>' . $this->e($description) . '</p></header>' . $body . '</section>';
     }
 
-    private function template(string $key): array
+    private function editableFiles(string $theme): array
     {
-        if (!array_key_exists($key, self::EDITABLE_FILES)) {
+        if (!isset($this->collectionTemplates[$theme])) {
+            $manager = new ThemeManager($this->config->paths(), $this->files);
+            $templates = [];
+            foreach ($manager->collectionLayouts($theme) as $key => $label) {
+                $templates['collection-' . $key] = ['label' => 'Collection · ' . $label, 'file' => 'partials/collections/' . $key . '.php',
+                    'type' => 'php', 'description' => 'Layout for selected public collection fields and records.'];
+            }
+            $this->collectionTemplates[$theme] = $templates;
+        }
+        return self::EDITABLE_FILES + $this->collectionTemplates[$theme];
+    }
+
+    private function template(string $theme, string $key): array
+    {
+        $templates = $this->editableFiles($theme);
+        if (!isset($templates[$key])) {
             throw new RuntimeException('Unknown theme template.');
         }
 
-        return self::EDITABLE_FILES[$key];
+        return $templates[$key];
     }
 
     private function templatePath(string $theme, string $key): string
     {
-        $template = $this->template($key);
+        $template = $this->template($theme, $key);
         return $this->config->paths()->themePath($theme . '/' . (string)$template['file']);
     }
 
     private function isCreatable(string $key): bool
     {
-        return isset(ThemePartial::FILES[$key]) || in_array($key, ['contact', 'theme-css', 'theme-js'], true);
+        return isset(ThemePartial::FILES[$key]) || str_starts_with($key, 'collection-') || in_array($key, ['contact', 'theme-css', 'theme-js'], true);
     }
 
     private function starterSource(string $key): string
     {
         if (isset(ThemePartial::FILES[$key])) return $this->files->read(ThemePartial::bundledPath($key));
+        if (str_starts_with($key, 'collection-')) {
+            $source = $this->files->read(ThemePartial::bundledCollectionPath());
+            return isset(\Batoi\Press\Core\CollectionView::LAYOUTS[substr($key, strlen('collection-'))])
+                ? $source : substr_replace($source, "\n\$layout = 'cards';", strlen('<?php'), 0);
+        }
         $bundledContact = $this->config->paths()->themePath('default/layouts/contact.php');
         if ($key === 'contact' && is_file($bundledContact)) {
             return $this->files->read($bundledContact);

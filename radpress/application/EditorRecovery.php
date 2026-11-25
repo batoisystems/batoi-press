@@ -11,7 +11,7 @@ use RuntimeException;
 /** Private editing copies. This service has no content-save or publish operation. */
 final class EditorRecovery
 {
-    public const FIELDS = ['title','slug','body','subtitle','parent_slug','post_type','category','layout','tags','template','seo_title','seo_description','featured_image','featured_image_alt','hero_image','hero_preload','hero_priority','lazy_images','image_sizes','show_latest_posts','latest_posts_limit','og_title','og_description','og_image','og_url','og_type','twitter_title','twitter_description','twitter_image','twitter_card','body_edit_mode','body_source_hash','body_text','block_type','block_title','block_body','block_category','block_limit','block_widget','block_form','block_plugin','block_show_image','block_show_author','block_show_date','block_show_subtitle','block_show_category'];
+    public const FIELDS = ['title','slug','body','subtitle','parent_slug','post_type','category','layout','tags','template','seo_title','seo_description','featured_image','featured_image_alt','hero_image','hero_preload','hero_priority','lazy_images','image_sizes','show_latest_posts','latest_posts_limit','og_title','og_description','og_image','og_url','og_type','twitter_title','twitter_description','twitter_image','twitter_card','body_edit_mode','body_source_hash','body_text','block_custom_class','block_columns','block_cells','block_gallery_images','block_show_read_more','block_type','block_title','block_body','block_category','block_limit','block_widget','block_form','block_plugin','block_show_image','block_show_author','block_show_date','block_show_subtitle','block_show_category','block_collection','block_collection_layout','block_collection_fields','block_collection_filter','block_collection_value','block_collection_sort','block_collection_order'];
     private const MAX_BYTES = 1100000;
     public function __construct(private readonly Config $config, private readonly array $user) {}
 
@@ -109,9 +109,17 @@ final class EditorRecovery
         } elseif ($type === 'page' && isset($fields['block_type'])) {
             $blocks = [];
             foreach ($fields['block_type'] as $i => $blockType) {
-                if (!in_array($blockType,['html','posts','gallery','products','widget','form','plugin'],true)) throw new ContentMutationException('Recovery contains an unsupported block type.','validation_failed',422);
+                if (!in_array($blockType,['html','posts','gallery','products','widget','form','plugin','grid','collection'],true)) throw new ContentMutationException('Recovery contains an unsupported block type.','validation_failed',422);
                 $block = ['type'=>$blockType];
-                foreach (['title','body','category','limit','widget','form','plugin','show_image','show_author','show_date','show_subtitle','show_category'] as $key) $block[$key === 'plugin' ? 'plugin_block' : $key] = $fields['block_' . $key][$i] ?? '';
+                foreach (['custom_class','columns','gallery_images','show_read_more','title','body','category','limit','widget','form','plugin','show_image','show_author','show_date','show_subtitle','show_category'] as $key) $block[$key === 'plugin' ? 'plugin_block' : $key] = $fields['block_' . $key][$i] ?? '';
+                if ($blockType === 'collection') {
+                    foreach (\Batoi\Press\Core\CollectionView::BLOCK_FIELDS as $key) $block[$key] = $fields['block_' . $key][$i] ?? '';
+                }
+                if ($blockType === 'grid') {
+                    try { $block['cells'] = json_decode((string)($fields['block_cells'][$i] ?? '[]'), true, 16, JSON_THROW_ON_ERROR); }
+                    catch (\JsonException) { throw new ContentMutationException('Invalid grid recovery source.', 'validation_failed', 422); }
+                    if (!is_array($block['cells']) || count($block['cells']) < 1 || count($block['cells']) > 12) throw new ContentMutationException('A grid needs 1–12 cells.', 'validation_failed', 422);
+                }
                 $block['body'] = $html->sanitize((string)$block['body']); $blocks[] = $block;
             }
             $record['blocks'] = $blocks;

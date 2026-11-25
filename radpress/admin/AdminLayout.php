@@ -34,7 +34,8 @@ final class AdminLayout
     {
         $body = function_exists('bp_localize_markup_urls') ? \bp_localize_markup_urls($body) : $body;
         $content = self::isAuthRoute() ? self::authShell($title, $body, $mainClass) : self::adminShell($title, $body, $mainClass);
-        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . self::e($title) . ' | Batoi Press</title><link rel="icon" type="image/svg+xml" href="' . self::e(self::assetUrl('/assets/img/batoi-press/press-color.svg')) . '"><link rel="apple-touch-icon" sizes="180x180" href="' . self::e(self::assetUrl('/assets/img/batoi-press/press-color-tile-180.png')) . '"><link rel="stylesheet" href="' . self::e(self::assetUrl('/assets/uif/uif.css')) . '"><link rel="stylesheet" href="' . self::e(self::assetUrl('/assets/css/style.css')) . '"><script src="' . self::e(self::assetUrl('/assets/uif/uif.iife.js')) . '" defer></script><script src="' . self::e(self::assetUrl('/assets/uif/uif.js')) . '" defer></script><script src="' . self::e(self::assetUrl('/assets/js/app.js')) . '" defer></script></head><body class="bp-admin-body">' . $content . '</body></html>';
+        $collectionStyle = str_contains($body, 'class="bp-content-block bp-collection"') ? '<link rel="stylesheet" href="' . self::e(self::assetUrl('/assets/css/collections.css')) . '">' : '';
+        return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' . self::e($title) . ' | Batoi Press</title><link rel="icon" type="image/svg+xml" href="' . self::e(self::assetUrl('/assets/img/batoi-press/press-color.svg')) . '"><link rel="apple-touch-icon" sizes="180x180" href="' . self::e(self::assetUrl('/assets/img/batoi-press/press-color-tile-180.png')) . '"><link rel="stylesheet" href="' . self::e(self::assetUrl('/assets/uif/uif.css')) . '"><link rel="stylesheet" href="' . self::e(self::assetUrl('/assets/css/style.css')) . '">' . $collectionStyle . '<script src="' . self::e(self::assetUrl('/assets/uif/uif.iife.js')) . '" defer></script><script src="' . self::e(self::assetUrl('/assets/uif/uif.js')) . '" defer></script><script src="' . self::e(self::assetUrl('/assets/js/app.js')) . '" defer></script></head><body class="bp-admin-body">' . $content . '</body></html>';
     }
 
     public static function message(string $title, string $message, bool $error = false): string
@@ -149,6 +150,7 @@ final class AdminLayout
                 ['label' => 'Proposed changes', 'href' => '/admin/proposals', 'icon' => 'edit'],
                 ['label' => 'Posts', 'href' => '/admin/posts', 'icon' => 'edit'],
                 ['label' => 'Products', 'href' => '/admin/products', 'icon' => 'database'],
+                ['label' => 'Collections', 'href' => '/admin/collections', 'icon' => 'database'],
                 ['label' => 'Media', 'href' => '/admin/media', 'icon' => 'image'],
                 ['label' => 'Menus', 'href' => '/admin/menus', 'icon' => 'menu'],
                 ['label' => 'Widgets', 'href' => '/admin/widgets', 'icon' => 'dashboard'],

@@ -493,13 +493,24 @@ final class McpController
         ];
         if ($type === 'page') {
             $properties += ['parent_slug' => ['type' => 'string', 'maxLength' => 128], 'template' => ['type' => 'string', 'maxLength' => 64]];
-            $properties['blocks'] = ['type' => 'array', 'maxItems' => 30, 'items' => ['type' => 'object', 'properties' => [
-                'type' => ['type' => 'string', 'enum' => ['html', 'posts', 'gallery', 'products', 'widget']],
+            $cellSchema = ['type' => 'object', 'properties' => [
+                'type' => ['type' => 'string', 'enum' => ['html', 'posts', 'gallery', 'products', 'widget', 'collection']],
                 'title' => ['type' => 'string', 'maxLength' => 160], 'body' => ['type' => 'string', 'maxLength' => 1048576],
                 'category' => ['type' => 'string', 'maxLength' => 100], 'widget' => ['type' => 'string', 'maxLength' => 160],
+                'custom_class' => ['type'=>'string', 'maxLength'=>500],
+                'gallery_images' => ['type'=>'string', 'maxLength'=>8000],
                 'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 24],
                 'show_image' => ['type' => 'boolean'], 'show_date' => ['type' => 'boolean'], 'show_read_more' => ['type' => 'boolean'],
-            ], 'required' => ['type'], 'additionalProperties' => false]];
+                'collection' => ['type' => 'string', 'maxLength' => 64], 'collection_layout' => ['type' => 'string', 'maxLength' => 64],
+                'collection_fields' => ['type' => 'string', 'maxLength' => 1560], 'collection_filter' => ['type' => 'string', 'maxLength' => 64],
+                'collection_value' => ['type' => 'string', 'maxLength' => 2000], 'collection_sort' => ['type' => 'string', 'maxLength' => 64],
+                'collection_order' => ['type' => 'string', 'enum' => ['asc', 'desc']],
+            ], 'required' => ['type'], 'additionalProperties' => false];
+            $blockSchema = $cellSchema;
+            $blockSchema['properties']['type']['enum'][] = 'grid';
+            $blockSchema['properties']['columns'] = ['type'=>'integer', 'minimum'=>1, 'maximum'=>4];
+            $blockSchema['properties']['cells'] = ['type'=>'array', 'minItems'=>1, 'maxItems'=>12, 'items'=>$cellSchema];
+            $properties['blocks'] = ['type'=>'array', 'maxItems'=>30, 'items'=>$blockSchema];
             $properties['show_latest_posts'] = ['type' => 'boolean'];
             $properties['latest_posts_limit'] = ['type' => 'integer', 'minimum' => 1, 'maximum' => 12];
         } else {

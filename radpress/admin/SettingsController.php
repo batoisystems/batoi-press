@@ -51,6 +51,8 @@ final class SettingsController
         $body .= $this->section('URLs', 'Canonical public URL used for links, feeds, and update metadata.', $this->input('Base URL', 'base_url', (string)($site['base_url'] ?? '')));
         $body .= $this->section('Localization', 'Choose the timezone and display formats used for site dates and times.', '<div class="bp-form-grid">' . $this->input('Locale', 'locale', (string)($site['locale'] ?? 'en')) . $this->timezoneSelect((string)($site['timezone'] ?? 'UTC')) . '</div>' . $this->dateFormatFields($site));
         $body .= $this->section('Posts', 'Control the public blog listing without changing individual posts.', '<div class="bp-form-grid"><label>Posts per page <input type="number" name="posts_per_page" min="1" max="48" value="' . $this->e((string)max(1, min(48, (int)($site['posts_per_page'] ?? 12)))) . '" required><span class="bp-field-help">The blog adds Previous and Next navigation when more posts are available.</span></label></div>');
+        $body .= $this->section('Archive widgets', 'Choose a configured widget independently for each post archive.', $this->archiveWidgetFields($site));
+        $body .= $this->section('Maintenance mode', 'Temporarily replace public pages. Signed-in owners and administrators can preview the normal site.', $this->maintenanceFields($site));
         $body .= $this->section('Editor', 'Configure the body editor used by pages and posts.', '<div class="bp-form-grid">' . $this->editorSelect((string)($editor['body_editor'] ?? 'rich_html')) . $this->input('Editor Height', 'editor_html_height', (string)($editor['html_height'] ?? '24rem')) . '<label class="bp-field-wide">HTML Toolbar <input type="text" name="editor_html_toolbar" value="' . $this->e((string)($editor['html_toolbar'] ?? 'undo redo bold italic underline strike heading quote code ul ol task link image table hr preview source')) . '" required><span class="bp-field-help">Space-separated Batoi UIF editor commands.</span></label></div>');
         $body .= $this->section('Mail and integrations', 'Configure contact delivery, human verification, and analytics.', $this->integrationFields($integrations));
         $body .= $this->section('Import site content', 'Import pages, posts, and base64-encoded media from a Batoi Press XML document.', '<p class="bp-field-help">The import is additive: existing slugs are skipped and no current content is deleted.</p><p>' . AdminLayout::buttonLink('Open XML Import', '/admin/import', 'upload', true) . '</p>');
@@ -72,6 +74,20 @@ final class SettingsController
         $site = $original;
         foreach (['name', 'tagline', 'base_url', 'locale', 'timezone'] as $key) {
             $site[$key] = $request->input($key);
+        }
+        $site['maintenance_enabled'] = $request->input('maintenance_enabled') === '1';
+        $site['maintenance_page'] = \Batoi\Press\Core\Slug::normalize($request->input('maintenance_page'));
+        $availablePages = new \Batoi\Press\Content\PageRepository($this->config->paths(), $this->files, new \Batoi\Press\Core\HtmlContent());
+        $selectedPage = $site['maintenance_page'] !== '' ? $availablePages->findBySlug($site['maintenance_page']) : null;
+        if ($site['maintenance_enabled'] && $site['maintenance_page'] !== '' && ($selectedPage === null || ($selectedPage['status'] ?? '') === 'trashed')) {
+            return Response::html($this->layout('Settings', $this->form($site, $this->config->editor(), 'Select an available maintenance page.')), 422);
+        }
+        $widgetTitles = array_column((new \Batoi\Press\Content\WidgetRepository($this->config->paths()))->load()['widgets'], 'title');
+        $postTypes = (new \Batoi\Press\Content\PostRepository($this->config->paths(), $this->files, new \Batoi\Press\Core\HtmlContent()))->types();
+        $site['archive_widgets'] = [];
+        foreach ($postTypes as $postType) {
+            $title = $request->input('archive_widget_' . $postType);
+            if ($title !== '' && in_array($title, $widgetTitles, true)) $site['archive_widgets'][$postType] = $title;
         }
         $site['posts_per_page'] = max(1, min(48, (int)$request->input('posts_per_page', '12')));
         $site['appearance_mode'] = in_array($request->input('appearance_mode'), ['light', 'dark', 'system'], true) ? $request->input('appearance_mode') : 'system';
@@ -388,6 +404,34 @@ final class SettingsController
             . '<label class="bp-field-wide bp-check-option"><input type="checkbox" name="google_maps_embed" value="1"' . (($integrations['google_maps_embed'] ?? false) === true ? ' checked' : '') . '><span>Allow Google Maps embeds<small>Allows Google Maps iframe embeds in the generated policy. Explicit custom policies and hosting policies must allow these sources separately.</small></span></label>'
             . '<label>Google Analytics measurement ID <input type="text" name="analytics_measurement_id" value="' . $this->e((string)($integrations['analytics_measurement_id'] ?? '')) . '" placeholder="G-XXXXXXXXXX"></label>'
             . '<p class="bp-field-wide bp-field-help">Private keys are encrypted in local data storage and are never rendered back into this form.</p></div>';
+    }
+
+    private function maintenanceFields(array $site): string
+    {
+        $pages = new \Batoi\Press\Content\PageRepository($this->config->paths(), $this->files, new \Batoi\Press\Core\HtmlContent());
+        $options = '<option value="">Default maintenance message</option>';
+        foreach ($pages->all() as $page) {
+            if (($page['status'] ?? '') === 'trashed') continue;
+            $slug = (string)$page['slug'];
+            $options .= '<option value="' . $this->e($slug) . '"' . (($site['maintenance_page'] ?? '') === $slug ? ' selected' : '') . '>' . $this->e((string)$page['title']) . '</option>';
+        }
+        return '<div class="bp-form-grid"><label>Maintenance mode <select name="maintenance_enabled"><option value="0">Off</option><option value="1"' . (!empty($site['maintenance_enabled']) ? ' selected' : '') . '>On</option></select></label><label>Maintenance page <select name="maintenance_page">' . $options . '</select><span class="bp-field-help">The selected page is shown to visitors, including its draft content. Choose a page intended for public display. Other drafts remain private.</span></label></div>';
+    }
+
+    private function archiveWidgetFields(array $site): string
+    {
+        $posts = new \Batoi\Press\Content\PostRepository($this->config->paths(), $this->files, new \Batoi\Press\Core\HtmlContent());
+        $widgets = (new \Batoi\Press\Content\WidgetRepository($this->config->paths()))->load()['widgets'];
+        $fields = '<div class="bp-form-grid">';
+        foreach ($posts->types() as $type) {
+            $fields .= '<label>' . $this->e(ucwords(str_replace('-', ' ', $type))) . ' archive <select name="archive_widget_' . $this->e($type) . '"><option value="">No archive widget</option>';
+            foreach ($widgets as $widget) {
+                $title = (string)($widget['title'] ?? '');
+                $fields .= '<option value="' . $this->e($title) . '"' . (($site['archive_widgets'][$type] ?? '') === $title ? ' selected' : '') . '>' . $this->e($title) . '</option>';
+            }
+            $fields .= '</select></label>';
+        }
+        return $fields . '</div>';
     }
 
     private function appearanceFields(array $site): string

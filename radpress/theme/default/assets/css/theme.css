@@ -385,3 +385,15 @@ body.bp-theme-versatile { --bp-panel:var(--bt-white); --bp-muted:var(--bt-muted)
 .bp-custom-form .bp-consent { display: flex; align-items: start; gap: .6rem; }
 .bp-custom-form .bp-consent input { margin-top: .3rem; }
 @media (max-width: 720px) { .bp-theme-versatile .bp-hero { min-height: auto; gap: 1.5rem; padding-top: 2rem; padding-bottom: 2rem; } }
+
+/* Archive widgets sit outside pagination and collapse below the listing. */
+.bp-archive-layout > * { min-width:0; }
+.bp-archive-with-widget { display:grid; grid-template-columns:minmax(0,1fr) minmax(14rem,19rem); gap:2rem; align-items:start; }
+@media(max-width:56rem) { .bp-archive-with-widget { grid-template-columns:minmax(0,1fr); } }
+
+.bp-theme-versatile .bp-article.bp-page-grid { max-width:none; }
+
+.bp-theme-versatile .bp-post-card :is(h2,h3) a { color:var(--bt-ink); text-decoration:none; }
+.bp-theme-versatile .bp-prose :is(p,li,blockquote) a:not(.bp-button) { color:var(--bp-link-hover, var(--bt-blue-dark)); }
+.bp-theme-versatile .bp-mode-toggle { width:auto; }
+.bp-theme-versatile .bp-scroll-top { width:44px; min-width:44px; padding:0; }
