@@ -72,6 +72,14 @@ try {
     $session = new Session('press_social_fixture', $config->paths()->dataPath('sessions'));
     $csrf = new Csrf($session);
     $owner = ['role' => 'owner', 'username' => 'owner'];
+    putenv('BATOI_PRESS_SOCIAL_WORKSPACE_URL=https://workspace.example.test/w/demo/bpstudio/social-publishing/');
+    $handoff = SocialPublishingController::editor($config, $csrf, $owner, 'page', $record, '/event');
+    socialCheck(str_contains($handoff, 'Share to Social in Workspace')
+        && str_contains($handoff, 'url=https%3A%2F%2Fexample.test%2Fpress%2Fevent')
+        && str_contains($handoff, 'image=https%3A%2F%2Fexample.test%2Fstudio.jpg')
+        && !str_contains($handoff, $credential), 'Workspace should receive only public share fields.');
+    socialCheck(SocialPublishingController::editor($config, $csrf, $owner, 'page', array_replace($record, ['status'=>'draft']), '/event') === '', 'Drafts cannot be shared to Workspace.');
+    putenv('BATOI_PRESS_SOCIAL_WORKSPACE_URL');
     $html = SocialPublishingController::editor($config, $csrf, $owner, 'page', $record, '/event');
     socialCheck(str_contains($html, 'Publish to Facebook · Page &amp; Co') && str_contains($html, 'Upload to YouTube') && !str_contains($html, $credential), 'Editor must render destination actions and escape names.');
     $share = ['title' => 'Open Studio', 'summary' => 'Visit the studio.', 'url' => 'https://example.test/press/event', 'image' => 'https://example.test/studio.jpg'];

@@ -68,6 +68,12 @@ final class SocialPublishingController
     {
         $body = AdminLayout::pageHeader('Social Publishing', 'Connect one destination per platform for publishing saved pages and posts.');
         if ($notice !== '') $body .= self::notice($notice, $status);
+        $workspace = self::workspaceUrl();
+        if ($workspace !== '') {
+            $body .= AdminLayout::section('Batoi Platform Workspace',
+                AdminLayout::buttonLink('Open Workspace Social Publishing', $workspace, 'link', true),
+                'Connect Facebook Pages and Instagram professional accounts through Meta.');
+        }
         $accounts = $this->publishing->accounts();
         foreach (SocialApi::NAMES as $platform => $label) {
             $account = $accounts[$platform] ?? null;
@@ -113,15 +119,25 @@ final class SocialPublishingController
     public static function editor(Config $config, Csrf $csrf, array $user, string $type, array $record, string $path): string
     {
         if (!AdminAccess::canAccess($user, self::PUBLISH, 'POST') || !PublicationState::isPublic($record)) return '';
+        $share = self::share($config, $record, $path);
+        $workspace = self::workspaceUrl();
+        $workspaceAction = '';
+        if ($workspace !== '' && $share['url'] !== '') {
+            $params = http_build_query([
+                'url' => $share['url'],
+                'caption' => trim($share['title'] . "\n\n" . $share['summary']),
+                'image' => $share['image'],
+            ], '', '&', PHP_QUERY_RFC3986);
+            $workspaceAction = AdminLayout::buttonLink('Share to Social in Workspace', $workspace . '?' . $params, 'link', true);
+        }
         try {
             $publishing = new SocialPublishing($config);
             $accounts = $publishing->accounts();
         } catch (RuntimeException) {
-            return '<p class="bp-error">Social connections are unavailable.</p>';
+            return $workspaceAction . '<p class="bp-error">Standalone social connections are unavailable.</p>';
         }
-        if ($accounts === []) return '';
-        $share = self::share($config, $record, $path);
-        $body = '';
+        if ($accounts === [] && $workspaceAction === '') return '';
+        $body = $workspaceAction;
         $videoForm = '';
         $revision = ContentRevision::for($record);
         foreach ($accounts as $platform => $account) {
@@ -257,6 +273,14 @@ final class SocialPublishingController
             'url' => strlen($canonical) <= 1000 ? $canonical : '',
             'image' => $image,
         ];
+    }
+
+    private static function workspaceUrl(): string
+    {
+        $url = trim((string)getenv('BATOI_PRESS_SOCIAL_WORKSPACE_URL'));
+        if (!self::publicHttps($url) || strpbrk($url, '?#') !== false) return '';
+        $path = (string)parse_url($url, PHP_URL_PATH);
+        return str_ends_with(rtrim($path, '/'), '/bpstudio/social-publishing') ? rtrim($url, '/') . '/' : '';
     }
 
     private static function publicHttps(string $url): bool

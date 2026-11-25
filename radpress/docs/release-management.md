@@ -67,6 +67,8 @@ Prerelease versions (for example `3.0.0-rc.1`) use a signed `candidate.json` and
 
 ## Current Release Track
 
+- `4.2.0` adds an optional Share to Social handoff from Press to Batoi Platform Workspace. See the [4.2.0 release notes](releases/v4.2.0.md).
+
 - `4.1.0` adds Data Collections with CSV/XLSX workflows, selective publication, and reusable public layouts. See the [4.1.0 release notes](releases/v4.1.0.md).
 
 - `4.0.0`: stable major upgrade published at the project owner’s request, with PHP 8.3 minimum, plugin/form infrastructure, versioned theme contracts and security fixes. Hosting and external-service acceptance checks remain open. See [release notes](releases/v4.0.0.md).

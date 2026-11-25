@@ -44,3 +44,16 @@ after saving. The YouTube integration also requires PHP Fileinfo.
 For example, a public page called **Open Studio** at
 `https://example.com/events/open-studio` can be sent to X as a title and link.
 For Instagram, first save a public JPEG in the page’s social image field.
+
+## Share through Batoi Platform Workspace
+
+An installation administrator can set `BATOI_PRESS_SOCIAL_WORKSPACE_URL` in
+the web PHP environment to the workspace's HTTPS Press Studio Social Publishing
+route, for example
+`https://www.batoi.com/w/your-workspace/bpstudio/social-publishing/`.
+The saved public page or post then offers **Share to Social in Workspace** with
+its public link, suggested caption and available JPEG. A Workspace owner or
+administrator signs into Workspace, chooses a connected destination, reviews the
+caption and selects **Publish now**. Meta authorizes the Workspace app directly.
+Press sends only the public share fields when opening the draft. Standalone
+token connections continue to work independently.
