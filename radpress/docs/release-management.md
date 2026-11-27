@@ -67,6 +67,8 @@ Prerelease versions (for example `3.0.0-rc.1`) use a signed `candidate.json` and
 
 ## Current Release Track
 
+- `4.3.0` adds Press Admin configuration for site-specific Workspace social sharing. See the [4.3.0 release notes](releases/v4.3.0.md).
+
 - `4.2.0` adds an optional Share to Social handoff from Press to Batoi Platform Workspace. See the [4.2.0 release notes](releases/v4.2.0.md).
 
 - `4.1.0` adds Data Collections with CSV/XLSX workflows, selective publication, and reusable public layouts. See the [4.1.0 release notes](releases/v4.1.0.md).

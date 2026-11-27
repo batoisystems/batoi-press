@@ -11,6 +11,7 @@ use Batoi\Press\Content\PostRepository;
 use Batoi\Press\Content\PublicationState;
 use Batoi\Press\Core\AuditLog;
 use Batoi\Press\Core\Config;
+use Batoi\Press\Core\FileStore;
 use Batoi\Press\Core\Request;
 use Batoi\Press\Core\Response;
 use Batoi\Press\Core\Slug;
@@ -61,6 +62,9 @@ final class SocialPublishingController
         if (!$this->csrf->validate(self::field($request, 'csrf_token'))) {
             return self::response('Social Publishing', '<p class="bp-error">Security token expired. Reload the form and try again.</p>', 400);
         }
+        if ($request->path === self::SETTINGS && self::field($request, 'action') === 'workspace') {
+            return $this->saveWorkspace($request);
+        }
         return $request->path === self::PUBLISH ? $this->send($request, $files) : $this->changeConnection($request);
     }
 
@@ -68,12 +72,14 @@ final class SocialPublishingController
     {
         $body = AdminLayout::pageHeader('Social Publishing', 'Connect one destination per platform for publishing saved pages and posts.');
         if ($notice !== '') $body .= self::notice($notice, $status);
-        $workspace = self::workspaceUrl();
-        if ($workspace !== '') {
-            $body .= AdminLayout::section('Batoi Platform Workspace',
-                AdminLayout::buttonLink('Open Workspace Social Publishing', $workspace, 'link', true),
-                'Connect Facebook Pages and Instagram professional accounts through Meta.');
-        }
+        $workspace = self::workspaceUrl($this->config);
+        $workspaceForm = '<form method="post" action="' . self::SETTINGS . '" class="bp-form bp-compact-form">'
+            . $this->csrf->field() . self::hidden('action', 'workspace')
+            . '<label>Workspace Social Publishing URL<input type="url" name="workspace_url" maxlength="2048" value="' . self::e($workspace) . '"></label>'
+            . '<p>Use the URL supplied for this site in Press Studio. Clear the URL to disable the Workspace handoff.</p>'
+            . AdminLayout::submitButton('Save Workspace connection', 'link', 'class="bp-button"') . '</form>';
+        if ($workspace !== '') $workspaceForm .= AdminLayout::buttonLink('Open Workspace Social Publishing', $workspace, 'link', true);
+        $body .= AdminLayout::section('Batoi Platform Workspace', $workspaceForm, 'Connect Facebook Pages and Instagram professional accounts through Meta.');
         $accounts = $this->publishing->accounts();
         foreach (SocialApi::NAMES as $platform => $label) {
             $account = $accounts[$platform] ?? null;
@@ -120,7 +126,7 @@ final class SocialPublishingController
     {
         if (!AdminAccess::canAccess($user, self::PUBLISH, 'POST') || !PublicationState::isPublic($record)) return '';
         $share = self::share($config, $record, $path);
-        $workspace = self::workspaceUrl();
+        $workspace = self::workspaceUrl($config);
         $workspaceAction = '';
         if ($workspace !== '' && $share['url'] !== '') {
             $params = http_build_query([
@@ -128,7 +134,7 @@ final class SocialPublishingController
                 'caption' => trim($share['title'] . "\n\n" . $share['summary']),
                 'image' => $share['image'],
             ], '', '&', PHP_QUERY_RFC3986);
-            $workspaceAction = AdminLayout::buttonLink('Share to Social in Workspace', $workspace . '?' . $params, 'link', true);
+            $workspaceAction = AdminLayout::buttonLink('Share to Social in Workspace', $workspace . (str_contains($workspace, '?') ? '&' : '?') . $params, 'link', true);
         }
         try {
             $publishing = new SocialPublishing($config);
@@ -275,12 +281,46 @@ final class SocialPublishingController
         ];
     }
 
-    private static function workspaceUrl(): string
+    private function saveWorkspace(Request $request): Response
     {
-        $url = trim((string)getenv('BATOI_PRESS_SOCIAL_WORKSPACE_URL'));
-        if (!self::publicHttps($url) || strpbrk($url, '?#') !== false) return '';
-        $path = (string)parse_url($url, PHP_URL_PATH);
-        return str_ends_with(rtrim($path, '/'), '/bpstudio/social-publishing') ? rtrim($url, '/') . '/' : '';
+        if (!AdminAccess::canAccess($this->user, self::SETTINGS, 'POST')) return self::response('Social Publishing', '<p>Owner access is required.</p>', 403);
+        $value = trim(self::field($request, 'workspace_url'));
+        $url = self::normalizeWorkspaceUrl($value);
+        if ($value !== '' && $url === '') {
+            return $this->settings('Use the HTTPS Social Publishing URL supplied by Press Studio.', 422);
+        }
+        try {
+            (new FileStore())->mutateJson($this->config->paths()->configPath('social-workspace.json'), static fn (): array => ['url'=>$url]);
+        } catch (RuntimeException) {
+            return $this->settings('Could not save the Workspace connection.', 500);
+        }
+        $this->audit($request, 'social.workspace.updated', 'workspace');
+        return $this->settings($url === '' ? 'Workspace sharing disabled.' : 'Workspace connection saved.');
+    }
+
+    private static function workspaceUrl(Config $config): string
+    {
+        $file = $config->paths()->configPath('social-workspace.json');
+        try {
+            $url = is_file($file)
+                ? (new FileStore())->readJson($file)['url'] ?? ''
+                : getenv('BATOI_PRESS_SOCIAL_WORKSPACE_URL');
+            return self::normalizeWorkspaceUrl(is_string($url) ? trim($url) : '');
+        } catch (RuntimeException) {
+            return '';
+        }
+    }
+
+    private static function normalizeWorkspaceUrl(string $url): string
+    {
+        if (!self::publicHttps($url) || str_contains($url, '#')) return '';
+        $parts = parse_url($url);
+        $path = rtrim((string)($parts['path'] ?? ''), '/');
+        if (!str_ends_with($path, '/bpstudio/social-publishing')) return '';
+        $query = $parts['query'] ?? '';
+        if ($query !== '' && !preg_match('/^site=[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iD', $query)) return '';
+        $base = explode('?', $url, 2)[0];
+        return rtrim($base, '/') . '/' . ($query !== '' ? '?' . strtolower($query) : '');
     }
 
     private static function publicHttps(string $url): bool

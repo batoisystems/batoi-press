@@ -79,6 +79,19 @@ try {
         && str_contains($handoff, 'image=https%3A%2F%2Fexample.test%2Fstudio.jpg')
         && !str_contains($handoff, $credential), 'Workspace should receive only public share fields.');
     socialCheck(SocialPublishingController::editor($config, $csrf, $owner, 'page', array_replace($record, ['status'=>'draft']), '/event') === '', 'Drafts cannot be shared to Workspace.');
+    $siteUid = '7e978e74-bd0b-4205-b042-e4b14ff55848';
+    $binding = 'https://workspace.example.test/w/demo/bpstudio/social-publishing/?site=' . $siteUid;
+    $workspaceController = new SocialPublishingController($config, $pages, $posts, $csrf, new AuditLog($config->paths(), $files), $owner);
+    $settings = static fn(string $url): Request => new Request('POST', '/admin/social-publishing', [], [
+        'csrf_token'=>$csrf->token(), 'action'=>'workspace', 'workspace_url'=>$url,
+    ], []);
+    socialCheck($workspaceController->handle($settings($binding . '&url=https://other.example.test'), [])->status() === 422, 'Reject bags of arbitrary handoff parameters.');
+    socialCheck($workspaceController->handle($settings($binding), [])->status() === 200, 'Press Admin can save the verified site handoff URL.');
+    $boundHandoff = SocialPublishingController::editor($config, $csrf, $owner, 'page', $record, '/event');
+    socialCheck(str_contains($boundHandoff, '?site=' . $siteUid . '&amp;url='), 'Site binding must survive appending the share payload.');
+    socialCheck($workspaceController->handle($settings(''), [])->status() === 200
+        && !str_contains(SocialPublishingController::editor($config, $csrf, $owner, 'page', $record, '/event'), 'Share to Social in Workspace'),
+        'An explicit blank disables the legacy environment fallback.');
     putenv('BATOI_PRESS_SOCIAL_WORKSPACE_URL');
     $html = SocialPublishingController::editor($config, $csrf, $owner, 'page', $record, '/event');
     socialCheck(str_contains($html, 'Publish to Facebook · Page &amp; Co') && str_contains($html, 'Upload to YouTube') && !str_contains($html, $credential), 'Editor must render destination actions and escape names.');
